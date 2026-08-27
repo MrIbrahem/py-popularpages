@@ -11,9 +11,9 @@ Falls back to English for any key missing in the requested language.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+from popularpages.wiki_repository import BASE_DIR
+
 MESSAGES_DIR = BASE_DIR / "messages"
 
 FALLBACK_LANG = "en"

@@ -7,19 +7,19 @@ page templates.
 from __future__ import annotations
 
 from datetime import date, timedelta
-from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
 from .logger import log_to_file
-from .wiki_repository import WikiRepository
+from .wiki_repository import BASE_DIR, WikiRepository
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
 VIEWS_DIR = BASE_DIR / "views"
 
 
 class ReportUpdater:
-    """Responsible for creating reports for one or more WikiProjects on a wiki."""
+    """
+    Responsible for creating reports for one or more WikiProjects on a wiki.
+    """
 
     def __init__(self, wiki: str = "en.wikipedia", dry_run: bool = False):
         """
@@ -29,7 +29,7 @@ class ReportUpdater:
         """
         self.wiki_repository = WikiRepository(wiki, dry_run)
         self.wiki = wiki
-        self.i18n = self.wiki_repository.get_i18n()
+        self.i18n = self.wiki_repository.i18n
 
         # Dates for the previous month, mirroring PHP's
         # strtotime('first day of previous month') / ('last day of previous month').
@@ -77,6 +77,7 @@ class ReportUpdater:
 
             log_to_file(f"Finished processing: {project_config['Name']}", self.wiki)
 
+        # Update index page.
         self.update_index()
 
     def _process_project(self, project: str, config: dict) -> None:
@@ -85,14 +86,14 @@ class ReportUpdater:
         :param project: WikiProject key/title.
         :param config: As specified in the on-wiki JSON config.
         """
-        rows = self.wiki_repository.get_project_pages(config["Name"])
+        page_rows = self.wiki_repository.get_project_pages(config["Name"])
 
-        if not rows:
+        if not page_rows:
             log_to_file(f'No pages found for "{project}"', self.wiki)
             return
 
-        # See T164178.
-        if len(rows) > 1_000_000:
+        # See T164178: guard against runaway memory for very large projects.
+        if len(page_rows) > 1_000_000:
             log_to_file(f"Error: {project} is too large. Skipping.", self.wiki)
             return
 
@@ -102,16 +103,23 @@ class ReportUpdater:
         import asyncio
 
         data, total_views = asyncio.run(
-            self.wiki_repository.get_monthly_pageviews_and_assessments(rows, start_date, end_date, config["Limit"])
+            self.wiki_repository.get_monthly_pageviews_and_assessments(
+                page_rows,
+                start_date,
+                end_date,
+                config["Limit"],
+            )
         )
 
         days_in_month = (self.end - self.start).days + 1
 
+        # Add in averages.
         for title, datum in data.items():
             data[title]["avgPageviews"] = datum["pageviews"] // days_in_month
 
         has_lead_section = self.wiki_repository.has_lead_section(config["Report"])
 
+        # Generate and return wikitext.
         output = self.env.get_template("report.wikitext.jinja").render(
             hasLeadSection=has_lead_section,
             wiki=self.wiki,

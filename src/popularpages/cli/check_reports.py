@@ -9,25 +9,23 @@ it to ReportUpdater.
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 
 import yaml
 
 from popularpages.report_updater import ReportUpdater
-
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+from popularpages.wiki_repository import BASE_DIR
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Check for and update stale popular pages reports across all wikis.")
     parser.add_argument(
+        "--wiki",
+        help="Only process this wiki (e.g. en.wikipedia), instead of all configured wikis.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print output instead of saving edits to the wiki.",
-    )
-    parser.add_argument(
-        "--wiki",
-        help="Only process this wiki (e.g. en.wikipedia), instead of all configured wikis.",
     )
     args = parser.parse_args()
 

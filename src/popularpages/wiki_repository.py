@@ -94,10 +94,6 @@ class WikiRepository:
         """Log in to the wiki using bot password credentials."""
         self.site.login(self.creds["botuser"], self.creds["botpass"])
 
-    def get_i18n(self) -> I18n:
-        """Getter for the shared I18n instance, mirroring PHP's getI18n()."""
-        return self.i18n
-
     def get_wiki_config(self) -> dict:
         """Get the configuration for the wiki as a whole (index/config/category)."""
         return self.wiki_config

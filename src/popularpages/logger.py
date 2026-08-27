@@ -8,10 +8,10 @@ these log files on Toolforge keep working.
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
 
 # Project root is three levels up from this file: src/popularpages/logger.py
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+from popularpages.wiki_repository import BASE_DIR
+
 LOG_DIR = BASE_DIR / "logs"
 
 

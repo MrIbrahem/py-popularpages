@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_socket import disable_socket
 
+
 @pytest.fixture(autouse=True)
 def stop_nets(request):
     # Check if 'network' mark is present in the current test item
