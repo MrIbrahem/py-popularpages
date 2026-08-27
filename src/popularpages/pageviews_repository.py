@@ -79,21 +79,18 @@ class PageviewsRepository:
         )
         log_to_file(msg, self.domain)
 
+    @retry(
+        retry=retry_if_exception(_is_retryable),
+        wait=wait_exponential(multiplier=1, min=1, max=30),
+        stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
+        after=lambda retry_state: retry_state.args[0]._log_retry(retry_state),
+        reraise=True,
+    )
     async def _get(self, article: str, start: str, end: str) -> httpx.Response:
-        @retry(
-            retry=retry_if_exception(_is_retryable),
-            wait=wait_exponential(multiplier=1, min=1, max=30),
-            stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
-            after=self._log_retry,
-            reraise=True,
-        )
-        async def _do_request() -> httpx.Response:
-            url = f"{ENDPOINT_URL}/{self.domain}/all-access/user/{article}/monthly/{start}/{end}"
-            response = await self._client.get(url)
-            response.raise_for_status()
-            return response
-
-        return await _do_request()
+        url = f"{ENDPOINT_URL}/{self.domain}/all-access/user/{article}/monthly/{start}/{end}"
+        response = await self._client.get(url)
+        response.raise_for_status()
+        return response
 
     async def get_pageviews(self, batch: dict[str, list[str]], start: str, end: str) -> dict[str, int]:
         """
@@ -119,6 +116,7 @@ class PageviewsRepository:
             article = title.replace(" ", "_")
             try:
                 response = await self._get(article, start, end)
+                return self._process_response(response.json())
             except httpx.HTTPStatusError as exc:
                 if exc.response.status_code == 404:
                     # No data available; okay to omit this page from the report.
@@ -128,8 +126,6 @@ class PageviewsRepository:
             except httpx.HTTPError as exc:
                 log_to_file(f"Exception during pageviews request: {exc}", self.domain)
                 return None
-
-            return self._process_response(response.json())
 
         results = await asyncio.gather(*(fetch_one(title) for title in all_titles))
 
