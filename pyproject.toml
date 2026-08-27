@@ -18,6 +18,9 @@ dependencies = [
     "httpx>=0.27",
 ]
 
+[project.urls]
+Homepage = "https://wikitech.wikimedia.org/wiki/Tool:Popular_Pages"
+
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-cov", "pytest-asyncio", "ruff"]
 

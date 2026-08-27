@@ -1,4 +1,5 @@
-"""Tests for popularpages.wiki_repository.WikiRepository.
+"""
+Tests for popularpages.wiki_repository.WikiRepository.
 
 Ported from tests/WikiRepositoryTest.php. These tests hit the live English
 Wikipedia API (and, for the currently-skipped tests, the replica database),
