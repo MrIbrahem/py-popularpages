@@ -1,0 +1,7 @@
+# Obtain credentials at [[Special:BotPasswords]] on the appropriate wiki.
+botuser='ExampleBot@MyTask'
+botpass='****'
+dbuser='ExampleDBUser'
+dbpass='****'
+dbhost='127.0.0.1'
+dbport='4711'

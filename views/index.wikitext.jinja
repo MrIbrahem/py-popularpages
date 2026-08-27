@@ -1,0 +1,26 @@
+{{ msg('index-page-header-1') }}
+{{ msg('index-page-header-2', ['[[' ~ configPage ~ ']]']) }}
+
+'''{{ msg('index-page-dont-edit') }}'''. {{ msg('index-page-overriden') }}
+
+{% set helpLink %}[[meta:Special:MyLanguage/Community Tech/Popular pages bot#Troubleshooting|{{ msg('index-page-help-link') }}]]{% endset %}
+{{ msg('index-page-help', [helpLink]) }}
+
+-- ~~~~
+
+== {{ msg('list-of-projects') }} ==
+
+{| class="wikitable sortable"
+! {{ msg('wikiproject') }}
+! {{ msg('report') }}
+! {{ msg('limit') }}
+! {{ msg('updated') }}
+|-
+{% for project, config in projects.items() %}
+| [[{{ project }}|{{ config.Name }}]]
+| [[{{ config.Report }}]]
+| {% raw %}{{FORMATNUM:{% endraw %}{{ config.Limit }}}}
+| {% if loop.index0 == 0 %}style="white-space:nowrap" | {% endif %}{{ config.Updated }}
+|-
+{% endfor %}
+|}

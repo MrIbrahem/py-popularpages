@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "popularpages"
+version = "0.1.0"
+description = "A tool for generating monthly popular pages reports for WikiProjects."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "mwclient>=0.10.1",
+    "Jinja2>=3.1",
+    "PyYAML>=6.0",
+    "PyMySQL>=1.1",
+    "tenacity>=8.2",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov",
+    "pytest-asyncio",
+    "ruff",
+]
+
+[project.scripts]
+popularpages-check = "popularpages.cli.check_reports:main"
+popularpages-report = "popularpages.cli.generate_report:main"
+popularpages-index = "popularpages.cli.generate_index:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# DTZ*: this project intentionally mirrors the original PHP code's use of
+#   naive local-time date()/strtotime() semantics (no explicit timezone
+#   handling), to keep behavior equivalent during the port.
+# BLE001: a few call sites intentionally catch broad Exception to match the
+#   PHP version's "never let one failure halt the whole batch run" contract
+#   (see WikiRepository.set_text and the apiQuery retry logic it replaces).
+ignore = ["DTZ005", "DTZ007", "DTZ011", "BLE001"]
