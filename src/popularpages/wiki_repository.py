@@ -438,48 +438,45 @@ class WikiRepository:
         :return: The API result dict, or None if the edit failed or this is
             a dry run.
         """
+        log_to_file(f'Attempting to update "{page_title}"', self.wiki)
+
         if not self.site.logged_in:
             self.login()
 
-        log_to_file(f'Attempting to update "{page_title}"', self.wiki)
         summary = summary or self.i18n.msg("edit-summary")
 
+        params = {
+            "title": page_title,
+            "text": text,
+            "summary": summary,
+            "bot": True,
+        }
+
         if self.dry_run:
-            print(
-                {
-                    "title": page_title,
-                    "text": text,
-                    "summary": summary,
-                    "section": section,
-                }
-            )
+            print(params)
             return None
+
+        if section:
+            params["section"] = section
+
+        page = self.site.pages[page_title]
 
         result = None
         try:
-            page = self.site.pages[page_title]
-            kwargs = {"summary": summary, "bot": True}
-            if section:
-                kwargs["section"] = "0"
-            result = page.edit(text, **kwargs)
+            # text: str,
+            # summary: str = "",
+            # bot: bool = True,
+            # section: Optional[str] = None,
+            result = page.edit(text=text, summary=summary, bot=True)
         except mwclient.errors.LoginError:
             # Session likely expired; log back in and retry once.
-            try:
-                self.login()
-                page = self.site.pages[page_title]
-                kwargs = {"summary": summary, "bot": True}
-                if section:
-                    kwargs["section"] = "0"
-                result = page.edit(text, **kwargs)
-            except Exception:
-                # Silently fail, matching the PHP version: one failed edit
-                # should not halt the whole run. generate_report.py can be
-                # run on the single failing project for debugging.
-                result = None
+            self.login()
+            result = page.edit(text=text, summary=summary, bot=True)
         except Exception:
             result = None
 
         msg = f'"{page_title}" updated' if result else f'"{page_title}" could not be updated'
+
         log_to_file(msg, self.wiki)
 
         return result
