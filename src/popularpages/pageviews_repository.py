@@ -10,6 +10,7 @@ mirroring the PHP version's use of caseyamcl/guzzle_retry_middleware.
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import httpx
 from tenacity import (
@@ -111,7 +112,7 @@ class PageviewsRepository:
         for titles in batch.values():
             all_titles.update(t for t in titles if t)
 
-        async def fetch_one(title: str) -> tuple[str, int] | None:
+        async def fetch_one(title: str) -> tuple[Any | None, int | None] | None:
             await asyncio.sleep(REQUEST_DELAY_SECONDS)
             article = title.replace(" ", "_")
             try:
@@ -141,7 +142,7 @@ class PageviewsRepository:
         return pageviews
 
     @staticmethod
-    def _process_response(response: dict) -> tuple[str, int] | None:
+    def _process_response(response: dict) -> tuple[Any | None, int | None]:
         """
         Parse a Pageviews API response, returning (article, total views).
 
@@ -151,7 +152,7 @@ class PageviewsRepository:
         """
         items = response.get("items")
         if not items:
-            return None
+            return None, None
 
         article = None
         total_views = 0

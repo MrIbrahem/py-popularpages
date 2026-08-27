@@ -4,7 +4,7 @@ Unit tests for pure helper functions in popularpages.utils.
 
 from datetime import date
 
-from popularpages.utils import uc_first, previous_month_range
+from popularpages.utils import previous_month_range, uc_first
 
 
 def test_ucfirst_basic():

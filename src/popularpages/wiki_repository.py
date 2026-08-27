@@ -13,7 +13,6 @@ from __future__ import annotations
 import configparser
 import json
 import re
-from datetime import datetime, timezone
 
 import httpx
 import mwclient
@@ -31,6 +30,11 @@ from popularpages.config import (
 from .i18n import I18n
 from .logger import log_to_file
 from .pageviews_repository import PageviewsRepository
+from .utils import (
+    first_of_this_month_timestamp,
+    mediawiki_timestamp_to_date,
+    mediawiki_timestamp_to_epoch,
+)
 
 
 class WikiRepository:
@@ -163,10 +167,10 @@ class WikiRepository:
         config = self.get_json_config()
 
         bot_timestamps = self.get_projects_with_last_bot_timestamp()
-        first_of_this_month = _first_of_this_month_timestamp()
+        first_of_this_month = first_of_this_month_timestamp()
 
         for row in bot_timestamps:
-            rev_timestamp = _mediawiki_timestamp_to_epoch(row["rev_timestamp"])
+            rev_timestamp = mediawiki_timestamp_to_epoch(row["rev_timestamp"])
             if rev_timestamp >= first_of_this_month:
                 config.pop(row["name"], None)
 
@@ -263,7 +267,7 @@ class WikiRepository:
             return ""
 
         if timestamp:
-            return _mediawiki_timestamp_to_date(timestamp)
+            return mediawiki_timestamp_to_date(timestamp)
 
         return ""
 
@@ -279,8 +283,9 @@ class WikiRepository:
         resp = self._http_client.get(ASSESSMENT_CONFIG_URL)
         resp.raise_for_status()
         data = resp.json()
+
         self._assessment_config = data["config"][f"{self.wiki}.org"]
-        return self._assessment_config
+        return self._assessment_config  # pyright: ignore[reportReturnType]
 
     # -- Database-backed page/pageviews fetching ----------------------------
 
@@ -468,40 +473,3 @@ class WikiRepository:
         log_to_file(msg, self.wiki)
 
         return result
-
-
-# -- Module-level helpers ---------------------------------------------------
-
-
-def _load_json_relaxed(wikitext: str) -> dict:
-    """
-    Parse the JSON config page content (stripping any surrounding
-    <pre>/<nowiki> wrapping that on-wiki JSON pages sometimes have)."""
-
-    return json.loads(wikitext)
-
-
-def _mediawiki_timestamp_to_epoch(timestamp: str) -> float:
-    """
-    Convert a MediaWiki DB-style timestamp (YYYYMMDDHHMMSS) to a Unix epoch."""
-
-    dt = datetime.strptime(timestamp, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
-    return dt.timestamp()
-
-
-def _mediawiki_timestamp_to_date(timestamp: str) -> str:
-    """
-    Convert an ISO 8601 MediaWiki API timestamp to YYYY-MM-DD."""
-
-    # API (formatversion=2) timestamps look like '2023-01-15T00:00:00Z'.
-    dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
-    return dt.strftime("%Y-%m-%d")
-
-
-def _first_of_this_month_timestamp() -> float:
-    """
-    Unix epoch for midnight on the first day of the current month (UTC)."""
-
-    now = datetime.now(timezone.utc)
-    # Remove projects from the config that have already been updated.
-    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()

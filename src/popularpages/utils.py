@@ -7,7 +7,8 @@ page templates.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+
 
 def uc_first(value: str) -> str:
     """
@@ -32,7 +33,40 @@ def previous_month_range(today: date) -> tuple[date, date]:
     # return first_day_of_prev_month, end
     return first_day_of_prev_month, last_day_of_prev_month
 
+
+# -- Module-level helpers ---------------------------------------------------
+
+
+def mediawiki_timestamp_to_epoch(timestamp: str) -> float:
+    """
+    Convert a MediaWiki DB-style timestamp (YYYYMMDDHHMMSS) to a Unix epoch."""
+
+    dt = datetime.strptime(timestamp, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+    return dt.timestamp()
+
+
+def mediawiki_timestamp_to_date(timestamp: str) -> str:
+    """
+    Convert an ISO 8601 MediaWiki API timestamp to YYYY-MM-DD."""
+
+    # API (formatversion=2) timestamps look like '2023-01-15T00:00:00Z'.
+    dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
+    return dt.strftime("%Y-%m-%d")
+
+
+def first_of_this_month_timestamp() -> float:
+    """
+    Unix epoch for midnight on the first day of the current month (UTC)."""
+
+    now = datetime.now(timezone.utc)
+    # Remove projects from the config that have already been updated.
+    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()
+
+
 __all__ = [
     "uc_first",
     "previous_month_range",
+    "first_of_this_month_timestamp",
+    "mediawiki_timestamp_to_date",
+    "mediawiki_timestamp_to_epoch",
 ]

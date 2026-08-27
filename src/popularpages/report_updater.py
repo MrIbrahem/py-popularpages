@@ -12,8 +12,8 @@ from datetime import date, datetime
 from jinja2 import Environment, FileSystemLoader
 
 from .logger import log_to_file
+from .utils import previous_month_range, uc_first
 from .wiki_repository import BASE_DIR, WikiRepository
-from .utils import uc_first, previous_month_range
 
 VIEWS_DIR = BASE_DIR / "views"
 
@@ -47,7 +47,8 @@ class ReportUpdater:
         self.env.filters["date"] = self._format_date
 
     def _assessments(self, type_: str, value: str) -> dict:
-        dataset = self.wiki_repository.get_assessment_config()[type_]
+        _config = self.wiki_repository.get_assessment_config()
+        dataset = _config[type_]
         for key, values in dataset.items():
             if value.lower() == key.lower():
                 return values
