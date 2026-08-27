@@ -1,4 +1,5 @@
-"""Simple file-based logger, ported from src/Logger.php.
+"""
+Simple file-based logger, ported from src/Logger.php.
 
 Writes one timestamped line per call to logs/log-{wiki}.txt, matching the
 original PHP output format exactly so existing tooling/habits around reading
@@ -16,10 +17,12 @@ LOG_DIR = BASE_DIR / "logs"
 
 
 def log_to_file(message: str, wiki: str) -> None:
-    """Append a timestamped message to logs/log-{wiki}.txt.
+    """
+    Append a timestamped message to logs/log-{wiki}.txt.
 
     :param message: Message to record in the file.
     :param wiki: Wiki key (e.g. 'en.wikipedia'), used to select the log file.
+    Mirrors the behaviour of the PHP ``wfLogToFile()`` helper used on Toolforge.
     """
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     log_path = LOG_DIR / f"log-{wiki}.txt"

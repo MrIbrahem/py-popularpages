@@ -193,7 +193,7 @@ from .logger import log_to_file
 ENDPOINT = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article"
 REQUEST_DELAY_SECONDS = 0.5  # matches PHP's REQUEST_DELAY = 500ms
 
-def _should_retry(exc: BaseException) -> bool:
+def _is_retryable(exc: BaseException) -> bool:
     return isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in (429, 503)
 
 class PageviewsRepository:
@@ -202,7 +202,7 @@ class PageviewsRepository:
         self._client = httpx.AsyncClient(timeout=3.0)
 
     @retry(
-        retry=retry_if_exception(_should_retry),
+        retry=retry_if_exception(_is_retryable),
         wait=wait_exponential(multiplier=1, min=1, max=30),
         stop=stop_after_attempt(5),
     )
@@ -514,9 +514,9 @@ class ReportUpdater:
 
         today = datetime.now()
         first_of_this_month = today.replace(day=1)
-        last_month_end = first_of_this_month - timedelta(days=1)
-        self.start = last_month_end.replace(day=1)
-        self.end = last_month_end
+        last_day_of_prev_month = first_of_this_month - timedelta(days=1)
+        self.start = last_day_of_prev_month.replace(day=1)
+        self.end = last_day_of_prev_month
 
         self.env = Environment(loader=FileSystemLoader(str(VIEWS_DIR)))
         self._register_template_helpers()

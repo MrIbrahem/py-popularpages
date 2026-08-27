@@ -1,4 +1,5 @@
-"""Tests for popularpages.pageviews_repository.PageviewsRepository.
+"""
+Tests for popularpages.pageviews_repository.PageviewsRepository.
 
 Uses httpx.MockTransport to avoid real network calls.
 """

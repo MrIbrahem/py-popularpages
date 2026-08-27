@@ -1,4 +1,5 @@
-"""Report generation and saving, ported from src/ReportUpdater.php.
+"""
+Report generation and saving, ported from src/ReportUpdater.php.
 
 Uses Jinja2 in place of Twig for rendering the wikitext report and index
 page templates.
@@ -6,7 +7,7 @@ page templates.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -33,7 +34,7 @@ class ReportUpdater:
 
         # Dates for the previous month, mirroring PHP's
         # strtotime('first day of previous month') / ('last day of previous month').
-        self.start, self.end = _previous_month_range()
+        self.start, self.end = previous_month_range(date.today())
 
         self.env = Environment(loader=FileSystemLoader(str(VIEWS_DIR)))
         self._register_template_helpers()
@@ -58,31 +59,36 @@ class ReportUpdater:
         (this project only ever uses 'Y-m-d'), so templates ported from
         Twig don't need their format-string literals rewritten."""
         php_to_strftime = {"Y": "%Y", "m": "%m", "d": "%d"}
+
         strftime_fmt = "".join(php_to_strftime.get(ch, ch) for ch in fmt)
         return value.strftime(strftime_fmt)
 
+    # ---------------------------------------------------
+    # Execution
+    # ---------------------------------------------------
     def update_reports(self, config: dict) -> None:
         """
         Update popular pages reports. Primary async execution point.
 
         :param config: The JSON config from the wiki page.
         """
+        # Make sure config isn't empty.
         if not config:
             log_to_file("Error: Invalid config. Aborting!", self.wiki)
             return
 
         for project, project_config in config.items():
-            if not self._validate_project_config(project, project_config):
+            if not self.validate_project_config(project, project_config):
                 continue
 
-            self._process_project(project, project_config)
+            self.process_project(project, project_config)
 
             log_to_file(f"Finished processing: {project_config['Name']}", self.wiki)
 
         # Update index page.
         self.update_index()
 
-    def _process_project(self, project: str, config: dict) -> None:
+    def process_project(self, project: str, config: dict) -> None:
         """
         Process an individual WikiProject and update its popular pages report.
 
@@ -117,22 +123,23 @@ class ReportUpdater:
         days_in_month = (self.end - self.start).days + 1
 
         # Add in averages.
-        for title, datum in data.items():
-            data[title]["avgPageviews"] = datum["pageviews"] // days_in_month
+        for datum in data.values():
+            datum["avgPageviews"] = datum["pageviews"] // days_in_month
 
         has_lead_section = self.wiki_repository.has_lead_section(config["Report"])
 
         # Generate and return wikitext.
-        output = self.env.get_template("report.wikitext.jinja").render(
-            hasLeadSection=has_lead_section,
-            wiki=self.wiki,
-            start=self.start,
-            end=self.end,
-            project=project,
-            pages=data,
-            totalViews=total_views,
-            category=self.wiki_repository.get_wiki_config()["category"],
-        )
+        render_argv = {
+            "hasLeadSection": has_lead_section,
+            "wiki": self.wiki,
+            "start": self.start,
+            "end": self.end,
+            "project": project,
+            "pages": data,
+            "totalViews": total_views,
+            "category": self.wiki_repository.get_wiki_config()["category"],
+        }
+        output = self.env.get_template("report.wikitext.jinja").render(render_argv)
 
         self.wiki_repository.set_text(
             config["Report"],
@@ -150,15 +157,17 @@ class ReportUpdater:
         projects_config = self.wiki_repository.get_json_config()
         last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
 
+        # Add the last updated date to the config.
         for row in last_edits:
             rev_date = row["rev_timestamp"]
             # rev_timestamp from the DB is YYYYMMDDHHMMSS.
-            from datetime import datetime
 
             parsed = datetime.strptime(str(rev_date), "%Y%m%d%H%M%S")
+
             if row["name"] in projects_config:
                 projects_config[row["name"]]["Updated"] = parsed.strftime("%Y-%m-%d")
 
+        # Generate and return wikitext.
         output = self.env.get_template("index.wikitext.jinja").render(
             projects=projects_config,
             configPage=self.wiki_repository.get_wiki_config()["config"],
@@ -170,7 +179,7 @@ class ReportUpdater:
             self.i18n.msg("edit-summary"),
         )
 
-    def _validate_project_config(self, project: str, config: dict) -> bool:
+    def validate_project_config(self, project: str, config: dict) -> bool:
         """
         Validate a WikiProject config entry: required keys, target
         namespace, and target page existence.
@@ -181,15 +190,15 @@ class ReportUpdater:
             log_to_file(f"Error: Incomplete data in config for {project}. Skipping.", self.wiki)
             return False
 
-        # Don't allow writing the report to the main namespace. There's no
-        # easy way to grab the namespace ID here, so just reject titles that
-        # don't have a colon in them (matches the PHP heuristic).
+        # Don't allow writing the report to the main namespace. There's no easy way to grab the namespace ID here
+        # so just reject titles that don't have a colon in them (matches the PHP heuristic).
         if ":" not in config["Report"]:
             log_to_file(f"Error: {project} is configured to write to the mainspace. Skipping.", self.wiki)
             return False
 
         log_to_file(f"Beginning to process: {config['Name']}", self.wiki)
 
+        # Check the project exists.
         if not self.wiki_repository.does_title_exist(project):
             log_to_file(f"Error: Project page for {config['Name']} does not exist! Skipping.", self.wiki)
             return False
@@ -198,16 +207,24 @@ class ReportUpdater:
 
 
 def _ucfirst(value: str) -> str:
-    """Capitalize only the first character, leaving the rest untouched
+    """
+    Capitalize only the first character, leaving the rest untouched
     (Jinja's builtin `capitalize` also lowercases the remainder, unlike
     PHP's ucfirst() / Twig's custom filter used here)."""
     return value[:1].upper() + value[1:] if value else value
 
 
-def _previous_month_range() -> tuple[date, date]:
-    """Return (first_day, last_day) of the previous calendar month."""
-    today = date.today()
+def previous_month_range(today: datetime) -> tuple[datetime, datetime]:
+    """
+    Return (first, last) day of the month preceding ``today``.
+
+    Python has no ``strtotime('first day of previous month')`` equivalent,
+    so compute it manually. Verified against year boundaries.
+    """
     first_of_this_month = today.replace(day=1)
     last_day_of_prev_month = first_of_this_month - timedelta(days=1)
     first_day_of_prev_month = last_day_of_prev_month.replace(day=1)
+    # TODO: Check diffrent
+    # end = last_day_of_prev_month.replace()
+    # return first_day_of_prev_month, end
     return first_day_of_prev_month, last_day_of_prev_month

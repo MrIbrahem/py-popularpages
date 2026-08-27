@@ -12,6 +12,7 @@ import argparse
 
 import yaml
 
+from popularpages.logger import log_to_file
 from popularpages.report_updater import ReportUpdater
 from popularpages.wiki_repository import BASE_DIR
 
@@ -30,11 +31,20 @@ def main() -> None:
     args = parser.parse_args()
 
     wikis_config = yaml.safe_load((BASE_DIR / "config" / "wikis.yaml").read_text(encoding="utf-8"))
-    wikis = [args.wiki] if args.wiki else list(wikis_config.keys())
+
+    if args.wiki:
+        if args.wiki not in wikis_config:
+            print(f"Unknown wiki '{args.wiki}'. Available: {', '.join(wikis_config)}")
+            return
+        wikis = [args.wiki]
+    else:
+        wikis = list(wikis_config.keys())
 
     for wiki in wikis:
         updater = ReportUpdater(wiki, dry_run=args.dry_run)
+        log_to_file("Beginning new cycle", wiki)
         stale_config = updater.wiki_repository.get_stale_projects()
+        log_to_file(f"Number of projects pending update: {len(stale_config)}", wiki)
         updater.update_reports(stale_config)
 
 

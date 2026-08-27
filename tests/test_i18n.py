@@ -1,4 +1,5 @@
-"""Tests for popularpages.i18n.I18n."""
+"""
+Tests for popularpages.i18n.I18n."""
 
 from popularpages.i18n import I18n
 

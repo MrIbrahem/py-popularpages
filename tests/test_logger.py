@@ -1,4 +1,5 @@
-"""Tests for popularpages.logger."""
+"""
+Tests for popularpages.logger."""
 
 import popularpages.logger as logger_module
 from popularpages.logger import log_to_file

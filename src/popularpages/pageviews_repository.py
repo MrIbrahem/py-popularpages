@@ -1,4 +1,5 @@
-"""Wikimedia Pageviews REST API client, ported from src/PageviewsRepository.php.
+"""
+Wikimedia Pageviews REST API client, ported from src/PageviewsRepository.php.
 
 Fetches monthly pageview timeseries for one or more articles (plus their
 redirects) and sums them into per-target-page totals. Requests that receive
@@ -29,7 +30,7 @@ CONNECT_TIMEOUT_SECONDS = 3.0
 # Delay between individual outgoing requests within a batch. This
 # approximates the PHP client's `delay` option (500ms), which staggers
 # dispatch of the underlying Guzzle promises.
-REQUEST_DELAY_SECONDS = 0.5
+REQUEST_DELAY_SECONDS = 0.5  # matches PHP's REQUEST_DELAY = 500ms
 
 MAX_RETRY_ATTEMPTS = 5
 
@@ -39,7 +40,8 @@ def _is_retryable(exc: BaseException) -> bool:
 
 
 class PageviewsRepository:
-    """Handles interaction with the Wikimedia Pageviews API for one domain."""
+    """
+    Handles interaction with the Wikimedia Pageviews API for one domain."""
 
     def __init__(self, domain: str):
         """

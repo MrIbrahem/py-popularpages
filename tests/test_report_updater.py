@@ -1,4 +1,5 @@
-"""Unit tests for pure helper functions in popularpages.report_updater.
+"""
+Unit tests for pure helper functions in popularpages.report_updater.
 
 These don't require network/DB access, unlike ReportUpdater itself (which
 constructs a WikiRepository on init and therefore needs live credentials).
@@ -6,7 +7,7 @@ constructs a WikiRepository on init and therefore needs live credentials).
 
 from datetime import date
 
-from popularpages.report_updater import ReportUpdater, _previous_month_range, _ucfirst
+from popularpages.report_updater import ReportUpdater, _ucfirst, previous_month_range
 
 
 def test_ucfirst_basic():
@@ -31,7 +32,7 @@ def test_previous_month_range_mid_year(monkeypatch):
     import popularpages.report_updater as module
 
     monkeypatch.setattr(module, "date", FakeDate)
-    start, end = _previous_month_range()
+    start, end = previous_month_range(date.today())
     assert start == date(2024, 5, 1)
     assert end == date(2024, 5, 31)
 
@@ -45,7 +46,7 @@ def test_previous_month_range_year_boundary(monkeypatch):
     import popularpages.report_updater as module
 
     monkeypatch.setattr(module, "date", FakeDate)
-    start, end = _previous_month_range()
+    start, end = previous_month_range(date.today())
     assert start == date(2023, 12, 1)
     assert end == date(2023, 12, 31)
 

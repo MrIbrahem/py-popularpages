@@ -1,4 +1,5 @@
-"""Minimal i18n replacement for krinkle/intuition (PHP).
+"""
+Minimal i18n replacement for krinkle/intuition (PHP).
 
 Loads messages from messages/{lang}.json (the exact same files used by the
 PHP version -- they are NOT modified as part of this migration) and performs
@@ -20,7 +21,12 @@ FALLBACK_LANG = "en"
 
 
 class I18n:
-    """Loads and renders translated messages for a given language."""
+    """
+    Minimal replacement for Krinkle's Intuition translation service.
+
+    Loads ``messages/{lang}.json`` files and substitutes ``$1``, ``$2``, ...
+    positional placeholders. Falls back to English for missing keys.
+    """
 
     def __init__(self, lang: str = FALLBACK_LANG):
         self.lang = lang

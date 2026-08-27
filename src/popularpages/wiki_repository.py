@@ -1,4 +1,5 @@
-"""MediaWiki API + replica database access, ported from src/WikiRepository.php.
+"""
+MediaWiki API + replica database access, ported from src/WikiRepository.php.
 
 Uses `mwclient` for all interaction with the MediaWiki Action API (login,
 querying, parsing, editing), replacing the PHP version's hand-rolled
@@ -45,7 +46,8 @@ ASSESSMENT_CONFIG_URL = "https://xtools.wmflabs.org/api/project/assessments"
 
 
 class WikiRepository:
-    """Fetches data from the MediaWiki action API and the replica database.
+    """
+    Fetches data from the MediaWiki action API and the replica database.
 
     Post-processing of this data is minimal.
     """
@@ -273,7 +275,7 @@ class WikiRepository:
             return ""
 
         if timestamp:
-        return _mediawiki_timestamp_to_date(timestamp)
+            return _mediawiki_timestamp_to_date(timestamp)
 
         return ""
 
@@ -484,28 +486,33 @@ class WikiRepository:
 
 
 def _load_json_relaxed(wikitext: str) -> dict:
-    """Parse the JSON config page content (stripping any surrounding
+    """
+    Parse the JSON config page content (stripping any surrounding
     <pre>/<nowiki> wrapping that on-wiki JSON pages sometimes have)."""
 
     return json.loads(wikitext)
 
 
 def _mediawiki_timestamp_to_epoch(timestamp: str) -> float:
-    """Convert a MediaWiki DB-style timestamp (YYYYMMDDHHMMSS) to a Unix epoch."""
+    """
+    Convert a MediaWiki DB-style timestamp (YYYYMMDDHHMMSS) to a Unix epoch."""
 
     dt = datetime.strptime(timestamp, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
     return dt.timestamp()
 
 
 def _mediawiki_timestamp_to_date(timestamp: str) -> str:
-    """Convert an ISO 8601 MediaWiki API timestamp to YYYY-MM-DD."""
+    """
+    Convert an ISO 8601 MediaWiki API timestamp to YYYY-MM-DD."""
 
     # API (formatversion=2) timestamps look like '2023-01-15T00:00:00Z'.
     dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
     return dt.strftime("%Y-%m-%d")
 
+
 def _first_of_this_month_timestamp() -> float:
-    """Unix epoch for midnight on the first day of the current month (UTC)."""
+    """
+    Unix epoch for midnight on the first day of the current month (UTC)."""
 
     now = datetime.now(timezone.utc)
     # Remove projects from the config that have already been updated.
