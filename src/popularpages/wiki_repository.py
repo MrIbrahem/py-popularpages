@@ -135,7 +135,11 @@ class WikiRepository:
         if not self.does_title_exist(title):
             return False
         result = self.site.api("parse", page=title, prop="sections", formatversion=2)
-        return bool(result.get("parse", {}).get("sections"))
+        sections = result.get("parse", {}).get("sections")
+        if not sections or len(sections) < 1:
+            # We return false if we didn't find any section
+            return False
+        return True
 
     def get_json_config(self) -> dict:
         """
@@ -407,7 +411,6 @@ class WikiRepository:
     def _sort_and_truncate_pages_list(out: dict, limit: int) -> dict:
         """
         Sort by pageviews descending and truncate to the configured limit."""
-
         def zz(kv):
             return kv[1]["pageviews"]
 
