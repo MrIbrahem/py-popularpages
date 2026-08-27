@@ -438,6 +438,9 @@ class WikiRepository:
         :return: The API result dict, or None if the edit failed or this is
             a dry run.
         """
+        if not self.site.logged_in:
+            self.login()
+
         log_to_file(f'Attempting to update "{page_title}"', self.wiki)
         summary = summary or self.i18n.msg("edit-summary")
 
