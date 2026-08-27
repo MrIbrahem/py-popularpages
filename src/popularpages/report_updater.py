@@ -102,9 +102,7 @@ class ReportUpdater:
         import asyncio
 
         data, total_views = asyncio.run(
-            self.wiki_repository.get_monthly_pageviews_and_assessments(
-                rows, start_date, end_date, config["Limit"]
-            )
+            self.wiki_repository.get_monthly_pageviews_and_assessments(rows, start_date, end_date, config["Limit"])
         )
 
         days_in_month = (self.end - self.start).days + 1
@@ -174,17 +172,13 @@ class ReportUpdater:
         # easy way to grab the namespace ID here, so just reject titles that
         # don't have a colon in them (matches the PHP heuristic).
         if ":" not in config["Report"]:
-            log_to_file(
-                f"Error: {project} is configured to write to the mainspace. Skipping.", self.wiki
-            )
+            log_to_file(f"Error: {project} is configured to write to the mainspace. Skipping.", self.wiki)
             return False
 
         log_to_file(f"Beginning to process: {config['Name']}", self.wiki)
 
         if not self.wiki_repository.does_title_exist(project):
-            log_to_file(
-                f"Error: Project page for {config['Name']} does not exist! Skipping.", self.wiki
-            )
+            log_to_file(f"Error: Project page for {config['Name']} does not exist! Skipping.", self.wiki)
             return False
 
         return True

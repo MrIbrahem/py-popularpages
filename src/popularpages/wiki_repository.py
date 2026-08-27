@@ -53,9 +53,7 @@ class WikiRepository:
         self.dry_run = dry_run
         self.creds = self._load_credentials()
 
-        self.wiki_config: dict = yaml.safe_load(
-            (BASE_DIR / "config" / "wikis.yaml").read_text(encoding="utf-8")
-        )[wiki]
+        self.wiki_config: dict = yaml.safe_load((BASE_DIR / "config" / "wikis.yaml").read_text(encoding="utf-8"))[wiki]
 
         lang = wiki.split(".")[0]
         self.i18n = I18n(lang)
@@ -204,9 +202,7 @@ class WikiRepository:
 
         :return: Config data, with the 'description' explanatory entry removed.
         """
-        result = self.site.api(
-            "parse", page=self.wiki_config["config"], prop="wikitext", formatversion=2
-        )
+        result = self.site.api("parse", page=self.wiki_config["config"], prop="wikitext", formatversion=2)
         wikitext = result["parse"]["wikitext"]
         config = _load_json_relaxed(wikitext)
         config.pop("description", None)

@@ -12,9 +12,7 @@ from popularpages.report_updater import ReportUpdater
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Manually regenerate a popular pages report for a single WikiProject."
-    )
+    parser = argparse.ArgumentParser(description="Manually regenerate a popular pages report for a single WikiProject.")
     parser.add_argument("project_name", help="WikiProject 'Name' as given in the on-wiki JSON config.")
     parser.add_argument("--wiki", default="en.wikipedia", help="Target wiki, e.g. en.wikipedia.")
     parser.add_argument(

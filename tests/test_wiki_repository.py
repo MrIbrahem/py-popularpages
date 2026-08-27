@@ -29,14 +29,11 @@ def test_does_title_exist(wiki_repository):
 
 def test_has_lead_section(wiki_repository):
     assert wiki_repository.has_lead_section("Wikipedia:WikiProject Medicine/Popular pages")
-    assert not wiki_repository.has_lead_section(
-        "User:Community Tech bot/Popular pages config.json"
-    )
+    assert not wiki_repository.has_lead_section("User:Community Tech bot/Popular pages config.json")
 
 
 @pytest.mark.skip(
-    reason="Disabled upstream in the PHP version too (was 'ertestGetProjectPages', "
-    "never actually run by PHPUnit)."
+    reason="Disabled upstream in the PHP version too (was 'ertestGetProjectPages', never actually run by PHPUnit)."
 )
 def test_get_project_pages(wiki_repository):
     rows = wiki_repository.get_project_pages("Disney")
@@ -53,9 +50,7 @@ def test_get_project_pages(wiki_repository):
 async def test_get_monthly_pageviews(wiki_repository):
     pages = ["Star Wars", "Zootopia", "The Lion King"]
     batch = {p: [p] for p in pages}
-    result = await wiki_repository.pageviews_repo.get_pageviews(
-        batch, "2017020100", "2017022800"
-    )
+    result = await wiki_repository.pageviews_repo.get_pageviews(batch, "2017020100", "2017022800")
     expected = {
         "Star Wars": 517930,
         "Zootopia": 313960,
@@ -65,7 +60,5 @@ async def test_get_monthly_pageviews(wiki_repository):
 
 
 def test_set_text(wiki_repository):
-    result = wiki_repository.set_text(
-        "User:NKohli (WMF)/sandbox", "Hi there! This is a test"
-    )
+    result = wiki_repository.set_text("User:NKohli (WMF)/sandbox", "Hi there! This is a test")
     assert result["edit"]["result"] == "Success"

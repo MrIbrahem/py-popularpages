@@ -86,9 +86,7 @@ class PageviewsRepository:
 
         return await _do_request()
 
-    async def get_pageviews(
-        self, batch: dict[str, list[str]], start: str, end: str
-    ) -> dict[str, int]:
+    async def get_pageviews(self, batch: dict[str, list[str]], start: str, end: str) -> dict[str, int]:
         """Get the combined pageviews of the given articles.
 
         :param batch: Keys are target page names, values are lists of the
@@ -99,7 +97,7 @@ class PageviewsRepository:
         :return: Dict mapping target page name -> total pageviews.
         """
         target_titles = list(batch.keys())
-        pageviews = {target: 0 for target in target_titles}
+        pageviews = dict.fromkeys(target_titles, 0)
 
         # All unique page titles (targets + redirects) to be queried.
         all_titles: set[str] = set()
@@ -115,14 +113,10 @@ class PageviewsRepository:
                 if exc.response.status_code == 404:
                     # No data available; okay to omit this page from the report.
                     return None
-                log_to_file(
-                    f"Exception caught during pageviews request: {exc}", self.domain
-                )
+                log_to_file(f"Exception caught during pageviews request: {exc}", self.domain)
                 return None
             except httpx.HTTPError as exc:
-                log_to_file(
-                    f"Exception caught during pageviews request: {exc}", self.domain
-                )
+                log_to_file(f"Exception caught during pageviews request: {exc}", self.domain)
                 return None
 
             return self._process_response(response.json())

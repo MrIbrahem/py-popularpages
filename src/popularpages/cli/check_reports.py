@@ -18,9 +18,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Check for and update stale popular pages reports across all wikis."
-    )
+    parser = argparse.ArgumentParser(description="Check for and update stale popular pages reports across all wikis.")
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -32,9 +30,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    wikis_config = yaml.safe_load(
-        (BASE_DIR / "config" / "wikis.yaml").read_text(encoding="utf-8")
-    )
+    wikis_config = yaml.safe_load((BASE_DIR / "config" / "wikis.yaml").read_text(encoding="utf-8"))
     wikis = [args.wiki] if args.wiki else list(wikis_config.keys())
 
     for wiki in wikis:
