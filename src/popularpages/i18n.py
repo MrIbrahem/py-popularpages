@@ -1,3 +1,15 @@
+"""Minimal i18n replacement for krinkle/intuition (PHP).
+
+Loads messages from messages/{lang}.json (the exact same files used by the
+PHP version -- they are NOT modified as part of this migration) and performs
+positional-variable substitution using the Wikimedia convention of $1, $2,
+... placeholders, matching Intuition::msg()'s behavior.
+
+Falls back to English for any key missing in the requested language.
+"""
+
+from __future__ import annotations
+
 import json
 from pathlib import Path
 
@@ -22,7 +34,7 @@ class I18n:
                 self._cache[lang] = json.load(f)
         return self._cache[lang]
 
-    def msg(self, key: str, variables: "list[str] | None" = None) -> str:
+    def msg(self, key: str, variables: list[str] | None = None) -> str:
         variables = variables or []
         messages = self._load(self.lang)
         text = messages.get(key)

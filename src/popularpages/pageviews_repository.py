@@ -1,3 +1,13 @@
+"""Wikimedia Pageviews REST API client, ported from src/PageviewsRepository.php.
+
+Fetches monthly pageview timeseries for one or more articles (plus their
+redirects) and sums them into per-target-page totals. Requests that receive
+a 429 or 503 response are automatically retried with exponential backoff,
+mirroring the PHP version's use of caseyamcl/guzzle_retry_middleware.
+"""
+
+from __future__ import annotations
+
 import asyncio
 
 import httpx
@@ -42,7 +52,7 @@ class PageviewsRepository:
         resp.raise_for_status()
         return resp
 
-    async def get_pageviews(self, batch: "dict[str, list[str]]", start: str, end: str) -> "dict[str, int]":
+    async def get_pageviews(self, batch: dict[str, list[str]], start: str, end: str) -> dict[str, int]:
         """Return combined pageviews for every target page in ``batch``.
 
         ``batch`` maps a target page title to a list of that page plus its
@@ -83,7 +93,7 @@ class PageviewsRepository:
 
         return pageviews
 
-    def _process_response(self, response: dict) -> "tuple[str, int] | None":
+    def _process_response(self, response: dict) -> tuple[str, int] | None:
         items = response.get("items")
         if not items:
             return None

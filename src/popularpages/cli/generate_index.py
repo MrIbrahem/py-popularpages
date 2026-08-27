@@ -1,3 +1,10 @@
+"""Generate/update only the index page for a wiki.
+
+Ported from bin/generateIndex.php.
+"""
+
+from __future__ import annotations
+
 import argparse
 
 from popularpages.logger import log_to_file

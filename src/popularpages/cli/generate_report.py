@@ -1,3 +1,10 @@
+"""Manually regenerate a report for a single WikiProject.
+
+Ported from bin/generateReport.php.
+"""
+
+from __future__ import annotations
+
 import argparse
 import asyncio
 

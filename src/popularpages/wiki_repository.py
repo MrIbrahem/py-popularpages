@@ -1,3 +1,12 @@
+"""MediaWiki API + replica database access, ported from src/WikiRepository.php.
+
+Uses `mwclient` for all interaction with the MediaWiki Action API (login,
+querying, parsing, editing), replacing the PHP version's hand-rolled
+FluentRequest/apiQuery() wrapper. Database access uses PyMySQL in place of
+mysqli, keeping the original SQL queries unchanged since they are specific
+to the Wikimedia replica database schema.
+"""
+
 from __future__ import annotations
 
 import configparser

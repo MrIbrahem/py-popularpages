@@ -1,4 +1,6 @@
-"""Tests for functions in wiki_repository.py and report_updater.py."""
+"""
+Tests for functions in wiki_repository.py and report_updater.py.
+"""
 
 from datetime import datetime
 

@@ -1,3 +1,12 @@
+"""Simple file-based logger, ported from src/Logger.php.
+
+Writes one timestamped line per call to logs/log-{wiki}.txt, matching the
+original PHP output format exactly so existing tooling/habits around reading
+these log files on Toolforge keep working.
+"""
+
+from __future__ import annotations
+
 from datetime import datetime
 from pathlib import Path
 

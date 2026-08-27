@@ -1,3 +1,9 @@
+"""Report generation and saving, ported from src/ReportUpdater.php.
+
+Uses Jinja2 in place of Twig for rendering the wikitext report and index
+page templates.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
