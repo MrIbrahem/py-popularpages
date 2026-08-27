@@ -7,7 +7,7 @@ page templates.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -35,7 +35,8 @@ class ReportUpdater:
 
         # Dates for the previous month, mirroring PHP's
         # strtotime('first day of previous month') / ('last day of previous month').
-        self.start, self.end = previous_month_range(date.today())
+        # NOTE: dont use date.today(), use datetime.now(timezone.utc).date() instead to avoid timezone issues.
+        self.start, self.end = previous_month_range(datetime.now(timezone.utc).date())
 
         self.env = Environment(loader=FileSystemLoader(str(VIEWS_DIR)))
         self._register_template_helpers()
