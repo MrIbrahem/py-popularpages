@@ -1,11 +1,13 @@
 """
-MediaWiki API + replica database access, ported from src/WikiRepository.php.
+MediaWiki API access, ported from src/WikiRepository.php.
 
 Uses `mwclient` for all interaction with the MediaWiki Action API (login,
 querying, parsing, editing), replacing the PHP version's hand-rolled
-FluentRequest/apiQuery() wrapper. Database access uses PyMySQL in place of
-mysqli, keeping the original SQL queries unchanged since they are specific
-to the Wikimedia replica database schema.
+FluentRequest/apiQuery() wrapper.
+
+Direct replica-database access now lives in WikiDatabaseRepository
+(wiki_database_repository.py); this class delegates to it for anything
+that requires SQL.
 """
 
 from __future__ import annotations
@@ -17,8 +19,6 @@ import re
 import httpx
 import mwclient
 import mwclient.errors
-import pymysql
-import pymysql.cursors
 import yaml
 
 from popularpages.config import (
@@ -30,18 +30,16 @@ from popularpages.config import (
 from .i18n import I18n
 from .logger import log_to_file
 from .pageviews_repository import PageviewsRepository
-from .utils import (
-    first_of_this_month_timestamp,
-    mediawiki_timestamp_to_date,
-    mediawiki_timestamp_to_epoch,
-)
+from .utils import mediawiki_timestamp_to_date
+from .wiki_database_repository import WikiDatabaseRepository
 
 
 class WikiRepository:
     """
-    Fetches data from the MediaWiki action API and the replica database.
+    Fetches data from the MediaWiki action API.
 
-    Post-processing of this data is minimal.
+    Post-processing of this data is minimal. Replica-database access is
+    delegated to WikiDatabaseRepository (self.db).
     """
 
     def __init__(self, wiki: str = "en.wikipedia", dry_run: bool = False):
@@ -66,6 +64,13 @@ class WikiRepository:
         self.username = self.creds["botuser"].split("@")[0]
         self.site: mwclient.Site = mwclient.Site(self.host, path="/w/")
         self.login()
+
+        self.db = WikiDatabaseRepository(
+            wiki=self.wiki,
+            creds=self.creds,
+            wiki_config=self.wiki_config,
+            username=self.username,
+        )
 
     # -- Setup / credentials -------------------------------------------------
 
@@ -94,21 +99,43 @@ class WikiRepository:
         Get the configuration for the wiki as a whole (index/config/category)."""
         return self.wiki_config
 
-    # -- Database -----------------------------------------
+    def get_stale_projects(self) -> dict:
+        """
+        Get WikiProjects that have not yet been updated for the current cycle.
 
-    def _connect_db(self) -> pymysql.connections.Connection:
-        # In production, the host is *.web.db.svc.wikimedia.cloud, where the
-        # asterisk is dynamically replaced with the database name.
-        db_name = self.wiki_config["database"].removesuffix("_p")
-        host = self.creds["dbhost"].replace("*", db_name)
-        return pymysql.connect(
-            host=host,
-            user=self.creds["dbuser"],
-            password=self.creds["dbpass"],
-            database=f"{db_name}_p",
-            port=int(self.creds["dbport"]),
-            cursorclass=pymysql.cursors.DictCursor,
-        )
+        :return: Config for WikiProjects not updated so far this month.
+        """
+        log_to_file("Checking for stale projects", self.wiki)
+        config = self.get_json_config()
+
+        projects = self._project_report_titles(config)
+        updated_names = self.db.get_stale_project_names(config, projects)
+
+        for name in updated_names:
+            config.pop(name, None)
+
+        return config
+
+    def get_projects_with_last_bot_timestamp(self) -> list[dict]:
+        """
+        Get timestamps of the bot's last edits for all configured WikiProjects.
+
+        :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
+        """
+        config = self.get_json_config()
+        projects = self._project_report_titles(config)
+        return self.db.get_projects_with_last_bot_timestamp(projects)
+
+    # -- Database-backed page/pageviews fetching ----------------------------
+
+    def get_project_pages(self, project: str) -> list[dict]:
+        """
+        Get titles & assessments for all pages in a WikiProject.
+
+        :param project: Name of the project, e.g. 'Medicine'.
+        :return: List of rows with page_title, pa_class, pa_importance, redir_title.
+        """
+        return self.db.get_project_pages(project)
 
     # ---------------------------------------------------
     # API helpers
@@ -160,75 +187,6 @@ class WikiRepository:
         # Remove the 'description' entry which is meant only as explanatory text.
         config.pop("description", None)
         return config
-
-    def get_stale_projects(self) -> dict:
-        """
-        Get WikiProjects that have not yet been updated for the current cycle.
-
-        :return: Config for WikiProjects not updated so far this month.
-        """
-        log_to_file("Checking for stale projects", self.wiki)
-        config = self.get_json_config()
-
-        bot_timestamps = self.get_projects_with_last_bot_timestamp()
-        first_of_this_month = first_of_this_month_timestamp()
-
-        for row in bot_timestamps:
-            rev_timestamp = mediawiki_timestamp_to_epoch(row["rev_timestamp"])
-            if rev_timestamp >= first_of_this_month:
-                config.pop(row["name"], None)
-
-        return config
-
-    def get_projects_with_last_bot_timestamp(self) -> list[dict]:
-        """
-        Get timestamps of the bot's last edits for all configured WikiProjects.
-
-        :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
-        """
-        log_to_file("Fetching timestamps of the bot's last edits", self.wiki)
-        config = self.get_json_config()
-
-        # Map db-key page title -> WikiProject name (config key).
-        # FIXME: assumes reports are in the Project namespace (matches PHP TODO).
-        projects: dict[str, str] = {}
-        for project_name, info in config.items():
-            # db_key = info["Report"].split(":", 1)[-1]
-            db_key = re.sub(r"^.*?:", "", info["Report"])
-            projects[db_key.replace(" ", "_")] = project_name
-
-        titles = list(projects.keys())
-        if not titles:
-            return []
-
-        conn = self._connect_db()
-        try:
-            with conn.cursor() as cursor:
-                placeholders = ", ".join(["%s"] * len(titles))
-                cursor.execute(
-                    f"""
-                    SELECT page_title, MAX(rev_timestamp) AS rev_timestamp
-                    FROM revision_userindex
-                    JOIN page ON rev_page = page_id
-                    WHERE rev_actor = (
-                        SELECT actor_id
-                        FROM actor
-                        WHERE actor_name = %s
-                    )
-                    AND page_title IN ({placeholders})
-                    AND page_namespace = 4 -- FIXME: assumes reports are in the Project namespace
-                    GROUP BY page_title
-                    """,
-                    (self.username, *titles),
-                )
-                rows = cursor.fetchall()
-        finally:
-            conn.close()
-
-        for row in rows:
-            row["name"] = projects[row["page_title"]]
-
-        return rows
 
     def get_project(self, project_name: str) -> dict | None:
         """
@@ -290,44 +248,6 @@ class WikiRepository:
 
         self._assessment_config = data["config"][f"{self.wiki}.org"]
         return self._assessment_config  # pyright: ignore[reportReturnType]
-
-    # -- Database-backed page/pageviews fetching ----------------------------
-
-    def get_project_pages(self, project: str) -> list[dict]:
-        """
-        Get titles & assessments for all pages in a WikiProject.
-
-        :param project: Name of the project, e.g. 'Medicine'.
-        :return: List of rows with page_title, pa_class, pa_importance, redir_title.
-        """
-        log_to_file(f"Fetching pages and assessments for project {project}", self.wiki)
-
-        conn = self._connect_db()
-        try:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    """
-                    SELECT page_title, pa_class, pa_importance, (
-                        SELECT rp.page_title
-                        FROM page rp
-                        WHERE rd_from = page_id
-                        AND rp.page_namespace = 0
-                    ) AS redir_title
-                    FROM page
-                    JOIN page_assessments ON page_id = pa_page_id
-                    LEFT OUTER JOIN redirect ON rd_title = page_title AND rd_namespace = 0
-                    WHERE pa_project_id = (
-                        SELECT pap_project_id
-                        FROM page_assessments_projects
-                        WHERE pap_project_title = %s
-                    )
-                    AND page_namespace = 0
-                    """,
-                    (project,),
-                )
-                return cursor.fetchall()
-        finally:
-            conn.close()
 
     # ---------------------------------------------------
     # Pageviews + assessments (batched)
@@ -411,6 +331,7 @@ class WikiRepository:
     def _sort_and_truncate_pages_list(out: dict, limit: int) -> dict:
         """
         Sort by pageviews descending and truncate to the configured limit."""
+
         def zz(kv):
             return kv[1]["pageviews"]
 
@@ -480,3 +401,20 @@ class WikiRepository:
         log_to_file(msg, self.wiki)
 
         return result
+
+    @staticmethod
+    def _project_report_titles(config: dict) -> dict[str, str]:
+        """
+        Map db-key page title -> WikiProject name (config key), derived
+        from each project's 'Report' page.
+
+        :param config: Full JSON config (project_name -> info).
+        :return: Mapping of db-key page title -> WikiProject name.
+        """
+        # FIXME: assumes reports are in the Project namespace (matches PHP TODO).
+        projects: dict[str, str] = {}
+        for project_name, info in config.items():
+            # db_key = info["Report"].split(":", 1)[-1]
+            db_key = re.sub(r"^.*?:", "", info["Report"])
+            projects[db_key.replace(" ", "_")] = project_name
+        return projects
