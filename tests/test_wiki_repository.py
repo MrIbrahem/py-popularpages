@@ -13,6 +13,7 @@ in the PHP version, so PHPUnit never actually ran them) are kept here as
 
 from datetime import datetime
 
+import mwclient.errors
 import pytest
 
 from src.popularpages.report_updater import previous_month_range
@@ -31,7 +32,10 @@ requires_creds = pytest.mark.skipif(
 
 @pytest.fixture(scope="module")
 def repository() -> WikiRepository:
-    return WikiRepository()
+    try:
+        return WikiRepository()
+    except mwclient.errors.LoginError:
+        pytest.skip("requires valid live wiki credentials (config.ini present but login failed)")
 
 
 @requires_creds
@@ -75,6 +79,7 @@ async def test_get_monthly_pageviews(repository):
     assert result == expected
 
 
+@requires_creds
 def test_set_text(repository):
     result = repository.set_text("User:NKohli (WMF)/sandbox", "Hi there! This is a test")
     assert result["edit"]["result"] == "Success"

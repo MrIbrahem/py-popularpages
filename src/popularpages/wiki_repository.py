@@ -407,7 +407,11 @@ class WikiRepository:
     def _sort_and_truncate_pages_list(out: dict, limit: int) -> dict:
         """
         Sort by pageviews descending and truncate to the configured limit."""
-        sorted_items = sorted(out.items(), key=lambda kv: kv[1]["pageviews"], reverse=True)
+
+        def zz(kv):
+            return kv[1]["pageviews"]
+
+        sorted_items = sorted(out.items(), key=zz, reverse=True)
         return dict(sorted_items[:limit])
 
     # ---------------------------------------------------

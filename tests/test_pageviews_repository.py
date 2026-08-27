@@ -51,8 +51,8 @@ async def test_get_pageviews_ignores_404():
 
 
 def test_process_response_no_items_returns_none():
-    assert PageviewsRepository._process_response({}) is None
-    assert PageviewsRepository._process_response({"items": []}) is None
+    assert PageviewsRepository._process_response({}) == (None, None)
+    assert PageviewsRepository._process_response({"items": []}) == (None, None)
 
 
 def test_process_response_sums_views_across_items():

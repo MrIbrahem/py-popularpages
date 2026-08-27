@@ -54,16 +54,29 @@ def mediawiki_timestamp_to_date(timestamp: str) -> str:
     return dt.strftime("%Y-%m-%d")
 
 
-def first_of_this_month_timestamp() -> float:
+def first_of_this_month_timestamp(now: datetime | None = None) -> float:
     """
     Unix epoch for midnight on the first day of the current month (UTC)."""
+    if now is None:
+        now = datetime.now(timezone.utc)
 
-    now = datetime.now(timezone.utc)
     # Remove projects from the config that have already been updated.
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()
 
 
+def format_date(value: date, fmt: str) -> str:
+    """
+    Custom 'date' Jinja filter accepting PHP-style format strings
+    (this project only ever uses 'Y-m-d'), so templates ported from
+    Twig don't need their format-string literals rewritten."""
+    php_to_strftime = {"Y": "%Y", "m": "%m", "d": "%d"}
+
+    strftime_fmt = "".join(php_to_strftime.get(ch, ch) for ch in fmt)
+    return value.strftime(strftime_fmt)
+
+
 __all__ = [
+    "format_date",
     "uc_first",
     "previous_month_range",
     "first_of_this_month_timestamp",

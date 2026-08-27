@@ -12,7 +12,7 @@ from datetime import date, datetime
 from jinja2 import Environment, FileSystemLoader
 
 from .logger import log_to_file
-from .utils import previous_month_range, uc_first
+from .utils import format_date, previous_month_range, uc_first
 from .wiki_repository import BASE_DIR, WikiRepository
 
 VIEWS_DIR = BASE_DIR / "views"
@@ -41,10 +41,11 @@ class ReportUpdater:
         self._register_template_helpers()
 
     def _register_template_helpers(self) -> None:
+        self.env.filters["ucfirst"] = uc_first
+
         self.env.globals["msg"] = lambda key, params=None: self.i18n.msg(key, params or [])
         self.env.globals["assessments"] = self._assessments
-        self.env.filters["ucfirst"] = uc_first
-        self.env.filters["date"] = self._format_date
+        self.env.filters["date"] = format_date
 
     def _assessments(self, type_: str, value: str) -> dict:
         _config = self.wiki_repository.get_assessment_config()
@@ -53,17 +54,6 @@ class ReportUpdater:
             if value.lower() == key.lower():
                 return values
         return dataset["Unknown"]
-
-    @staticmethod
-    def _format_date(value: date, fmt: str) -> str:
-        """
-        Custom 'date' Jinja filter accepting PHP-style format strings
-        (this project only ever uses 'Y-m-d'), so templates ported from
-        Twig don't need their format-string literals rewritten."""
-        php_to_strftime = {"Y": "%Y", "m": "%m", "d": "%d"}
-
-        strftime_fmt = "".join(php_to_strftime.get(ch, ch) for ch in fmt)
-        return value.strftime(strftime_fmt)
 
     # ---------------------------------------------------
     # Execution
