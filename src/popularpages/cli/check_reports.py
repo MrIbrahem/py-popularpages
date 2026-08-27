@@ -9,12 +9,13 @@ it to ReportUpdater.
 from __future__ import annotations
 
 import argparse
+import asyncio
 
 import yaml
 
+from popularpages.config import BASE_DIR
 from popularpages.logger import log_to_file
 from popularpages.report_updater import ReportUpdater
-from popularpages.wiki_repository import BASE_DIR
 
 
 def main() -> None:
@@ -45,7 +46,7 @@ def main() -> None:
         log_to_file("Beginning new cycle", wiki)
         stale_config = updater.wiki_repository.get_stale_projects()
         log_to_file(f"Number of projects pending update: {len(stale_config)}", wiki)
-        updater.update_reports(stale_config)
+        asyncio.run(updater.update_reports(stale_config))
 
 
 if __name__ == "__main__":

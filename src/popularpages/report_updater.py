@@ -66,7 +66,7 @@ class ReportUpdater:
     # ---------------------------------------------------
     # Execution
     # ---------------------------------------------------
-    def update_reports(self, config: dict) -> None:
+    async def update_reports(self, config: dict) -> None:
         """
         Update popular pages reports. Primary async execution point.
 
@@ -81,14 +81,14 @@ class ReportUpdater:
             if not self.validate_project_config(project, project_config):
                 continue
 
-            self.process_project(project, project_config)
+            await self.process_project(project, project_config)
 
             log_to_file(f"Finished processing: {project_config['Name']}", self.wiki)
 
         # Update index page.
         self.update_index()
 
-    def process_project(self, project: str, config: dict) -> None:
+    async def process_project(self, project: str, config: dict) -> None:
         """
         Process an individual WikiProject and update its popular pages report.
 
@@ -109,15 +109,11 @@ class ReportUpdater:
         start_date = self.start.strftime("%Y%m%d00")
         end_date = self.end.strftime("%Y%m%d00")
 
-        import asyncio
-
-        data, total_views = asyncio.run(
-            self.wiki_repository.get_monthly_pageviews_and_assessments(
-                page_rows,
-                start_date,
-                end_date,
-                config["Limit"],
-            )
+        data, total_views = await self.wiki_repository.get_monthly_pageviews_and_assessments(
+            page_rows,
+            start_date,
+            end_date,
+            config["Limit"],
         )
 
         days_in_month = (self.end - self.start).days + 1

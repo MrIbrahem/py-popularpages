@@ -10,8 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-# Project root is three levels up from this file: src/popularpages/logger.py
-from popularpages.wiki_repository import BASE_DIR
+from popularpages.config import BASE_DIR
 
 LOG_DIR = BASE_DIR / "logs"
 

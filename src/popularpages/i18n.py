@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 
-from popularpages.wiki_repository import BASE_DIR
+from popularpages.config import BASE_DIR
 
 MESSAGES_DIR = BASE_DIR / "messages"
 
