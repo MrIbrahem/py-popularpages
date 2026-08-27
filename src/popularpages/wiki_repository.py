@@ -10,6 +10,9 @@ to the Wikimedia replica database schema.
 from __future__ import annotations
 
 import configparser
+import json
+import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -42,7 +45,10 @@ ASSESSMENT_CONFIG_URL = "https://xtools.wmflabs.org/api/project/assessments"
 
 
 class WikiRepository:
-    """Assists with fetching data from the MediaWiki API and replica database."""
+    """Fetches data from the MediaWiki action API and the replica database.
+
+    Post-processing of this data is minimal.
+    """
 
     def __init__(self, wiki: str = "en.wikipedia", dry_run: bool = False):
         """
@@ -71,12 +77,15 @@ class WikiRepository:
 
     @staticmethod
     def _load_credentials() -> dict[str, str]:
-        """Load config.ini, which has no [section] headers (like PHP's
+        """
+        Load config.ini, which has no [section] headers (like PHP's
         parse_ini_file). We inject a synthetic DEFAULT section so
         configparser can read it, then strip quotes from values.
         """
-        config_path = BASE_DIR / "config.ini"
         parser = configparser.ConfigParser()
+
+        config_path = BASE_DIR / "config.ini"
+        # config.ini has no section headers, like PHP's parse_ini_file.
         content = "[DEFAULT]\n" + config_path.read_text(encoding="utf-8")
         parser.read_string(content)
         return {key: value.strip("'\"") for key, value in parser["DEFAULT"].items()}
@@ -93,12 +102,12 @@ class WikiRepository:
         """Get the configuration for the wiki as a whole (index/config/category)."""
         return self.wiki_config
 
-    # -- Database --------------------------------------------------------
+    # -- Database -----------------------------------------
 
     def _connect_db(self) -> pymysql.connections.Connection:
         # In production, the host is *.web.db.svc.wikimedia.cloud, where the
         # asterisk is dynamically replaced with the database name.
-        db_name = self.wiki_config["database"].replace("_p", "")
+        db_name = self.wiki_config["database"].removesuffix("_p")
         host = self.creds["dbhost"].replace("*", db_name)
         return pymysql.connect(
             host=host,
@@ -109,8 +118,8 @@ class WikiRepository:
             cursorclass=pymysql.cursors.DictCursor,
         )
 
-    # -- MediaWiki API -----------------------------------------------------
-
+    # ---------------------------------------------------
+    # API helpers
     def does_title_exist(self, title: str) -> bool:
         """Check if a given title exists on the wiki.
 
@@ -134,77 +143,22 @@ class WikiRepository:
         result = self.site.api("parse", page=title, prop="sections", formatversion=2)
         return bool(result.get("parse", {}).get("sections"))
 
-    def set_text(
-        self,
-        page_title: str,
-        text: str,
-        summary: str | None = None,
-        section: bool = False,
-    ) -> dict | None:
-        """Update a wiki page with the given text.
-
-        :param page_title: Page to set text for.
-        :param text: Text to set on the page.
-        :param summary: Edit summary.
-        :param section: If truthy, edit only section 0 (the lead) instead of
-            replacing the whole page -- matches the PHP version's use of
-            the 'section' API param to only touch the lead when it exists.
-        :return: The API result dict, or None if the edit failed or this is
-            a dry run.
-        """
-        log_to_file(f'Attempting to update "{page_title}"', self.wiki)
-        summary = summary or self.i18n.msg("edit-summary")
-
-        if self.dry_run:
-            print(
-                {
-                    "title": page_title,
-                    "text": text,
-                    "summary": summary,
-                    "section": section,
-                }
-            )
-            return None
-
-        result = None
-        try:
-            page = self.site.pages[page_title]
-            kwargs = {"summary": summary, "bot": True}
-            if section:
-                kwargs["section"] = "0"
-            result = page.edit(text, **kwargs)
-        except mwclient.errors.LoginError:
-            # Session likely expired; log back in and retry once.
-            try:
-                self.login()
-                page = self.site.pages[page_title]
-                kwargs = {"summary": summary, "bot": True}
-                if section:
-                    kwargs["section"] = "0"
-                result = page.edit(text, **kwargs)
-            except Exception:
-                # Silently fail, matching the PHP version: one failed edit
-                # should not halt the whole run. generate_report.py can be
-                # run on the single failing project for debugging.
-                result = None
-        except Exception:
-            result = None
-
-        if result:
-            log_to_file(f'"{page_title}" updated', self.wiki)
-        else:
-            log_to_file(f'"{page_title}" could not be updated', self.wiki)
-
-        return result
-
     def get_json_config(self) -> dict:
         """Fetch JSON config from the wiki's config page.
 
         :return: Config data, with the 'description' explanatory entry removed.
         """
-        result = self.site.api("parse", page=self.wiki_config["config"], prop="wikitext", formatversion=2)
+        params = {"page": self.wiki_config["config"], "prop": "wikitext"}
+
+        result = self.site.api("parse", **params)
         wikitext = result["parse"]["wikitext"]
-        config = _load_json_relaxed(wikitext)
+
+        if isinstance(wikitext, dict):
+            wikitext = wikitext.get("*", "")
+
+        config = json.loads(wikitext)
+
+        # Remove the 'description' entry which is meant only as explanatory text.
         config.pop("description", None)
         return config
 
@@ -217,11 +171,11 @@ class WikiRepository:
         config = self.get_json_config()
 
         bot_timestamps = self.get_projects_with_last_bot_timestamp()
-        month_start = _first_of_this_month_timestamp()
+        first_of_this_month = _first_of_this_month_timestamp()
 
         for row in bot_timestamps:
             rev_timestamp = _mediawiki_timestamp_to_epoch(row["rev_timestamp"])
-            if rev_timestamp >= month_start:
+            if rev_timestamp >= first_of_this_month:
                 config.pop(row["name"], None)
 
         return config
@@ -238,8 +192,9 @@ class WikiRepository:
         # FIXME: assumes reports are in the Project namespace (matches PHP TODO).
         projects: dict[str, str] = {}
         for project_name, info in config.items():
-            db_key = info["Report"].split(":", 1)[-1].replace(" ", "_")
-            projects[db_key] = project_name
+            # db_key = info["Report"].split(":", 1)[-1]
+            db_key = re.sub(r"^.*?:", "", info["Report"])
+            projects[db_key.replace(" ", "_")] = project_name
 
         titles = list(projects.keys())
         if not titles:
@@ -302,11 +257,20 @@ class WikiRepository:
             rvlimit=1,
             formatversion=2,
         )
+        timestamp = ""
         try:
-            timestamp = result["query"]["pages"][0]["revisions"][0]["timestamp"]
+            for p in result["query"]["pages"]:
+                revisions = p.get("revisions")
+                if revisions:
+                    timestamp = revisions[0]["timestamp"]
+                    break
         except (KeyError, IndexError):
             return ""
+
+        if timestamp:
         return _mediawiki_timestamp_to_date(timestamp)
+
+        return ""
 
     def get_assessment_config(self) -> dict:
         """Get the wiki's assessment configuration (colors/icons per class/importance).
@@ -316,9 +280,9 @@ class WikiRepository:
         if self._assessment_config is not None:
             return self._assessment_config
 
-        response = self._http_client.get(ASSESSMENT_CONFIG_URL)
-        response.raise_for_status()
-        data = response.json()
+        resp = self._http_client.get(ASSESSMENT_CONFIG_URL)
+        resp.raise_for_status()
+        data = resp.json()
         self._assessment_config = data["config"][f"{self.wiki}.org"]
         return self._assessment_config
 
@@ -359,10 +323,13 @@ class WikiRepository:
         finally:
             conn.close()
 
+    # ---------------------------------------------------
+    # Pageviews + assessments (batched)
     async def get_monthly_pageviews_and_assessments(
         self, rows: list[dict], start: str, end: str, limit: int
     ) -> tuple[dict, int]:
-        """Get monthly pageviews for the given pages and their redirects.
+        """
+        Get monthly pageviews for the given pages and their redirects.
 
         :param rows: Rows as returned by get_project_pages().
         :param start: Start date, in YYYYMMDD00 format.
@@ -396,6 +363,9 @@ class WikiRepository:
             else:
                 batch[target].append(redir)
 
+            # The $batchCount represents how many pages (incl. redirects) are
+            # queued. The 60 is arbitrary (see T-plan notes): we keep batches
+            # close to the API's ~100 req/sec limit without a hard cap.
             batch_count += 1
             if batch_count > BATCH_SIZE_THRESHOLD:
                 log_to_file(f"Processing page {index} of {num_results}", self.wiki)
@@ -417,7 +387,8 @@ class WikiRepository:
         end: str,
         total_pageviews: int,
     ) -> int:
-        """Process one batch of pages, updating `out` and the running total in place.
+        """
+        Process one batch of pages, updating `out` and the running total in place.
 
         :return: Updated total_pageviews.
         """
@@ -425,8 +396,8 @@ class WikiRepository:
         for title, count in batch_result.items():
             out[title]["pageviews"] += count
             total_pageviews += count
-            # Clear out batch only for this title, so the target page isn't
-            # re-added (and re-queried) in the next batch.
+            # Clear out batch only for this title, otherwise the target page
+            # might get re-added in the next batch.
             batch[title] = []
         return total_pageviews
 
@@ -436,6 +407,70 @@ class WikiRepository:
         sorted_items = sorted(out.items(), key=lambda kv: kv[1]["pageviews"], reverse=True)
         return dict(sorted_items[:limit])
 
+    # ---------------------------------------------------
+    # Editing
+    def set_text(
+        self,
+        page_title: str,
+        text: str,
+        summary: str | None = None,
+        section: bool = False,
+    ) -> dict | None:
+        """
+        Update a wiki page with the given text.
+
+        :param page_title: Page to set text for.
+        :param text: Text to set on the page.
+        :param summary: Edit summary.
+        :param section: If truthy, edit only section 0 (the lead) instead of
+            replacing the whole page -- matches the PHP version's use of
+            the 'section' API param to only touch the lead when it exists.
+        :return: The API result dict, or None if the edit failed or this is
+            a dry run.
+        """
+        log_to_file(f'Attempting to update "{page_title}"', self.wiki)
+        summary = summary or self.i18n.msg("edit-summary")
+
+        if self.dry_run:
+            print(
+                {
+                    "title": page_title,
+                    "text": text,
+                    "summary": summary,
+                    "section": section,
+                }
+            )
+            return None
+
+        result = None
+        try:
+            page = self.site.pages[page_title]
+            kwargs = {"summary": summary, "bot": True}
+            if section:
+                kwargs["section"] = "0"
+            result = page.edit(text, **kwargs)
+        except mwclient.errors.LoginError:
+            # Session likely expired; log back in and retry once.
+            try:
+                self.login()
+                page = self.site.pages[page_title]
+                kwargs = {"summary": summary, "bot": True}
+                if section:
+                    kwargs["section"] = "0"
+                result = page.edit(text, **kwargs)
+            except Exception:
+                # Silently fail, matching the PHP version: one failed edit
+                # should not halt the whole run. generate_report.py can be
+                # run on the single failing project for debugging.
+                result = None
+        except Exception:
+            result = None
+
+        msg = f'"{page_title}" updated' if result else f'"{page_title}" could not be updated'
+        log_to_file(msg, self.wiki)
+
+        return result
+
 
 # -- Module-level helpers ---------------------------------------------------
 
@@ -443,14 +478,12 @@ class WikiRepository:
 def _load_json_relaxed(wikitext: str) -> dict:
     """Parse the JSON config page content (stripping any surrounding
     <pre>/<nowiki> wrapping that on-wiki JSON pages sometimes have)."""
-    import json
 
     return json.loads(wikitext)
 
 
 def _mediawiki_timestamp_to_epoch(timestamp: str) -> float:
     """Convert a MediaWiki DB-style timestamp (YYYYMMDDHHMMSS) to a Unix epoch."""
-    from datetime import datetime, timezone
 
     dt = datetime.strptime(timestamp, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
     return dt.timestamp()
@@ -458,16 +491,14 @@ def _mediawiki_timestamp_to_epoch(timestamp: str) -> float:
 
 def _mediawiki_timestamp_to_date(timestamp: str) -> str:
     """Convert an ISO 8601 MediaWiki API timestamp to YYYY-MM-DD."""
-    from datetime import datetime
 
     # API (formatversion=2) timestamps look like '2023-01-15T00:00:00Z'.
     dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
     return dt.strftime("%Y-%m-%d")
 
-
 def _first_of_this_month_timestamp() -> float:
     """Unix epoch for midnight on the first day of the current month (UTC)."""
-    from datetime import datetime, timezone
 
     now = datetime.now(timezone.utc)
+    # Remove projects from the config that have already been updated.
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()
