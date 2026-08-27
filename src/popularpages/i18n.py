@@ -37,7 +37,8 @@ class I18n:
         return self._cache[lang]
 
     def msg(self, key: str, variables: list[str] | None = None) -> str:
-        """Return the translated, variable-substituted message for `key`.
+        """
+        Return the translated, variable-substituted message for `key`.
 
         :param key: Message key, as defined in messages/{lang}.json.
         :param variables: Positional values to substitute for $1, $2, ...

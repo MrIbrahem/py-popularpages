@@ -51,7 +51,8 @@ class PageviewsRepository:
         )
 
     async def aclose(self) -> None:
-        """Close the underlying HTTP client. Call when done with this repository."""
+        """
+        Close the underlying HTTP client. Call when done with this repository."""
         await self._client.aclose()
 
     def _log_retry(self, retry_state: RetryCallState) -> None:
@@ -87,7 +88,8 @@ class PageviewsRepository:
         return await _do_request()
 
     async def get_pageviews(self, batch: dict[str, list[str]], start: str, end: str) -> dict[str, int]:
-        """Get the combined pageviews of the given articles.
+        """
+        Get the combined pageviews of the given articles.
 
         :param batch: Keys are target page names, values are lists of the
             target page + its redirects (page titles as they should be
@@ -136,7 +138,8 @@ class PageviewsRepository:
 
     @staticmethod
     def _process_response(response: dict) -> tuple[str, int] | None:
-        """Parse a Pageviews API response, returning (article, total views).
+        """
+        Parse a Pageviews API response, returning (article, total views).
 
         :param response: Parsed JSON body from the API.
         :return: (article name with underscores replaced by spaces, total

@@ -53,7 +53,8 @@ class ReportUpdater:
 
     @staticmethod
     def _format_date(value: date, fmt: str) -> str:
-        """Custom 'date' Jinja filter accepting PHP-style format strings
+        """
+        Custom 'date' Jinja filter accepting PHP-style format strings
         (this project only ever uses 'Y-m-d'), so templates ported from
         Twig don't need their format-string literals rewritten."""
         php_to_strftime = {"Y": "%Y", "m": "%m", "d": "%d"}
@@ -61,7 +62,8 @@ class ReportUpdater:
         return value.strftime(strftime_fmt)
 
     def update_reports(self, config: dict) -> None:
-        """Update popular pages reports. Primary async execution point.
+        """
+        Update popular pages reports. Primary async execution point.
 
         :param config: The JSON config from the wiki page.
         """
@@ -81,7 +83,8 @@ class ReportUpdater:
         self.update_index()
 
     def _process_project(self, project: str, config: dict) -> None:
-        """Process an individual WikiProject and update its popular pages report.
+        """
+        Process an individual WikiProject and update its popular pages report.
 
         :param project: WikiProject key/title.
         :param config: As specified in the on-wiki JSON config.
@@ -139,7 +142,8 @@ class ReportUpdater:
         )
 
     def update_index(self) -> None:
-        """Update the index page listing each WikiProject, its report,
+        """
+        Update the index page listing each WikiProject, its report,
         and when it was last updated."""
         log_to_file("Updating index page", self.wiki)
 
@@ -167,7 +171,8 @@ class ReportUpdater:
         )
 
     def _validate_project_config(self, project: str, config: dict) -> bool:
-        """Validate a WikiProject config entry: required keys, target
+        """
+        Validate a WikiProject config entry: required keys, target
         namespace, and target page existence.
 
         :return: True if valid, else False (with the reason logged).

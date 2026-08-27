@@ -91,11 +91,13 @@ class WikiRepository:
         return {key: value.strip("'\"") for key, value in parser["DEFAULT"].items()}
 
     def login(self) -> None:
-        """Log in to the wiki using bot password credentials."""
+        """
+        Log in to the wiki using bot password credentials."""
         self.site.login(self.creds["botuser"], self.creds["botpass"])
 
     def get_wiki_config(self) -> dict:
-        """Get the configuration for the wiki as a whole (index/config/category)."""
+        """
+        Get the configuration for the wiki as a whole (index/config/category)."""
         return self.wiki_config
 
     # -- Database -----------------------------------------
@@ -117,7 +119,8 @@ class WikiRepository:
     # ---------------------------------------------------
     # API helpers
     def does_title_exist(self, title: str) -> bool:
-        """Check if a given title exists on the wiki.
+        """
+        Check if a given title exists on the wiki.
 
         :param title: Title to check existence for.
         :return: True if the title exists, else False.
@@ -129,7 +132,8 @@ class WikiRepository:
         return True
 
     def has_lead_section(self, title: str) -> bool:
-        """Check whether the page already has a first (lead) section.
+        """
+        Check whether the page already has a first (lead) section.
 
         :param title: The page title to check.
         :return: True if it exists, else False.
@@ -140,7 +144,8 @@ class WikiRepository:
         return bool(result.get("parse", {}).get("sections"))
 
     def get_json_config(self) -> dict:
-        """Fetch JSON config from the wiki's config page.
+        """
+        Fetch JSON config from the wiki's config page.
 
         :return: Config data, with the 'description' explanatory entry removed.
         """
@@ -159,7 +164,8 @@ class WikiRepository:
         return config
 
     def get_stale_projects(self) -> dict:
-        """Get WikiProjects that have not yet been updated for the current cycle.
+        """
+        Get WikiProjects that have not yet been updated for the current cycle.
 
         :return: Config for WikiProjects not updated so far this month.
         """
@@ -177,7 +183,8 @@ class WikiRepository:
         return config
 
     def get_projects_with_last_bot_timestamp(self) -> list[dict]:
-        """Get timestamps of the bot's last edits for all configured WikiProjects.
+        """
+        Get timestamps of the bot's last edits for all configured WikiProjects.
 
         :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
         """
@@ -226,7 +233,8 @@ class WikiRepository:
         return rows
 
     def get_project(self, project_name: str) -> dict | None:
-        """Get config for a single WikiProject by its display name.
+        """
+        Get config for a single WikiProject by its display name.
 
         :param project_name: Name of WikiProject as specified in the 'Name'
             parameter of the JSON config.
@@ -239,7 +247,8 @@ class WikiRepository:
         return None
 
     def get_bot_last_edit_date(self, page: str) -> str:
-        """Get the date the bot last edited the given page.
+        """
+        Get the date the bot last edited the given page.
 
         :param page: Page title.
         :return: Date in YYYY-MM-DD format, or '' if never edited by the bot.
@@ -269,7 +278,8 @@ class WikiRepository:
         return ""
 
     def get_assessment_config(self) -> dict:
-        """Get the wiki's assessment configuration (colors/icons per class/importance).
+        """
+        Get the wiki's assessment configuration (colors/icons per class/importance).
 
         :return: Nested dict, e.g. {'class': {...}, 'importance': {...}}.
         """
@@ -285,7 +295,8 @@ class WikiRepository:
     # -- Database-backed page/pageviews fetching ----------------------------
 
     def get_project_pages(self, project: str) -> list[dict]:
-        """Get titles & assessments for all pages in a WikiProject.
+        """
+        Get titles & assessments for all pages in a WikiProject.
 
         :param project: Name of the project, e.g. 'Medicine'.
         :return: List of rows with page_title, pa_class, pa_importance, redir_title.
@@ -399,7 +410,8 @@ class WikiRepository:
 
     @staticmethod
     def _sort_and_truncate_pages_list(out: dict, limit: int) -> dict:
-        """Sort by pageviews descending and truncate to the configured limit."""
+        """
+        Sort by pageviews descending and truncate to the configured limit."""
         sorted_items = sorted(out.items(), key=lambda kv: kv[1]["pageviews"], reverse=True)
         return dict(sorted_items[:limit])
 
