@@ -29,14 +29,12 @@ class WikiRepository:
         self.wiki = wiki
         self.dry_run = dry_run
         self.creds = self._load_credentials()
-        self.wiki_config = yaml.safe_load(
-            (BASE_DIR / "config" / "wikis.yaml").read_text(encoding="utf-8")
-        )[wiki]
+        self.wiki_config = yaml.safe_load((BASE_DIR / "config" / "wikis.yaml").read_text(encoding="utf-8"))[wiki]
 
         lang = wiki.split(".")[0]
         self.i18n = I18n(lang)
         self.pageviews_repo = PageviewsRepository(wiki)
-        self.assessment_config: "dict | None" = None
+        self.assessment_config: dict | None = None
 
         host = f"{wiki}.org"
         self.site = mwclient.Site(host, path="/w/")
@@ -91,9 +89,7 @@ class WikiRepository:
 
         bot_timestamps = self.get_projects_with_last_bot_timestamp()
         # Remove projects from the config that have already been updated.
-        first_of_this_month = datetime.now().replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
-        )
+        first_of_this_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         for row in bot_timestamps:
             rev_timestamp = datetime.strptime(row["rev_timestamp"], "%Y%m%d%H%M%S")
             if rev_timestamp >= first_of_this_month:
@@ -101,14 +97,11 @@ class WikiRepository:
 
         return config
 
-    def get_projects_with_last_bot_timestamp(self) -> "list[dict]":
+    def get_projects_with_last_bot_timestamp(self) -> list[dict]:
         log_to_file("Fetching timestamps of the bot's last edits", self.wiki)
         config = self.get_json_config()
         # Map the db-key page title (no namespace prefix) to the project name.
-        projects = {
-            re.sub(r"^.*?:", "", info["Report"].replace(" ", "_")): name
-            for name, info in config.items()
-        }
+        projects = {re.sub(r"^.*?:", "", info["Report"].replace(" ", "_")): name for name, info in config.items()}
         titles = list(projects.keys())
 
         conn = self._connect_db()
@@ -137,7 +130,7 @@ class WikiRepository:
             row["name"] = projects[row["page_title"]]
         return rows
 
-    def get_project(self, project_name: str) -> "dict | None":
+    def get_project(self, project_name: str) -> dict | None:
         config = self.get_json_config()
         for project, info in config.items():
             if info["Name"] == project_name:
@@ -165,9 +158,7 @@ class WikiRepository:
         if self.assessment_config is not None:
             return self.assessment_config
 
-        resp = httpx.get(
-            "https://xtools.wmflabs.org/api/project/assessments", timeout=10
-        )
+        resp = httpx.get("https://xtools.wmflabs.org/api/project/assessments", timeout=10)
         self.assessment_config = resp.json()["config"][f"{self.wiki}.org"]
         return self.assessment_config
 
@@ -186,7 +177,7 @@ class WikiRepository:
             cursorclass=pymysql.cursors.DictCursor,
         )
 
-    def get_project_pages(self, project: str) -> "list[dict]":
+    def get_project_pages(self, project: str) -> list[dict]:
         log_to_file(f"Fetching pages and assessments for project {project}", self.wiki)
         conn = self._connect_db()
         try:
@@ -219,12 +210,12 @@ class WikiRepository:
     # Pageviews + assessments (batched)
     # ------------------------------------------------------------------ #
     async def get_monthly_pageviews_and_assessments(
-        self, rows: "list[dict]", start: str, end: str, limit: int
-    ) -> "tuple[dict, int]":
+        self, rows: list[dict], start: str, end: str, limit: int
+    ) -> tuple[dict, int]:
         log_to_file("Fetching monthly pageviews", self.wiki)
 
-        out: "dict[str, dict]" = {}
-        batch: "dict[str, list[str]]" = {}
+        out: dict[str, dict] = {}
+        batch: dict[str, list[str]] = {}
         batch_count = 0
         total_pageviews = 0
         num_results = len(rows)
@@ -252,14 +243,10 @@ class WikiRepository:
             batch_count += 1
             if batch_count > 60:
                 log_to_file(f"Processing page {index} of {num_results}", self.wiki)
-                total_pageviews = await self._process_batch(
-                    batch, out, start, end, total_pageviews
-                )
+                total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
                 batch_count = 0
 
-        total_pageviews = await self._process_batch(
-            batch, out, start, end, total_pageviews
-        )
+        total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
         log_to_file("Pageviews fetch complete", self.wiki)
 
         return self._sort_and_truncate_pages_list(out, limit), total_pageviews
@@ -275,9 +262,7 @@ class WikiRepository:
         return total_pageviews
 
     def _sort_and_truncate_pages_list(self, out: dict, limit: int) -> dict:
-        sorted_items = sorted(
-            out.items(), key=lambda kv: kv[1]["pageviews"], reverse=True
-        )
+        sorted_items = sorted(out.items(), key=lambda kv: kv[1]["pageviews"], reverse=True)
         return dict(sorted_items[:limit])
 
     # ------------------------------------------------------------------ #
@@ -287,7 +272,7 @@ class WikiRepository:
         self,
         page_title: str,
         text: str,
-        summary: "str | None" = None,
+        summary: str | None = None,
         section: bool = False,
     ):
         log_to_file(f'Attempting to update "{page_title}"', self.wiki)

@@ -9,9 +9,7 @@ from popularpages.wiki_repository import BASE_DIR
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Generate popular pages reports for stale WikiProjects."
-    )
+    parser = argparse.ArgumentParser(description="Generate popular pages reports for stale WikiProjects.")
     parser.add_argument(
         "wiki",
         nargs="?",
@@ -34,9 +32,7 @@ def main() -> None:
         updater = ReportUpdater(wiki, dry_run=args.dry_run)
         log_to_file("Beginning new cycle", wiki)
         stale_config = updater.wiki_repository.get_stale_projects()
-        log_to_file(
-            f"Number of projects pending update: {len(stale_config)}", wiki
-        )
+        log_to_file(f"Number of projects pending update: {len(stale_config)}", wiki)
         asyncio.run(updater.update_reports(stale_config))
 
 

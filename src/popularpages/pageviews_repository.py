@@ -42,16 +42,14 @@ class PageviewsRepository:
         resp.raise_for_status()
         return resp
 
-    async def get_pageviews(
-        self, batch: "dict[str, list[str]]", start: str, end: str
-    ) -> "dict[str, int]":
+    async def get_pageviews(self, batch: "dict[str, list[str]]", start: str, end: str) -> "dict[str, int]":
         """Return combined pageviews for every target page in ``batch``.
 
         ``batch`` maps a target page title to a list of that page plus its
         redirects. Redirects contribute their views to the target.
         """
         target_titles = list(batch.keys())
-        pageviews: "dict[str, int]" = {t: 0 for t in target_titles}
+        pageviews: dict[str, int] = dict.fromkeys(target_titles, 0)
 
         # Unique set of all titles (targets + redirects) across the batch.
         all_titles = set()

@@ -25,31 +25,23 @@ class ReportUpdater:
         self._register_template_helpers()
 
     @staticmethod
-    def previous_month_range(today: datetime) -> "tuple[datetime, datetime]":
+    def previous_month_range(today: datetime) -> tuple[datetime, datetime]:
         """Return (first, last) day of the month preceding ``today``.
 
         Python has no ``strtotime('first day of previous month')`` equivalent,
         so compute it manually. Verified against year boundaries.
         """
-        first_of_this_month = today.replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
-        )
+        first_of_this_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         last_month_end = first_of_this_month - timedelta(days=1)
-        start = last_month_end.replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
-        )
+        start = last_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         end = last_month_end.replace(hour=0, minute=0, second=0, microsecond=0)
         return start, end
 
     def _register_template_helpers(self) -> None:
-        self.env.globals["msg"] = lambda key, params=None: self.i18n.msg(
-            key, params or []
-        )
+        self.env.globals["msg"] = lambda key, params=None: self.i18n.msg(key, params or [])
         self.env.globals["assessments"] = self._assessments
         self.env.filters["ucfirst"] = lambda s: s[:1].upper() + s[1:] if s else s
-        self.env.filters["date"] = lambda dt, fmt: dt.strftime(
-            self._php_to_strftime(fmt)
-        )
+        self.env.filters["date"] = lambda dt, fmt: dt.strftime(self._php_to_strftime(fmt))
 
     def _assessments(self, type_: str, value: str) -> dict:
         dataset = self.wiki_repository.get_assessment_config()[type_]
@@ -139,9 +131,9 @@ class ReportUpdater:
 
         # Add the last updated date to the config.
         for row in last_edits:
-            projects_config[row["name"]]["Updated"] = datetime.strptime(
-                row["rev_timestamp"], "%Y%m%d%H%M%S"
-            ).strftime("%Y-%m-%d")
+            projects_config[row["name"]]["Updated"] = datetime.strptime(row["rev_timestamp"], "%Y%m%d%H%M%S").strftime(
+                "%Y-%m-%d"
+            )
 
         # Generate and return wikitext.
         output = self.env.render(
@@ -161,9 +153,7 @@ class ReportUpdater:
     def validate_project_config(self, project: str, config: dict) -> bool:
         # Check that config values are set.
         if not all(k in config for k in ("Name", "Limit", "Report")):
-            log_to_file(
-                f"Error: Incomplete data in config for {project}. Skipping.", self.wiki
-            )
+            log_to_file(f"Error: Incomplete data in config for {project}. Skipping.", self.wiki)
             return False
 
         # Don't allow writing report to main namespace. There's no easy way to
