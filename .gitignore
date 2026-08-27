@@ -1,3 +1,7 @@
+# Popular Pages local config & logs (do not commit credentials)
+config.ini
+/logs/*.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
