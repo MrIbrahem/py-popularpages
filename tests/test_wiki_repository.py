@@ -39,6 +39,7 @@ def repository() -> WikiRepository:
 
 
 @requires_creds
+@pytest.mark.asyncio
 def test_does_title_exist(repository: WikiRepository):
     assert repository.does_title_exist("Barack Obama")
     assert repository.does_title_exist("Mickey Mouse")
@@ -47,6 +48,7 @@ def test_does_title_exist(repository: WikiRepository):
 
 
 @requires_creds
+@pytest.mark.asyncio
 def test_has_lead_section(repository):
     assert repository.has_lead_section("Wikipedia:WikiProject Medicine/Popular pages")
     assert not repository.has_lead_section("User:Community Tech bot/Popular pages config.json")
@@ -55,6 +57,7 @@ def test_has_lead_section(repository):
 @pytest.mark.skip(
     reason="Disabled upstream in the PHP version too (was 'ertestGetProjectPages', never actually run by PHPUnit)."
 )
+@pytest.mark.asyncio
 def test_get_project_pages(repository):
     rows = repository.get_project_pages("Disney")
     titles = [row["page_title"] for row in rows]
@@ -80,6 +83,7 @@ async def test_get_monthly_pageviews(repository):
 
 
 @requires_creds
+@pytest.mark.asyncio
 def test_set_text(repository):
     result = repository.set_text("User:NKohli (WMF)/sandbox", "Hi there! This is a test")
     assert result["edit"]["result"] == "Success"
