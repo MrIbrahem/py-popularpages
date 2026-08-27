@@ -21,19 +21,19 @@ WikiProjects. It:
 
 ## 2. Library Mapping
 
-| PHP dependency | Purpose | Python replacement |
-|---|---|---|
-| `addwiki/mediawiki-api-base` | MediaWiki API client, login, edit | **`mwclient`** |
-| `krinkle/intuition` | i18n / message translation | Custom `I18n` class reading the existing `messages/*.json` files |
-| `twig/twig` | Templating | `Jinja2` |
-| `symfony/yaml` | YAML parsing | `PyYAML` |
-| `ext-mysqli` | Replica DB access | `PyMySQL` |
-| `caseyamcl/guzzle_retry_middleware` | Retry w/ backoff | `tenacity` |
-| Guzzle async/promises | Concurrent pageview requests | `mwclient` handles the wiki API synchronously; pageviews requests to the separate REST API will use `httpx.AsyncClient` + `asyncio.gather` |
-| `phpunit` | Testing | `pytest` |
-| `composer` | Dependency management | `pyproject.toml` + `pip`/`uv` |
-| `mediawiki-codesniffer` (phpcs) | Linting | `ruff` |
-| GitHub Actions `php.yml` | CI | `python.yml` |
+| PHP dependency                      | Purpose                           | Python replacement                                                                                                                         |
+| ----------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `addwiki/mediawiki-api-base`        | MediaWiki API client, login, edit | **`mwclient`**                                                                                                                             |
+| `krinkle/intuition`                 | i18n / message translation        | Custom `I18n` class reading the existing `messages/*.json` files                                                                           |
+| `twig/twig`                         | Templating                        | `Jinja2`                                                                                                                                   |
+| `symfony/yaml`                      | YAML parsing                      | `PyYAML`                                                                                                                                   |
+| `ext-mysqli`                        | Replica DB access                 | `PyMySQL`                                                                                                                                  |
+| `caseyamcl/guzzle_retry_middleware` | Retry w/ backoff                  | `tenacity`                                                                                                                                 |
+| Guzzle async/promises               | Concurrent pageview requests      | `mwclient` handles the wiki API synchronously; pageviews requests to the separate REST API will use `httpx.AsyncClient` + `asyncio.gather` |
+| `phpunit`                           | Testing                           | `pytest`                                                                                                                                   |
+| `composer`                          | Dependency management             | `pyproject.toml` + `pip`/`uv`                                                                                                              |
+| `mediawiki-codesniffer` (phpcs)     | Linting                           | `ruff`                                                                                                                                     |
+| GitHub Actions `php.yml`            | CI                                | `python.yml`                                                                                                                               |
 
 **Why `mwclient`:** it wraps login, tokens, `action=edit`, `action=parse`, and
 generic `action=query` calls behind a clean `Site` object, removing the need
@@ -118,13 +118,13 @@ popularpages-index = "popularpages.cli.generate_index:main"
 
 ### 5.1 `logger.py` (from `src/Logger.php`)
 
-- Reproduce `wfLogToFile($message, $wiki)` as `log_to_file(message: str, wiki: str) -> None`.
-- Write to `logs/log-{wiki}.txt`, append mode, one line per call, timestamp
-  format `Y-m-d H:i:s` → Python `datetime.now().strftime('%Y-%m-%d %H:%M:%S')`.
-- Keep the manual open/append/close style (or wrap in Python's `logging`
-  module with a per-wiki `FileHandler`, formatted to match exactly) — either
-  is fine as long as output format is unchanged, since these logs may be
-  parsed by humans on Toolforge.
+-   Reproduce `wfLogToFile($message, $wiki)` as `log_to_file(message: str, wiki: str) -> None`.
+-   Write to `logs/log-{wiki}.txt`, append mode, one line per call, timestamp
+    format `Y-m-d H:i:s` → Python `datetime.now().strftime('%Y-%m-%d %H:%M:%S')`.
+-   Keep the manual open/append/close style (or wrap in Python's `logging`
+    module with a per-wiki `FileHandler`, formatted to match exactly) — either
+    is fine as long as output format is unchanged, since these logs may be
+    parsed by humans on Toolforge.
 
 ```python
 from datetime import datetime
@@ -142,9 +142,10 @@ def log_to_file(message: str, wiki: str) -> None:
 ### 5.2 `i18n.py` (Intuition replacement)
 
 `Intuition::msg($key, ['domain' => ..., 'variables' => [...]])` does:
-- Loads `messages/{lang}.json`.
-- Falls back to English for missing keys.
-- Substitutes `$1`, `$2`, ... placeholders with positional variables.
+
+-   Loads `messages/{lang}.json`.
+-   Falls back to English for missing keys.
+-   Substitutes `$1`, `$2`, ... placeholders with positional variables.
 
 Python equivalent — **do not modify the existing `messages/*.json` files**:
 
@@ -180,9 +181,9 @@ class I18n:
 
 ### 5.3 `pageviews_repository.py` (from `src/PageviewsRepository.php`)
 
-- Uses `httpx.AsyncClient` for the Pageviews REST API (this API is separate
-  from the wiki action API, so `mwclient` doesn't apply here).
-- Retry policy on 429/503 with exponential backoff via `tenacity`:
+-   Uses `httpx.AsyncClient` for the Pageviews REST API (this API is separate
+    from the wiki action API, so `mwclient` doesn't apply here).
+-   Retry policy on 429/503 with exponential backoff via `tenacity`:
 
 ```python
 import asyncio
@@ -485,16 +486,16 @@ contract.
 last-bot-edit-timestamp queries, single-project lookup, assessment config via
 a plain `httpx`/`requests` GET to the XTools API):
 
-- `get_json_config()`
-- `get_stale_projects()`
-- `get_projects_with_last_bot_timestamp()`
-- `get_project(project_name)`
-- `get_bot_last_edit_date(page)`
-- `get_assessment_config()`
+-   `get_json_config()`
+-   `get_stale_projects()`
+-   `get_projects_with_last_bot_timestamp()`
+-   `get_project(project_name)`
+-   `get_bot_last_edit_date(page)`
+-   `get_assessment_config()`
 
 ### 5.5 `report_updater.py` (from `src/ReportUpdater.php`)
 
-- Jinja2 environment setup:
+-   Jinja2 environment setup:
 
 ```python
 from datetime import datetime, timedelta
@@ -540,10 +541,10 @@ class ReportUpdater:
         return fmt.replace("Y", "%Y").replace("m", "%m").replace("d", "%d")
 ```
 
-- `update_reports(config)`, `process_project(project, config)`,
-  `update_index()`, `validate_project_config(project, config)` port with the
-  same control flow as the PHP originals; `process_project` becomes `async`
-  since it awaits `get_monthly_pageviews_and_assessments`.
+-   `update_reports(config)`, `process_project(project, config)`,
+    `update_index()`, `validate_project_config(project, config)` port with the
+    same control flow as the PHP originals; `process_project` becomes `async`
+    since it awaits `get_monthly_pageviews_and_assessments`.
 
 ### 5.6 CLI scripts (from `bin/*.php`)
 
@@ -581,15 +582,15 @@ single wiki/project passed as CLI arguments.
 Both files (`views/index.wikitext.twig`, `views/report.wikitext.twig`) need
 syntax adjustments when renamed to `.jinja`:
 
-| Twig | Jinja2 | Notes |
-|---|---|---|
-| `{{ msg('key') }}` | same | registered as `env.globals["msg"]` |
-| `{% set var %}...{% endset %}` | same | supported identically |
-| `{% verbatim %}...{% endverbatim %}` | `{% raw %}...{% endraw %}` | used to output literal `{{FORMATNUM:` |
-| `loop.index`, `loop.index0` | same | identical semantics |
-| `{{ value\|replace({' ': '_'}) }}` | `{{ value\|replace(' ', '_') }}` | Jinja's `replace` filter takes two positional args, not a dict |
-| `{{ start\|date('Y-m-d') }}` | `{{ start\|date('Y-m-d') }}` | keep the same PHP-style format string in the template; convert it inside the custom `date` filter (see `_php_to_strftime` above) so the `.twig`→`.jinja` diff stays minimal |
-| `config.Name`, `data.pageviews` (attribute access) | same | Jinja2 supports dict-as-attribute access identically |
+| Twig                                               | Jinja2                           | Notes                                                                                                                                                                       |
+| -------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{{ msg('key') }}`                                 | same                             | registered as `env.globals["msg"]`                                                                                                                                          |
+| `{% set var %}...{% endset %}`                     | same                             | supported identically                                                                                                                                                       |
+| `{% verbatim %}...{% endverbatim %}`               | `{% raw %}...{% endraw %}`       | used to output literal `{{FORMATNUM:`                                                                                                                                       |
+| `loop.index`, `loop.index0`                        | same                             | identical semantics                                                                                                                                                         |
+| `{{ value\|replace({' ': '_'}) }}`                 | `{{ value\|replace(' ', '_') }}` | Jinja's `replace` filter takes two positional args, not a dict                                                                                                              |
+| `{{ start\|date('Y-m-d') }}`                       | `{{ start\|date('Y-m-d') }}`     | keep the same PHP-style format string in the template; convert it inside the custom `date` filter (see `_php_to_strftime` above) so the `.twig`→`.jinja` diff stays minimal |
+| `config.Name`, `data.pageviews` (attribute access) | same                             | Jinja2 supports dict-as-attribute access identically                                                                                                                        |
 
 ---
 
@@ -603,7 +604,7 @@ syntax adjustments when renamed to `.jinja`:
 2. **PHP `date()` format vs Python `strftime`** — different symbol tables
    (`Y`/`m`/`d` happen to overlap once `%`-prefixed, but don't assume other
    PHP format characters map 1:1 if the templates are extended later).
-3. **Async batching pace** — the PHP `REQUEST_DELAY` staggers *dispatch* of
+3. **Async batching pace** — the PHP `REQUEST_DELAY` staggers _dispatch_ of
    promises at the Guzzle client level; the Python port approximates this with
    a per-request `asyncio.sleep` before firing, which is not identical but
    achieves the same rate-limiting goal. Load-test against the real Pageviews
@@ -684,25 +685,25 @@ methods once those tests are re-enabled.
 name: CI
 
 on:
-  push:
-    branches: [master]
-  pull_request:
-    branches: [master]
+    push:
+        branches: [master]
+    pull_request:
+        branches: [master]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install dependencies
-        run: pip install -e ".[dev]"
-      - name: Lint
-        run: ruff check .
-      - name: Run test suite
-        run: pytest --cov=src --cov-report=xml tests/
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+            - name: Install dependencies
+              run: pip install -e ".[dev]"
+            - name: Lint
+              run: ruff check .
+            - name: Run test suite
+              run: pytest --cov=src --cov-report=xml tests/
 ```
 
 ---
@@ -729,18 +730,18 @@ jobs:
 
 ## 11. Open Items to Confirm
 
-- Keep `set_text`'s current "swallow every exception, log, continue" behavior
-  as-is for v1 parity, or tighten it now that `mwclient` gives clearer
-  exception types? (Recommendation: keep coarse for v1, revisit after the
-  port is stable in production.)
+-   Keep `set_text`'s current "swallow every exception, log, continue" behavior
+    as-is for v1 parity, or tighten it now that `mwclient` gives clearer
+    exception types? (Recommendation: keep coarse for v1, revisit after the
+    port is stable in production.)
 
-   * keep coarse for v1, revisit after the port is stable in production..
+    -   keep coarse for v1, revisit after the port is stable in production..
 
-- Target Python version for Toolforge the (affects allowed syntax,
-  e.g. `str.removesuffix` requires 3.9+, structural pattern matching would
-  need 3.10+ if used elsewhewhere whereould `logs/log-{wiki}.txt` continue to be flat text files, or is this a
-  good opportunity to move to structured/rotating logging via the `logging`
-  module while keeping the on-disk format human-readable for existing
-  tooling/habitshabits
+-   Target Python version for Toolforge the (affects allowed syntax,
+    e.g. `str.removesuffix` requires 3.9+, structural pattern matching would
+    need 3.10+ if used elsewhewhere whereould `logs/log-{wiki}.txt` continue to be flat text files, or is this a
+    good opportunity to move to structured/rotating logging via the `logging`
+    module while keeping the on-disk format human-readable for existing
+    tooling/habitshabits
 
-    * version >= 3.12
+    -   version >= 3.12

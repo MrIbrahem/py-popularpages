@@ -2,6 +2,9 @@
 Manually regenerate a report for a single WikiProject.
 
 Ported from bin/generateReport.php.
+
+Example:
+    - python popularpages/generate_report.py --wiki en.wikipedia --project Dinosaurs
 """
 
 from __future__ import annotations
@@ -24,7 +27,7 @@ def main() -> None:
         help="Target wiki, e.g. en.wikipedia.",
     )
     parser.add_argument(
-        "project",
+        "--project",
         help="WikiProject 'Name' as given in the on-wiki JSON config.",
     )
     parser.add_argument(

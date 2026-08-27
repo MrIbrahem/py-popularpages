@@ -25,6 +25,8 @@ def log_to_file(message: str, wiki: str) -> None:
     """
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     log_path = LOG_DIR / f"log-{wiki}.txt"
+
+    # match php time: date( 'Y-m-d H:i:s' )
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     output = f"{timestamp}  {message}"
 

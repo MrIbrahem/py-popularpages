@@ -4,6 +4,9 @@ Entry point for a new bot run across all configured wikis.
 Ported from bin/checkReports.php: for every wiki listed in config/wikis.yaml,
 fetches config for WikiProjects not already updated this month, and passes
 it to ReportUpdater.
+
+Example:
+    - python popularpages/check_reports.py --wiki en.wikipedia
 """
 
 from __future__ import annotations
