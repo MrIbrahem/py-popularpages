@@ -7,12 +7,13 @@ page templates.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from jinja2 import Environment, FileSystemLoader
 
 from .logger import log_to_file
 from .wiki_repository import BASE_DIR, WikiRepository
+from .utils import uc_first, previous_month_range
 
 VIEWS_DIR = BASE_DIR / "views"
 
@@ -42,7 +43,7 @@ class ReportUpdater:
     def _register_template_helpers(self) -> None:
         self.env.globals["msg"] = lambda key, params=None: self.i18n.msg(key, params or [])
         self.env.globals["assessments"] = self._assessments
-        self.env.filters["ucfirst"] = _ucfirst
+        self.env.filters["ucfirst"] = uc_first
         self.env.filters["date"] = self._format_date
 
     def _assessments(self, type_: str, value: str) -> dict:
@@ -200,27 +201,3 @@ class ReportUpdater:
             return False
 
         return True
-
-
-def _ucfirst(value: str) -> str:
-    """
-    Capitalize only the first character, leaving the rest untouched
-    (Jinja's builtin `capitalize` also lowercases the remainder, unlike
-    PHP's ucfirst() / Twig's custom filter used here)."""
-    return value[:1].upper() + value[1:] if value else value
-
-
-def previous_month_range(today: datetime) -> tuple[datetime, datetime]:
-    """
-    Return (first, last) day of the month preceding ``today``.
-
-    Python has no ``strtotime('first day of previous month')`` equivalent,
-    so compute it manually. Verified against year boundaries.
-    """
-    first_of_this_month = today.replace(day=1)
-    last_day_of_prev_month = first_of_this_month - timedelta(days=1)
-    first_day_of_prev_month = last_day_of_prev_month.replace(day=1)
-    # TODO: Check diffrent
-    # end = last_day_of_prev_month.replace()
-    # return first_day_of_prev_month, end
-    return first_day_of_prev_month, last_day_of_prev_month
