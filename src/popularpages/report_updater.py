@@ -70,16 +70,20 @@ class ReportUpdater:
             log_to_file("Error: Invalid config. Aborting!", self.wiki)
             return
 
-        for project, project_config in config.items():
-            if not self.validate_project_config(project, project_config):
-                continue
+        try:
+            for project, project_config in config.items():
+                if not self.validate_project_config(project, project_config):
+                    continue
 
-            await self.process_project(project, project_config)
+                await self.process_project(project, project_config)
 
-            log_to_file(f"Finished processing: {project_config['Name']}", self.wiki)
+                log_to_file(f"Finished processing: {project_config['Name']}", self.wiki)
 
-        # Update index page.
-        self.update_index()
+            # Update index page.
+            self.update_index()
+        finally:
+            # Release the per-run Pageviews HTTP client (async context).
+            await self.wiki_repository.pageviews_repo.aclose()
 
     async def process_project(self, project: str, config: dict) -> None:
         """

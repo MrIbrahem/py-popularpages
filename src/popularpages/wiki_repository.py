@@ -366,33 +366,35 @@ class WikiRepository:
 
         summary = summary or self.i18n.msg("edit-summary")
 
-        params = {
-            "title": page_title,
-            "text": text,
-            "summary": summary,
-            "bot": True,
-        }
-
         if self.dry_run:
-            print(params)
+            print(
+                {
+                    "title": page_title,
+                    "text": text,
+                    "summary": summary,
+                    "section": "0" if section else False,
+                }
+            )
             return None
-
-        if section:
-            params["section"] = section
 
         page = self.site.pages[page_title]
 
+        # When the report page already has a lead section, edit only section 0
+        # (the lead) instead of replacing the whole page. mwclient's page.edit
+        # takes a `section` argument (string). This matches the PHP version's
+        # intent: `if ($section) $params['section'] = $section;` was meant to
+        # target the lead (section 0), not section 1.
+        edit_kwargs: dict = {"summary": summary, "bot": True}
+        if section:
+            edit_kwargs["section"] = "0"
+
         result = None
         try:
-            # text: str,
-            # summary: str = "",
-            # bot: bool = True,
-            # section: Optional[str] = None,
-            result = page.edit(text=text, summary=summary, bot=True)
+            result = page.edit(text=text, **edit_kwargs)
         except mwclient.errors.LoginError:
             # Session likely expired; log back in and retry once.
             self.login()
-            result = page.edit(text=text, summary=summary, bot=True)
+            result = page.edit(text=text, **edit_kwargs)
         except Exception:
             result = None
 

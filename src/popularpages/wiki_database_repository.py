@@ -15,6 +15,22 @@ from .logger import log_to_file
 from .utils import first_of_this_month_timestamp, mediawiki_timestamp_to_epoch
 
 
+def _to_str(value: object) -> object:
+    """
+    Normalize a value that may come back from PyMySQL as ``bytes``.
+
+    MediaWiki stores ``page_title`` as ``VARBINARY`` and ``rev_timestamp`` as
+    ``BINARY``. PHP's ``mysqli`` returns these as strings, but PyMySQL returns
+    ``bytes`` for binary columns by default. Decoding at the cursor boundary
+    keeps the rest of the pipeline (URL building, strptime, template rendering)
+    string-based and consistent with the PHP behavior. Non-bytes values are
+    returned unchanged.
+    """
+    if isinstance(value, (bytes, bytearray)):
+        return bytes(value).decode("utf-8")
+    return value
+
+
 class WikiDatabaseRepository:
     """
     Handles all replica-database access (connection + raw SQL queries)
@@ -91,7 +107,12 @@ class WikiDatabaseRepository:
         finally:
             conn.close()
 
+        # PyMySQL returns the BINARY(14) rev_timestamp and VARBINARY page_title
+        # as bytes; decode to str before using page_title as a config-key lookup
+        # and before the timestamps are parsed by strptime elsewhere.
         for row in rows:
+            row["page_title"] = _to_str(row["page_title"])
+            row["rev_timestamp"] = _to_str(row["rev_timestamp"])
             row["name"] = projects[row["page_title"]]
 
         return rows
@@ -150,6 +171,16 @@ class WikiDatabaseRepository:
                     """,
                     (project,),
                 )
-                return cursor.fetchall()
+                rows = cursor.fetchall()
         finally:
             conn.close()
+
+        # MediaWiki returns page_title/redir_title as VARBINARY and
+        # pa_class/pa_importance as VARBINARY/strings; PyMySQL yields bytes for
+        # the binary ones. Decode so downstream URL/strptime/template code sees str.
+        for row in rows:
+            row["page_title"] = _to_str(row["page_title"])
+            row["redir_title"] = _to_str(row["redir_title"])
+            row["pa_class"] = _to_str(row["pa_class"])
+            row["pa_importance"] = _to_str(row["pa_importance"])
+        return rows

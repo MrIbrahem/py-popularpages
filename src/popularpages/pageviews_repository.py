@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 from tenacity import (
@@ -36,8 +37,45 @@ REQUEST_DELAY_SECONDS = 0.5  # matches PHP's REQUEST_DELAY = 500ms
 MAX_RETRY_ATTEMPTS = 5
 
 
+RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
+
+
 def _is_retryable(exc: BaseException) -> bool:
-    return isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in (429, 503)
+    """
+    Decide whether a failed Pageviews request should be retried.
+
+    Mirrors the PHP Guzzle retry middleware, which retries on 429/503 *and*
+    connection timeouts, and honors the server's ``Retry-After`` header (the
+    latter handled in :func:`_retry_wait`). PyMySQL-less HTTP errors that are
+    not 4xx/5xx transport problems (e.g. DNS/connect) are also retried.
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in RETRY_STATUS_CODES
+    # Connection/transport errors and timeouts are retryable too.
+    if isinstance(exc, (httpx.TimeoutException, httpx.TransportError)):
+        return True
+    return False
+
+
+def _retry_wait(retry_state: RetryCallState) -> float:
+    """
+    Wait time between retries.
+
+    Honors a ``Retry-After`` header (seconds) when present on the failed
+    response, otherwise falls back to exponential backoff (matching the PHP
+    middleware's ``Retry-After``-aware behavior).
+    """
+    outcome = retry_state.outcome
+    if outcome is not None and outcome.failed:
+        exc = outcome.exception()
+        if isinstance(exc, httpx.HTTPStatusError):
+            retry_after = exc.response.headers.get("Retry-After")
+            if retry_after is not None:
+                try:
+                    return float(retry_after)
+                except (TypeError, ValueError):
+                    pass
+    return wait_exponential(multiplier=1, min=1, max=30)(retry_state)
 
 
 class PageviewsRepository:
@@ -82,13 +120,17 @@ class PageviewsRepository:
 
     @retry(
         retry=retry_if_exception(_is_retryable),
-        wait=wait_exponential(multiplier=1, min=1, max=30),
+        wait=_retry_wait,
         stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
         after=lambda retry_state: retry_state.args[0]._log_retry(retry_state),
         reraise=True,
     )
     async def _get(self, article: str, start: str, end: str) -> httpx.Response:
-        url = f"{ENDPOINT_URL}/{self.domain}/all-access/user/{article}/monthly/{start}/{end}"
+        # Percent-encode the article title (mirrors PHP's rawurlencode()). MediaWiki
+        # page titles may contain &, /, ?, #, +, % etc.; without encoding the URL is
+        # malformed and the API returns no data (silently counted as 0 pageviews).
+        encoded_article = quote(article, safe="")
+        url = f"{ENDPOINT_URL}/{self.domain}/all-access/user/{encoded_article}/monthly/{start}/{end}"
         response = await self._client.get(url)
         response.raise_for_status()
         return response
