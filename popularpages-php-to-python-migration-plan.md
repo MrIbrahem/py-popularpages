@@ -733,10 +733,14 @@ jobs:
   as-is for v1 parity, or tighten it now that `mwclient` gives clearer
   exception types? (Recommendation: keep coarse for v1, revisit after the
   port is stable in production.)
-- Target Python version for Toolforge deployment (affects allowed syntax,
+
+   * keep coarse for v1, revisit after the port is stable in production..
+
+- Target Python version for Toolforge the (affects allowed syntax,
   e.g. `str.removesuffix` requires 3.9+, structural pattern matching would
-  need 3.10+ if used elsewhere).
-- Should `logs/log-{wiki}.txt` continue to be flat text files, or is this a
+  need 3.10+ if used elsewhewhere whereould `logs/log-{wiki}.txt` continue to be flat text files, or is this a
   good opportunity to move to structured/rotating logging via the `logging`
   module while keeping the on-disk format human-readable for existing
-  tooling/habits?
+  tooling/habitshabits
+
+    * version >= 3.12
