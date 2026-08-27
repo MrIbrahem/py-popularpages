@@ -20,29 +20,15 @@ def test_ucfirst_does_not_lowercase_rest():
     assert uc_first("hELLO") == "HELLO"
 
 
-def test_previous_month_range_mid_year(monkeypatch):
-    class FakeDate(date):
-        @classmethod
-        def today(cls):
-            return date(2024, 6, 15)
+def test_previous_month_range_mid_year():
 
-    import popularpages.report_updater as module
-
-    monkeypatch.setattr(module, "date", FakeDate)
-    start, end = previous_month_range(date.today())
+    start, end = previous_month_range(date(2024, 6, 15))
     assert start == date(2024, 5, 1)
     assert end == date(2024, 5, 31)
 
 
-def test_previous_month_range_year_boundary(monkeypatch):
-    class FakeDate(date):
-        @classmethod
-        def today(cls):
-            return date(2024, 1, 10)
+def test_previous_month_range_year_boundary():
 
-    import popularpages.report_updater as module
-
-    monkeypatch.setattr(module, "date", FakeDate)
-    start, end = previous_month_range(date.today())
+    start, end = previous_month_range(date(2024, 1, 10))
     assert start == date(2023, 12, 1)
     assert end == date(2023, 12, 31)
