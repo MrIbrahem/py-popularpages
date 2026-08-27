@@ -41,7 +41,13 @@ def _is_retryable(exc: BaseException) -> bool:
 
 class PageviewsRepository:
     """
-    Handles interaction with the Wikimedia Pageviews API for one domain."""
+    Fetches monthly pageviews from the Wikimedia Pageviews REST API.
+
+    Much of this was borrowed from wikimedia/eventmetrics (GPL-3.0-or-later).
+    The REST endpoint is separate from the wiki action API, so ``mwclient``
+    does not apply here and we use ``httpx`` directly with ``tenacity`` for
+    retries on 429/503.
+    """
 
     def __init__(self, domain: str):
         """
@@ -101,7 +107,7 @@ class PageviewsRepository:
         :return: Dict mapping target page name -> total pageviews.
         """
         target_titles = list(batch.keys())
-        pageviews = dict.fromkeys(target_titles, 0)
+        pageviews: dict[str, int] = dict.fromkeys(target_titles, 0)
 
         # All unique page titles (targets + redirects) to be queried.
         all_titles: set[str] = set()
@@ -117,10 +123,10 @@ class PageviewsRepository:
                 if exc.response.status_code == 404:
                     # No data available; okay to omit this page from the report.
                     return None
-                log_to_file(f"Exception caught during pageviews request: {exc}", self.domain)
+                log_to_file(f"Exception during pageviews request: {exc}", self.domain)
                 return None
             except httpx.HTTPError as exc:
-                log_to_file(f"Exception caught during pageviews request: {exc}", self.domain)
+                log_to_file(f"Exception during pageviews request: {exc}", self.domain)
                 return None
 
             return self._process_response(response.json())
@@ -153,7 +159,8 @@ class PageviewsRepository:
 
         article = None
         total_views = 0
-        for item in items:
+        # Reverse so the final ``article`` matches the PHP behaviour (first item).
+        for item in reversed(items):
             total_views += int(item["views"])
             article = item["article"].replace("_", " ")
 
