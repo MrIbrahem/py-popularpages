@@ -61,9 +61,9 @@ class ReportUpdater:
         # Twig templates only use 'Y-m-d' in this project.
         return fmt.replace("Y", "%Y").replace("m", "%m").replace("d", "%d")
 
-    # ------------------------------------------------------------------ #
+    # ---------------------------------------------------
     # Execution
-    # ------------------------------------------------------------------ #
+    # ---------------------------------------------------
     async def update_reports(self, config: dict) -> None:
         # Make sure config isn't empty.
         if not config:
