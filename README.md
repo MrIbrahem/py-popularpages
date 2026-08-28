@@ -63,12 +63,12 @@ python -m popularpages.cli.generate_index --wiki en.wikipedia --dry-run
 
 ## How it works
 
-- Fetches config from the on-wiki JSON config page (e.g.
-  [English Wikipedia's config](https://en.wikipedia.org/wiki/User:Community_Tech_bot/Popular_pages_config.json)).
-- Runs on all projects listed in the config, compiling pageviews statistics for
-  the previous month.
-- Updates [the info page on wiki](https://en.wikipedia.org/wiki/User:Community_Tech_bot/Popular_pages)
-  with the timestamp of the page update.
+-   Fetches config from the on-wiki JSON config page (e.g.
+    [English Wikipedia's config](https://en.wikipedia.org/wiki/User:Community_Tech_bot/Popular_pages_config.json)).
+-   Runs on all projects listed in the config, compiling pageviews statistics for
+    the previous month.
+-   Updates [the info page on wiki](https://en.wikipedia.org/wiki/User:Community_Tech_bot/Popular_pages)
+    with the timestamp of the page update.
 
 Typically you run it once a month via cron, e.g.:
 
@@ -78,23 +78,27 @@ Typically you run it once a month via cron, e.g.:
 
 ## Setting up a new wiki
 
-- Make sure the translations for the language are in the `messages/` directory.
-- Add the project's configuration in `config/wikis.yaml`, indicating where the
-  WikiProjects config and index pages live.
-- Add your WikiProjects configuration on the corresponding on-wiki JSON page.
-- Add a cron job for the wiki, e.g.
-  `0 0 1 * * python -m popularpages.cli.check_reports --wiki en.wikipedia`.
+-   Make sure the translations for the language are in the `messages/` directory.
+-   Add the project's configuration in `config/wikis.yaml`, indicating where the
+    WikiProjects config and index pages live.
+-   Add your WikiProjects configuration on the corresponding on-wiki JSON page.
+-   Add a cron job for the wiki, e.g.
+    `0 0 1 * * python -m popularpages.cli.check_reports --wiki en.wikipedia`.
 
 ## Project layout
 
-- `src/popularpages/cli/check_reports.py` — Entry point for a full bot run.
-- `src/popularpages/cli/generate_report.py` — Manually regenerate one project.
-- `src/popularpages/cli/generate_index.py` — Generate the index page.
-- `src/popularpages/report_updater.py` — The module that updates projects.
-- `src/popularpages/wiki_repository.py` — MediaWiki API + replica DB helpers.
-- `src/popularpages/pageviews_repository.py` — Pageviews API helpers.
-- `src/popularpages/logger.py` — Logging updates to the `logs/` directory.
-- `src/popularpages/i18n.py` — Minimal message-translation layer (`messages/*.json`).
+-   CLI scripts:
+
+    -   `src/cli/check_reports.py` — Entry point for a full bot run.
+    -   `src/cli/generate_report.py` — Manually regenerate one project.
+    -   `src/cli/generate_index.py` — Generate the index page.
+
+-   Core modules:
+    -   `src/popularpages/report_updater.py` — The module that updates projects.
+    -   `src/popularpages/wiki_repository.py` — MediaWiki API + replica DB helpers.
+    -   `src/popularpages/pageviews_repository.py` — Pageviews API helpers.
+    -   `src/popularpages/logger.py` — Logging updates to the `logs/` directory.
+    -   `src/popularpages/i18n.py` — Minimal message-translation layer (`messages/*.json`).
 
 ## Dependencies
 

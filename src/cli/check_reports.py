@@ -14,9 +14,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 
-import yaml
-
-from popularpages.config import BASE_DIR
+from popularpages.config import load_wikis_config
 from popularpages.logger import log_to_file
 from popularpages.report_updater import ReportUpdater
 
@@ -34,12 +32,13 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    wikis_config = yaml.safe_load((BASE_DIR / "config" / "wikis.yaml").read_text(encoding="utf-8"))
+    wikis_config = load_wikis_config()
 
     if args.wiki:
         if args.wiki not in wikis_config:
             print(f"Unknown wiki '{args.wiki}'. Available: {', '.join(wikis_config)}")
             return
+
         wikis = [args.wiki]
     else:
         wikis = list(wikis_config.keys())
@@ -55,7 +54,6 @@ def main() -> None:
             asyncio.run(updater.update_reports(stale_config))
         except Exception as exc:
             log_to_file(f"Error processing {wiki}: {exc}", wiki)
-
 
 if __name__ == "__main__":
     main()

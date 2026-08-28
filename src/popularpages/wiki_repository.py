@@ -13,8 +13,10 @@ that requires SQL.
 from __future__ import annotations
 
 import configparser
+from dataclasses import dataclass
 import json
 import re
+from typing import Any
 
 import httpx
 import mwclient
@@ -33,6 +35,46 @@ from .pageviews_repository import PageviewsRepository
 from .utils import mediawiki_timestamp_to_date
 from .wiki_database_repository import WikiDatabaseRepository
 
+@dataclass
+class WikiProjectConfig:
+    """
+    data example:
+    {
+        "Wikipedia:WikiProject Dinosaurs": {
+            "Report": "Wikipedia:WikiProject Dinosaurs/Popular pages",
+            "Limit": "500",
+            "Name": "Dinosaurs"
+        }
+    }
+    """
+    page_title: str
+    Report: str
+    report_without_ns: str
+    Limit: int
+    Name: str
+    Updated: str | None = None
+
+    @classmethod
+    def from_json(cls, page_title: str, data: dict[str, Any]) -> WikiProjectConfig:
+        return cls(
+            page_title=page_title,
+            Report=data["Report"],
+            report_without_ns=cls.trim_report_prefix(data["Report"]),
+            Limit=int(data["Limit"]),
+            Name=data["Name"],
+            Updated=data.get("Updated"),
+        )
+
+    @classmethod
+    def trim_report_prefix(cls, report: str) -> str:
+        # FIXME: assumes reports are in the Project namespace (matches PHP FIXME).
+        # db_key = report.split(":", 1)[-1]
+        db_key = re.sub(r"^.*?:", "", report)
+        return db_key
+
+    @classmethod
+    def from_json_list(cls, data: dict[str, dict[str, str | int]]) -> list[WikiProjectConfig]:
+        return [cls.from_json(page_title, data) for page_title, data in data.items()]
 
 class WikiRepository:
     """
@@ -77,6 +119,38 @@ class WikiRepository:
             wiki_config=self.wiki_config,
             username=self.username,
         )
+
+    def get_config(self, title: str | None = None) -> list[WikiProjectConfig]:
+        """
+        Get the WikiProject config for the given title.
+
+        :param title: WikiProject page title, e.g. 'Wikipedia:WikiProject
+        Popular pages'.
+        :return: WikiProjectConfig object.
+        """
+        json_data = self.get_json_config(title)
+        return WikiProjectConfig.from_json_list(json_data)
+
+    def get_json_config(self, title: str | None = None) -> dict:
+        """
+        Fetch JSON config from the wiki's config page.
+
+        Example: Wikipedia:WikiProject/Popular pages config.json
+
+        :return: Config data, with the 'description' explanatory entry removed.
+        """
+        if title is None:
+            title = self.wiki_config_page
+
+        page = self.site.pages[title]
+
+        wikitext = page.text()
+
+        config = json.loads(wikitext)
+
+        # Remove the 'description' entry which is meant only as explanatory text.
+        config.pop("description", None)
+        return config
 
     # -- Setup / credentials -------------------------------------------------
 
@@ -172,25 +246,6 @@ class WikiRepository:
             # We return false if we didn't find any section
             return False
         return True
-
-    def get_json_config(self, title: str | None = None) -> dict:
-        """
-        Fetch JSON config from the wiki's config page.
-
-        :return: Config data, with the 'description' explanatory entry removed.
-        """
-        if title is None:
-            title = self.wiki_config_page
-
-        page = self.site.pages[title]
-
-        wikitext = page.text()
-
-        config = json.loads(wikitext)
-
-        # Remove the 'description' entry which is meant only as explanatory text.
-        config.pop("description", None)
-        return config
 
     def get_project(self, project_name: str) -> dict | None:
         """

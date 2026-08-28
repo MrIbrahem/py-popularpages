@@ -61,6 +61,10 @@ popularpages-py/
 │   ├── index.wikitext.jinja
 │   └── report.wikitext.jinja
 ├── src/
+│   └── cli/
+│       ├── check_reports.py     # bin/checkReports.php
+│       ├── generate_report.py   # bin/generateReport.php
+│       └── generate_index.py    # bin/generateIndex.php
 │   └── popularpages/
 │       ├── __init__.py
 │       ├── logger.py                # Logger.php
@@ -68,10 +72,6 @@ popularpages-py/
 │       ├── pageviews_repository.py  # PageviewsRepository.php
 │       ├── wiki_repository.py       # WikiRepository.php (mwclient-based)
 │       ├── report_updater.py        # ReportUpdater.php
-│       └── cli/
-│           ├── check_reports.py     # bin/checkReports.php
-│           ├── generate_report.py   # bin/generateReport.php
-│           └── generate_index.py    # bin/generateIndex.php
 ├── tests/
 │   └── test_wiki_repository.py
 ├── logs/
