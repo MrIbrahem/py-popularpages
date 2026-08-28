@@ -51,7 +51,7 @@ popularpages-py/
 ├── pyproject.toml
 ├── README.md
 ├── LICENSE
-├── config.ini.example
+├── .env.example
 ├── config/
 │   └── wikis.yaml
 ├── messages/
@@ -269,8 +269,8 @@ This is the module most reshaped by switching to `mwclient`.
 **Construction / login:**
 
 ```python
-import configparser
 from pathlib import Path
+from dotenv import load_dotenv
 import mwclient
 import pymysql
 import yaml
@@ -300,12 +300,11 @@ class WikiRepository:
         self.login()
 
     def _load_credentials(self) -> dict:
-        config = configparser.ConfigParser()
-        # config.ini has no section headers, like PHP's parse_ini_file
-        with (BASE_DIR / "config.ini").open() as f:
-            content = "[DEFAULT]\n" + f.read()
-        config.read_string(content)
-        return {k: v.strip("'\"") for k, v in config["DEFAULT"].items()}
+        # Credentials are read from environment variables (loaded from .env
+        # via python-dotenv in config.load_credentials), matching the PHP
+        # version's intent without INI parsing.
+        from .config import load_credentials
+        return load_credentials()
 
     def login(self) -> None:
         self.site.login(self.creds["botuser"], self.creds["botpass"])
@@ -620,9 +619,10 @@ syntax adjustments when renamed to `.jinja`:
    guard from `processProject` (see T164178 in the original code) exactly;
    this exists as protection against runaway memory use for very large
    WikiProjects, not a stylistic choice.
-6. **`config.ini` has no `[section]` header** — `configparser` requires one;
-   the loader in §5.4 injects a synthetic `[DEFAULT]` header before parsing,
-   matching what `parse_ini_file()` does implicitly in PHP.
+6. **Credentials come from environment variables** — read via python-dotenv
+   from `.env` (see `.env.example`), exposed through `config.load_credentials()`
+   as the same flat `creds` mapping (`botuser`, `botpass`, `dbhost`, `dbuser`,
+   `dbpass`, `dbport`). No INI parsing is needed; `dbport` defaults to `3306`.
 7. **mysqli `bind_param` with dynamic type strings** (used in
    `getProjectsWithLastBotTimestamp` for the `IN (...)` clause) — with
    PyMySQL, build the placeholder string the same way
@@ -711,7 +711,7 @@ jobs:
 ## 10. Suggested Execution Order
 
 1. Scaffold `pyproject.toml` + directory layout; copy static files
-   (`wikis.yaml`, `messages/*.json`, `LICENSE`, `config.ini.example`) unchanged.
+   (`wikis.yaml`, `messages/*.json`, `LICENSE`, `.env.example`) unchanged.
 2. `logger.py` — no dependencies, quick win, unblocks everything else.
 3. `i18n.py` — needed by both `WikiRepository` and `ReportUpdater`.
 4. `wiki_repository.py`, built incrementally:

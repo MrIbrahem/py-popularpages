@@ -14,8 +14,8 @@ See [the tool's homepage](https://wikitech.wikimedia.org/wiki/Tool:Popular_Pages
 pip install -e ".[dev]"
 
 # 2. Add your bot credentials
-cp config.ini.example config.ini
-#    then edit config.ini with your bot username/password (from Special:BotPasswords)
+cp .env.example .env
+#    then edit .env with your bot username/password (from Special:BotPasswords)
 
 # 3. Run a full update cycle
 python3 src/cli/check_reports.py --wiki en.wikipedia
@@ -123,4 +123,6 @@ pytest
 
 Note: most tests in `tests/test_wiki_repository.py` hit the live English
 Wikipedia API (and, where applicable, the replica database) and require a
-valid `config.ini`, matching the behavior of the original PHP test suite.
+valid `.env` (credentials from Special:BotPasswords), matching the behavior
+of the original PHP test suite. They are skipped automatically when no
+credentials are present.

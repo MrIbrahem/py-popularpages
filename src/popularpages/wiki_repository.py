@@ -12,7 +12,6 @@ that requires SQL.
 
 from __future__ import annotations
 
-import configparser
 import json
 import time
 
@@ -24,7 +23,7 @@ import wikitextparser as wtp
 from .config import (
     ASSESSMENT_CONFIG_URL,
     BATCH_SIZE_THRESHOLD,
-    CONFIG_PATH,
+    load_credentials,
     load_wikis_config,
 )
 from .i18n import I18n
@@ -50,7 +49,7 @@ class WikiRepository:
         """
         self.wiki = wiki
         self.dry_run = dry_run
-        self.creds = self._load_credentials()
+        self.creds = load_credentials()
 
         _config: dict = load_wikis_config()
         self.wiki_config: dict = _config.get(wiki) or {}
@@ -116,16 +115,14 @@ class WikiRepository:
     @staticmethod
     def _load_credentials() -> dict[str, str]:
         """
-        Load config.ini, which has no [section] headers (like PHP's
-        parse_ini_file). We inject a synthetic DEFAULT section so
-        configparser can read it, then strip quotes from values.
-        """
-        parser = configparser.ConfigParser()
+        Return the credentials dict built from environment variables.
 
-        # config.ini has no section headers, like PHP's parse_ini_file.
-        content = "[DEFAULT]\n" + CONFIG_PATH.read_text(encoding="utf-8")
-        parser.read_string(content)
-        return {key: value.strip("'\"") for key, value in parser["DEFAULT"].items()}
+        The actual env-var -> creds mapping lives in
+        ``config.load_credentials()`` (which reads ``.env`` via python-dotenv
+        in the Toolforge/local-dev setup, or real environment variables in
+        production). This thin wrapper keeps the rest of the class unchanged.
+        """
+        return load_credentials()
 
     def login(self) -> None:
         """
