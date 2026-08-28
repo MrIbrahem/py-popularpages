@@ -7,12 +7,14 @@ these log files on Toolforge keep working.
 """
 
 from __future__ import annotations
+
 import logging
 from datetime import datetime
 
 from .config import LOG_DIR
 
 logger = logging.getLogger(__name__)
+
 
 def log_to_file(message: str, wiki: str) -> None:
     """

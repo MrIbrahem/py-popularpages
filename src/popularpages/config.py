@@ -20,6 +20,7 @@ from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
+
 try:
     load_dotenv(override=False)
 except Exception as e:

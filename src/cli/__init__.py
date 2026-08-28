@@ -3,7 +3,6 @@ CLI package for the popularpages bot.
 """
 
 import sys
-
 from pathlib import Path
 
 main_path = Path(__file__).parent.parent
