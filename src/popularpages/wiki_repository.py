@@ -138,65 +138,6 @@ class WikiRepository:
         Get the configuration for the wiki as a whole (index/config/category)."""
         return self.wiki_config
 
-    def get_stale_projects(self) -> list[WikiProjectConfig]:
-        """
-        Get WikiProjects that have not yet been updated for the current cycle.
-
-        :return: Config for WikiProjects not updated so far this month.
-        """
-        log_to_file("Checking for stale projects", self.wiki)
-        _config = self.get_config()
-
-        projects = self._project_report_titles(_config)
-
-        config = self.get_json_config()
-
-        titles = list(projects.keys())
-
-        if not titles:
-            return _config
-
-        first_of_this_month = first_of_this_month_timestamp()
-
-        bot_timestamps = self.db.get_projects_timestamps(titles)
-
-        for row in bot_timestamps:
-            proj_name = projects[row["page_title"]]
-            rev_timestamp = mediawiki_timestamp_to_epoch(row["rev_timestamp"])
-            if rev_timestamp >= first_of_this_month:
-                config.pop(proj_name, None)
-
-        return WikiProjectConfig.from_json_list(config)
-
-    def get_stale_projects_new(self) -> list[WikiProjectConfig]:
-        """
-        Get WikiProjects that have not yet been updated for the current cycle.
-
-        :return: Config for WikiProjects not updated so far this month.
-        """
-        log_to_file("Checking for stale projects", self.wiki)
-        _config = self.get_config()
-
-        projects = self._project_report_titles(_config)
-
-        titles = list(projects.keys())
-
-        if not titles:
-            return _config
-
-        first_of_this_month = first_of_this_month_timestamp()
-
-        bot_timestamps = self.db.get_projects_timestamps(titles)
-
-        to_pop = []
-        for row in bot_timestamps:
-            proj_name = projects[row["page_title"]]
-            rev_timestamp = mediawiki_timestamp_to_epoch(row["rev_timestamp"])
-            if rev_timestamp >= first_of_this_month:
-                to_pop.append(proj_name)
-
-        return [x for x in _config if x.report_without_ns.replace(" ", "_") not in to_pop]
-
     def get_projects_with_last_bot_timestamp(self) -> list[dict]:
         """
         Get timestamps of the bot's last edits for all configured WikiProjects.
@@ -474,3 +415,62 @@ class WikiRepository:
                 return time.strftime("%Y-%m-%d", timestamp)
 
         return ""
+
+    def get_stale_projects(self) -> list[WikiProjectConfig]:
+        """
+        Get WikiProjects that have not yet been updated for the current cycle.
+
+        :return: Config for WikiProjects not updated so far this month.
+        """
+        log_to_file("Checking for stale projects", self.wiki)
+        _config = self.get_config()
+
+        projects = self._project_report_titles(_config)
+
+        config = self.get_json_config()
+
+        titles = list(projects.keys())
+
+        if not titles:
+            return _config
+
+        first_of_this_month = first_of_this_month_timestamp()
+
+        bot_timestamps = self.db.get_projects_timestamps(titles)
+
+        for row in bot_timestamps:
+            proj_name = projects[row["page_title"]]
+            rev_timestamp = mediawiki_timestamp_to_epoch(row["rev_timestamp"])
+            if rev_timestamp >= first_of_this_month:
+                config.pop(proj_name, None)
+
+        return WikiProjectConfig.from_json_list(config)
+
+    def get_stale_projects_new(self) -> list[WikiProjectConfig]:
+        """
+        Get WikiProjects that have not yet been updated for the current cycle.
+
+        :return: Config for WikiProjects not updated so far this month.
+        """
+        log_to_file("Checking for stale projects", self.wiki)
+        _config = self.get_config()
+
+        projects = self._project_report_titles(_config)
+
+        titles = list(projects.keys())
+
+        if not titles:
+            return _config
+
+        first_of_this_month = first_of_this_month_timestamp()
+
+        bot_timestamps = self.db.get_projects_timestamps(titles)
+
+        to_pop = []
+        for row in bot_timestamps:
+            proj_name = projects[row["page_title"]]
+            rev_timestamp = mediawiki_timestamp_to_epoch(row["rev_timestamp"])
+            if rev_timestamp >= first_of_this_month:
+                to_pop.append(proj_name)
+
+        return [x for x in _config if x.report_without_ns.replace(" ", "_") not in to_pop]
