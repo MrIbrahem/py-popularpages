@@ -418,7 +418,9 @@ class WikiRepository:
         safe_title = re.sub(r"[^\w.\-]+", "_", page_title)
 
         out_path = config.paths.log_dir / f"dryrun-{self.wiki}-{safe_title}.wikitext"
-        out_path.write_text(text, encoding="utf-8")
+
+        text_with_header = f"Title: [[{page_title}]]\n\n{text}"
+        out_path.write_text(text_with_header, encoding="utf-8")
 
         logger.info("dry-run: wrote wikitext for '%s' to %s", page_title, out_path)
 
