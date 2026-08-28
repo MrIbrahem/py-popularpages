@@ -25,11 +25,14 @@ class WikiReplicaDB(WikiReplicaBaseDB):
         # wiki_identifier can be "arwiki", "enwiki", "ar", etc.
         info = self.maps.resolve_wiki(wiki_identifier)
         if not info:
+            logger.error("Unknown wiki: %s", wiki_identifier)
             raise ValueError(f"Unknown wiki: {wiki_identifier}")
 
         dbname = info["dbname"]
         slice_name = info.get("slice", "s1")  # Default to s1 if not found, but it should be there
         host = f"{slice_name}.analytics.db.svc.wikimedia.cloud"
+
+        logger.info("Resolved wiki '%s' -> dbname='%s', host='%s'", wiki_identifier, dbname, host)
 
         super().__init__(dbname=f"{dbname}_p", host=host)
 

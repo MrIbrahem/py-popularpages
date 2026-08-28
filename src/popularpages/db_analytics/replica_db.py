@@ -20,6 +20,7 @@ def decode_value(value) -> str:
         try:
             value = str(value)
         except BaseException:
+            logger.debug("decode_value: could not decode value, returning empty string")
             return ""
     return value
 
@@ -35,6 +36,7 @@ def resolve_bytes(rows) -> list[Any]:
             decoded_row[key] = value
         decoded_rows.append(decoded_row)
     # ---
+    logger.debug("resolve_bytes: decoded %d row(s)", len(decoded_rows))
     return decoded_rows
 
 
@@ -69,6 +71,7 @@ class WikiReplicaBaseDB:
             "password": self.password,
         }
         if self.connection is None or not self.connection.open:
+            logger.info("Opening connection to %s/%s", self.host, self.dbname)
             try:
                 self.connection = pymysql.connect(
                     host=self.host,
@@ -86,6 +89,8 @@ class WikiReplicaBaseDB:
                 logger.error(f"Failed to connect to {self.host}/{self.dbname}: {e}")
                 raise
 
+            logger.debug("Connection to %s/%s established", self.host, self.dbname)
+
     def select(
         self,
         query: str,
@@ -96,11 +101,14 @@ class WikiReplicaBaseDB:
         """
         self._ensure_connection()
         assert self.connection is not None
+        logger.debug("Executing query on %s/%s: %s", self.host, self.dbname, query)
         try:
             with self.connection.cursor() as cursor:
                 cursor.execute(query, params)
                 rows = cursor.fetchall()
-                return resolve_bytes(rows)
+                result = resolve_bytes(rows)
+                logger.debug("Query returned %d row(s)", len(result))
+                return result
         except pymysql.Error as e:
             logger.error(f"Query failed: {e}")
             logger.info(query)
@@ -115,6 +123,7 @@ class WikiReplicaBaseDB:
         Executes query and returns the first result or None.
         """
         results = self.select(query, params)
+        logger.debug("select_one: %s row(s) returned", len(results))
         return results[0] if results else None
 
     def select_safe(
@@ -123,18 +132,21 @@ class WikiReplicaBaseDB:
         params: Sequence[Any] | dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """ """
+        results: list[dict[str, Any]] = []
         try:
-            return self.select(query, params)
+            results = self.select(query, params)
         except pymysql.ProgrammingError:
             logger.exception("Query failed", exc_info=True)
             logger.info(query)
         except pymysql.Error as e:
             logger.exception("Query failed", exc_info=True)
             logger.info(query)
-        return []
+        logger.debug("select_safe returned %d row(s)", len(results))
+        return results
 
     def close(self) -> None:
         if self.connection and self.connection.open:
+            logger.debug("Closing connection to %s/%s", self.host, self.dbname)
             self.connection.close()
             self.connection = None
 
@@ -153,6 +165,7 @@ def get_sql() -> bool:
     """
 
     if not os.getenv("TOOL_REPLICA_USER"):
+        logger.debug("get_sql: no TOOL_REPLICA_USER set, SQL disabled")
         return False
 
     for arg in sys.argv:

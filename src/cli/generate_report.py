@@ -43,10 +43,21 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)s  %(name)s: %(message)s",
+    )
+
     if not re.match(r"^\w+\.\w+$", args.wiki):
         logger.info("Please specify wiki in the format lang.project (such as en.wikipedia)")
         return
 
+    logger.info(
+        "Generating report for project '%s' on wiki '%s' (dry_run=%s)",
+        args.project,
+        args.wiki,
+        args.dry_run,
+    )
     updater = ReportUpdater(args.wiki, dry_run=args.dry_run)
     project_config = updater.wiki_repository.get_project(args.project)
 
@@ -55,6 +66,7 @@ def main() -> None:
         sys.exit(1)
 
     asyncio.run(updater.update_reports([project_config]))
+    logger.info("Finished generating report for project '%s'", args.project)
 
 
 if __name__ == "__main__":

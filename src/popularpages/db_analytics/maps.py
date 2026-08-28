@@ -45,12 +45,15 @@ class WikiReplicaMaps:
 
         now = time.time()
         if maps.data and (now - maps.last_cache_update < self.CACHE_TTL):
+            logger.debug("Using cached wiki map (%d entries)", len(maps.data))
             self._wiki_map = maps.data
             return
 
         logger.info("Loading wiki map from meta_p...")
 
         self._wiki_map = self._load_new_maps()
+
+        logger.info("Loaded %d wiki entries from meta_p", len(self._wiki_map))
 
         self.save_wikimap(now)
 
@@ -84,17 +87,21 @@ class WikiReplicaMaps:
             logger.error(f"Failed to load wiki map: {e}")
             if not new_map:
                 raise
+        logger.debug("Resolved %d wiki entries from meta_p query", len(new_map))
         return new_map
 
     def resolve_wiki(self, identifier: str) -> dict[str, str] | None:
         # Try direct lookup
         if identifier in self._wiki_map:
+            logger.debug("resolve_wiki: direct hit for '%s'", identifier)
             return self._wiki_map[identifier]
 
         # Try appending 'wiki' if it's just 'ar'
         if f"{identifier}wiki" in self._wiki_map:
+            logger.debug("resolve_wiki: matched '%swiki' for '%s'", identifier, identifier)
             return self._wiki_map[f"{identifier}wiki"]
 
+        logger.debug("resolve_wiki: no match for '%s'", identifier)
         return None
 
     def load_local_wikimap(self) -> MapsData:
@@ -130,6 +137,7 @@ class WikiReplicaMaps:
         try:
             with open(self.file_name, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=4)
+            logger.info("Saved wiki map to %s (%d entries)", self.file_name, len(self._wiki_map))
         except Exception as e:
             logger.error(f"Failed to save {self.file_name}: {e}")
 

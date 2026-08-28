@@ -63,11 +63,17 @@ def load_credentials() -> dict[str, str]:
     or set directly in the environment). Missing values default to empty strings
     so callers can detect "no credentials configured" and skip live runs.
     """
-    return {
+    creds = {
         # Wikipedia bot credentials (full name, e.g. "ExampleBot@MyTask").
         "botuser": os.environ.get("WIKIPEDIA_BOT_USERNAME", ""),
         "botpass": os.environ.get("WIKIPEDIA_BOT_PASSWORD", ""),
     }
+    logger.debug(
+        "Loaded credentials: botuser='%s' (botpass set: %s)",
+        creds["botuser"],
+        bool(creds["botpass"]),
+    )
+    return creds
 
 
 def has_credentials() -> bool:
@@ -77,14 +83,20 @@ def has_credentials() -> bool:
     Used by tests to skip integration tests that require real credentials.
     """
     creds = load_credentials()
-    return bool(creds["botuser"]) and bool(creds["botpass"])
+    has = bool(creds["botuser"]) and bool(creds["botpass"])
+    logger.debug("has_credentials=%s", has)
+    return has
 
 
 def load_wikis_config():
     """
     Load the wikis configuration from the config/wikis.yaml file.
     """
-    return yaml.safe_load((BASE_DIR / "config" / "wikis.yaml").read_text(encoding="utf-8"))
+    path = BASE_DIR / "config" / "wikis.yaml"
+    logger.debug("Loading wikis config from %s", path)
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    logger.info("Loaded wikis config: %d wiki(s)", len(data))
+    return data
 
 
 __all__ = [

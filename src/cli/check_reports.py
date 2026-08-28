@@ -40,6 +40,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)s  %(name)s: %(message)s",
+    )
+
     wikis_config = load_wikis_config()
 
     if args.wiki:
@@ -54,15 +59,19 @@ def main() -> None:
     for wiki in wikis:
         # One wiki failing must not abort the whole run (matches the PHP
         # behavior where each wiki is invoked by its own cron job).
+        logger.info("Starting cycle for wiki '%s'", wiki)
         try:
             updater = ReportUpdater(wiki, dry_run=args.dry_run)
             log_to_file("Beginning new cycle", wiki)
 
             stale_configs = updater.wiki_repository.get_stale_projects()
+            logger.info("Wiki '%s': %d project(s) pending update", wiki, len(stale_configs))
             log_to_file(f"Number of projects pending update: {len(stale_configs)}", wiki)
 
             asyncio.run(updater.update_reports(stale_configs))
+            logger.info("Finished cycle for wiki '%s'", wiki)
         except Exception as exc:
+            logger.exception("Error processing %s: %s", wiki, exc)
             log_to_file(f"Error processing {wiki}: {exc}", wiki)
 
 

@@ -29,7 +29,9 @@ def _to_str(value: object) -> object:
     returned unchanged.
     """
     if isinstance(value, bytes | bytearray):
-        return bytes(value).decode("utf-8")
+        decoded = bytes(value).decode("utf-8")
+        logger.debug("Decoded %d bytes to str", len(value))
+        return decoded
     return value
 
 
@@ -51,6 +53,7 @@ class WikiDatabaseRepository:
         self.username = username
 
         db_name = self.wiki_config["database"].removesuffix("_p")
+        logger.debug("WikiDatabaseRepository for wiki '%s' using db '%s'", wiki, db_name)
         self.db = WikiReplicaDB(db_name)
 
     # -- Database -----------------------------------------
@@ -64,6 +67,7 @@ class WikiDatabaseRepository:
         """
 
         placeholders = ", ".join(["%s"] * len(titles))
+        logger.debug("Fetching timestamps for %d project(s)", len(titles))
 
         rows = self.db.select_safe(
             f"""
@@ -92,6 +96,7 @@ class WikiDatabaseRepository:
         :return: List of rows with page_title, pa_class, pa_importance, redir_title.
         """
 
+        logger.debug("Fetching pages and assessments for project '%s'", project)
         rows = self.db.select_safe(
             """
             SELECT page_title, pa_class, pa_importance, (
@@ -127,6 +132,7 @@ class WikiDatabaseRepository:
         log_to_file("Fetching timestamps of the bot's last edits", self.wiki)
 
         rows = self._get_projects_timestamps(titles)
+        logger.debug("Retrieved timestamps for %d project(s)", len(rows))
 
         # PyMySQL returns the BINARY(14) rev_timestamp and VARBINARY page_title
         # as bytes; decode to str before using page_title as a config-key lookup
@@ -149,6 +155,7 @@ class WikiDatabaseRepository:
         log_to_file(f"Fetching pages and assessments for project {project}", self.wiki)
 
         rows = self._get_project_pages(project)
+        logger.debug("Retrieved %d page(s) for project '%s'", len(rows), project)
 
         # MediaWiki returns page_title/redir_title as VARBINARY and
         # pa_class/pa_importance as VARBINARY/strings; PyMySQL yields bytes for
