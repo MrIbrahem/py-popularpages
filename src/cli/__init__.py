@@ -1,2 +1,3 @@
 """
-CLI package for the popularpages bot."""
+CLI package for the popularpages bot.
+"""
