@@ -17,15 +17,14 @@ import mwclient.errors
 import pytest
 
 from src.popularpages.report_updater import previous_month_range
-from src.popularpages.wiki_repository import BASE_DIR, WikiRepository
-
-CONFIG_INI = BASE_DIR / "config.ini"
+from src.popularpages.wiki_repository import WikiRepository
+from src.popularpages.config import CONFIG_PATH
 
 # Integration tests that hit the live wiki/DB require real credentials, which
 # live in config.ini (gitignored). Skip them when that file is absent so the
 # suite stays green in CI.
 requires_creds = pytest.mark.skipif(
-    not CONFIG_INI.exists(),
+    not CONFIG_PATH.exists(),
     reason="requires config.ini with live credentials",
 )
 
