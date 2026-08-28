@@ -16,25 +16,6 @@ from .logger import log_to_file
 
 logger = logging.getLogger(__name__)
 
-
-def _to_str(value: object) -> object:
-    """
-    Normalize a value that may come back from PyMySQL as ``bytes``.
-
-    MediaWiki stores ``page_title`` as ``VARBINARY`` and ``rev_timestamp`` as
-    ``BINARY``. PHP's ``mysqli`` returns these as strings, but PyMySQL returns
-    ``bytes`` for binary columns by default. Decoding at the cursor boundary
-    keeps the rest of the pipeline (URL building, strptime, template rendering)
-    string-based and consistent with the PHP behavior. Non-bytes values are
-    returned unchanged.
-    """
-    if isinstance(value, bytes | bytearray):
-        decoded = bytes(value).decode("utf-8")
-        logger.debug("Decoded %d bytes to str", len(value))
-        return decoded
-    return value
-
-
 class WikiDatabaseRepository:
     """
     Handles all replica-database access (connection + raw SQL queries)
@@ -88,7 +69,7 @@ class WikiDatabaseRepository:
 
         return rows  # pyright: ignore[reportReturnType]
 
-    def _get_project_pages(self, project: str) -> list[dict]:
+    def _get_project_pages(self, project: str) -> list[dict[str, Any]]:
         """
         Get titles & assessments for all pages in a WikiProject.
 
@@ -122,7 +103,7 @@ class WikiDatabaseRepository:
 
     # -- Queries ----------------------------------------------------------
 
-    def get_projects_timestamps(self, titles: list[str]) -> list[dict]:
+    def get_projects_timestamps(self, titles: list[str]) -> list[dict[str, Any]]:
         """
         Get timestamps of the bot's last edits for the given WikiProjects.
 
@@ -134,18 +115,9 @@ class WikiDatabaseRepository:
         rows = self._get_projects_timestamps(titles)
         logger.debug("Retrieved timestamps for %d project(s)", len(rows))
 
-        # PyMySQL returns the BINARY(14) rev_timestamp and VARBINARY page_title
-        # as bytes; decode to str before using page_title as a config-key lookup
-        # and before the timestamps are parsed by strptime elsewhere.
-
-        for row in rows:
-            row["page_title"] = _to_str(row["page_title"])
-            row["rev_timestamp"] = _to_str(row["rev_timestamp"])
-            # row["name"] = projects[row["page_title"]]
-
         return rows
 
-    def get_project_pages(self, project: str) -> list[dict]:
+    def get_project_pages(self, project: str) -> list[dict[str, Any]]:
         """
         Get titles & assessments for all pages in a WikiProject.
 
@@ -156,14 +128,5 @@ class WikiDatabaseRepository:
 
         rows = self._get_project_pages(project)
         logger.debug("Retrieved %d page(s) for project '%s'", len(rows), project)
-
-        # MediaWiki returns page_title/redir_title as VARBINARY and
-        # pa_class/pa_importance as VARBINARY/strings; PyMySQL yields bytes for
-        # the binary ones. Decode so downstream URL/strptime/template code sees str.
-        for row in rows:
-            row["page_title"] = _to_str(row["page_title"])
-            row["redir_title"] = _to_str(row["redir_title"])
-            row["pa_class"] = _to_str(row["pa_class"])
-            row["pa_importance"] = _to_str(row["pa_importance"])
 
         return rows
