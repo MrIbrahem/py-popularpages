@@ -68,17 +68,22 @@ class ReportUpdater:
         Pure function over an already-fetched assessment config dict; performs
         no I/O so it is safe to call from the render path.
         """
-        dataset = config[type_]
+        default_result = {"name": "Unknown", "color": "gray", "category": "unknown"}
         if not config:
-            return {"name": "Unknown", "color": "gray", "category": "unknown"}
+            return default_result
+
         dataset = config.get(type_)
+
         if not dataset:
-            return {"name": "Unknown", "color": "gray", "category": "unknown"}
+            return default_result
+
         value = value or ""
+
         for key, values in dataset.items():
             if value.lower() == key.lower():
                 return values
-        return dataset.get("Unknown", {"name": "Unknown", "color": "gray", "category": "unknown"})
+
+        return dataset.get("Unknown", default_result)
 
     # ---------------------------------------------------
     # Execution
