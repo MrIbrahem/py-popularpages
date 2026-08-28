@@ -26,7 +26,7 @@ def _to_str(value: object) -> object:
     string-based and consistent with the PHP behavior. Non-bytes values are
     returned unchanged.
     """
-    if isinstance(value, (bytes, bytearray)):
+    if isinstance(value, bytes | bytearray):
         return bytes(value).decode("utf-8")
     return value
 

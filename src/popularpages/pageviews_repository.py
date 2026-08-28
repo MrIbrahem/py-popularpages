@@ -52,7 +52,7 @@ def _is_retryable(exc: BaseException) -> bool:
     if isinstance(exc, httpx.HTTPStatusError):
         return exc.response.status_code in RETRY_STATUS_CODES
     # Connection/transport errors and timeouts are retryable too.
-    if isinstance(exc, (httpx.TimeoutException, httpx.TransportError)):
+    if isinstance(exc, httpx.TimeoutException | httpx.TransportError):
         return True
     return False
 
