@@ -11,6 +11,15 @@ import src.cli.generate_index as gi_module
 
 @pytest.fixture
 def patched(monkeypatch):
+    """
+    Provide a mocked report updater and replace the module's report updater constructor for a test.
+    
+    Parameters:
+    	monkeypatch: Pytest monkeypatch fixture used to replace `ReportUpdater`.
+    
+    Returns:
+    	MagicMock: The mocked report updater with a mocked `update_index` method.
+    """
     updater = MagicMock()
     updater.update_index = MagicMock()
     monkeypatch.setattr(gi_module, "ReportUpdater", lambda *a, **k: updater)

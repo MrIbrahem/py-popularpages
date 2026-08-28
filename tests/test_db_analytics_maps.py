@@ -33,6 +33,12 @@ def reset_singleton():
 
 
 def _write_fresh_map(path):
+    """
+    Write a fresh test cache file containing a timestamp and sample English wiki mapping.
+    
+    Parameters:
+    	path (Path): Destination path for the JSON cache file
+    """
     path.write_text(
         json.dumps({"last_cache_update": time.time(), "data": {"enwiki": dict(SAMPLE_ROW)}}),
         encoding="utf-8",

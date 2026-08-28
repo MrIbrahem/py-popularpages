@@ -21,6 +21,15 @@ import pytest
 
 @pytest.fixture
 def updater(tmp_path, monkeypatch):
+    """Create a configured `ReportUpdater` and mocked wiki repository for tests.
+    
+    Parameters:
+    	tmp_path: Temporary directory used for the pageviews cache.
+    	monkeypatch: Pytest fixture used to replace repository and configuration dependencies.
+    
+    Returns:
+    	A tuple containing the configured `ReportUpdater` and its mocked repository.
+    """
     repo = MagicMock()
     repo.i18n = I18n("en")
     repo.pageviews_repo = AsyncMock()
@@ -64,6 +73,7 @@ def updater(tmp_path, monkeypatch):
 
 
 def _project(report="Wikipedia:WikiProject Foo/Popular pages", name="Foo", limit="10"):
+    """Build a wiki project configuration for the specified report, project name, and page limit."""
     return WikiProjectConfig.from_json(
         "Wikipedia:WikiProject Foo",
         data={"Report": report, "Limit": limit, "Name": name},
