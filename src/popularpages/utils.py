@@ -7,9 +7,8 @@ page templates.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
-
 import logging
+from datetime import date, datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 

@@ -7,9 +7,8 @@ page templates.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 import logging
+from datetime import datetime, timezone
 
 from jinja2 import Environment, FileSystemLoader
 

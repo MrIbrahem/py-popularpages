@@ -15,9 +15,6 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
-
-logger = logging.getLogger(__name__)
-
 from tenacity import (
     RetryCallState,
     retry,
@@ -27,6 +24,8 @@ from tenacity import (
 )
 
 from .logger import log_to_file
+
+logger = logging.getLogger(__name__)
 
 ENDPOINT_URL = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article"
 
