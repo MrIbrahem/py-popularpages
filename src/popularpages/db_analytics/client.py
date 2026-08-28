@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 
 from ..config import config
-
 from .maps import WikiReplicaMaps
 from .replica_db import WikiReplicaBaseDB
 

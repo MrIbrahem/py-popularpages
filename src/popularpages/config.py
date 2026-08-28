@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
+
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -44,6 +45,7 @@ class DbConfig:
 
     def has_db_data(self) -> bool:
         return bool(self.user) and bool(self.password)
+
 
 @dataclass(frozen=True)
 class PathsConfig:

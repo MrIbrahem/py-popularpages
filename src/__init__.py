@@ -1,6 +1,7 @@
-import sys
 import logging
+import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -24,4 +25,3 @@ try:
     )
 except Exception as e:
     logger.info("Failed to load .env: %s", e)
-
