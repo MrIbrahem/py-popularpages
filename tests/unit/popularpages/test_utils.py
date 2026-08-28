@@ -1,10 +1,10 @@
 """
-Unit tests for pure helper functions in src.src_py.popularpages.utils.
+Unit tests for pure helper functions in src.popularpages.utils.
 """
 
 from datetime import date, datetime, timezone
 
-from src.src_py.popularpages.utils import (
+from src.popularpages.utils import (
     first_of_this_month_timestamp,
     format_date,
     mediawiki_timestamp_to_date,

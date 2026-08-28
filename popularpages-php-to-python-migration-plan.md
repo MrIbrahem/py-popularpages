@@ -541,7 +541,7 @@ class ReportUpdater:
 ### 5.6 CLI scripts (from `bin/*.php`)
 
 ```python
-# src/src_py/popularpages/cli/check_reports.py
+# src/popularpages/check_reports.py
 import argparse
 import asyncio
 import yaml

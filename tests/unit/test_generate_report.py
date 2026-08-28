@@ -1,11 +1,11 @@
-"""Tests for src/src_py/cli/generate_report.py (single-project report entry point)."""
+"""Tests for src/generate_report.py (single-project report entry point)."""
 
 import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import src.src_py.cli.generate_report as gr_module
+import src.generate_report as gr_module
 
 
 @pytest.fixture

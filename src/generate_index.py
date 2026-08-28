@@ -3,7 +3,7 @@ Generate/update only the index page for a wiki.
 
 Ported from bin/generateIndex.php.
 Example:
-    - python3 src/src_py/cli/generate_index.py --wiki en.wikipedia
+    - python3 src/generate_index.py --wiki en.wikipedia
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import argparse
 import logging
 import re
 
-from src.src_py.popularpages.report_updater import ReportUpdater
+from popularpages.report_updater import ReportUpdater
 
 logger = logging.getLogger(__name__)
 

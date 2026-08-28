@@ -1,5 +1,5 @@
 """
-Tests for src.src_py.popularpages.report_updater.ReportUpdater.
+Tests for src.popularpages.report_updater.ReportUpdater.
 
 The real WikiRepository performs network/DB I/O, so it is replaced with a
 MagicMock via monkeypatch. We exercise the orchestration and rendering paths:
@@ -12,11 +12,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import src.src_py.popularpages.config as cfg
-import src.src_py.popularpages.report_updater as ru_module
-from src.src_py.popularpages.i18n import I18n
-from src.src_py.popularpages.mapping import WikiProjectConfig
-from src.src_py.popularpages.wiki_repository import WikiRepository
+import src.popularpages.config as cfg
+import src.popularpages.report_updater as ru_module
+from src.popularpages.i18n import I18n
+from src.popularpages.mapping import WikiProjectConfig
+from src.popularpages.wiki_repository import WikiRepository
 
 
 @pytest.fixture
@@ -66,7 +66,7 @@ def updater(tmp_path, monkeypatch):
         cfg.config,
         paths=dataclasses.replace(cfg.config.paths, views_data_dir=tmp_path),
     )
-    monkeypatch.setattr("src.src_py.popularpages.pageviews_cache.config", new_cfg)
+    monkeypatch.setattr("src.popularpages.pageviews_cache.config", new_cfg)
     monkeypatch.setattr(ru_module, "config", new_cfg)
 
     return u, repo

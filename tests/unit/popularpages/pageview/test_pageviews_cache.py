@@ -1,5 +1,5 @@
 """
-Tests for src.src_py.popularpages.pageviews_cache.PageviewsCache.
+Tests for src.popularpages.pageviews_cache.PageviewsCache.
 
 The PageviewsRepository is replaced with a lightweight async fake so no network
 calls are made; we only assert on de-duplication, persistence, and flush
@@ -13,9 +13,9 @@ from unittest.mock import MagicMock
 import jsonlines
 import pytest
 
-import src.src_py.popularpages.config as cfg
-import src.src_py.popularpages.pageviews_cache as cache_module
-from src.src_py.popularpages.pageviews_cache import PageviewsCache
+import src.popularpages.config as cfg
+import src.popularpages.pageviews_cache as cache_module
+from src.popularpages.pageviews_cache import PageviewsCache
 
 
 class FakeRepo:

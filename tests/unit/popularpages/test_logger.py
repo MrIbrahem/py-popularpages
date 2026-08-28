@@ -1,11 +1,11 @@
 """
-Tests for src.src_py.popularpages.logger."""
+Tests for src.popularpages.logger."""
 
 import dataclasses
 
-import src.src_py.popularpages.config as cfg
-import src.src_py.popularpages.logger as logger_module
-from src.src_py.popularpages.logger import log_to_file
+import src.popularpages.config as cfg
+import src.popularpages.logger as logger_module
+from src.popularpages.logger import log_to_file
 
 
 def _with_log_dir(tmp_path):
