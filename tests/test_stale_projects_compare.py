@@ -100,12 +100,10 @@ def _db_rows(updated: list[str], stale: list[str]) -> list[dict]:
 
 def _expected_stale(config_objs: list[WikiProjectConfig], db_rows: list[dict]) -> set[str]:
     """Reference computation of the correct stale-project Name set."""
-    updated_pages = {r["page_title"] for r in db_rows if mediawiki_timestamp_to_epoch(r["rev_timestamp"]) >= FIRST_OF_MONTH}
-    return {
-        c.Name
-        for c in config_objs
-        if c.report_without_ns not in updated_pages
+    updated_pages = {
+        r["page_title"] for r in db_rows if mediawiki_timestamp_to_epoch(r["rev_timestamp"]) >= FIRST_OF_MONTH
     }
+    return {c.Name for c in config_objs if c.report_without_ns not in updated_pages}
 
 
 # -- Fixtures --------------------------------------------------------------
@@ -183,4 +181,3 @@ class TestCompareStaleProjects:
 
         expected = _expected_stale(config_objs, db_rows)
         assert old == expected  # old implementation is correct
-
