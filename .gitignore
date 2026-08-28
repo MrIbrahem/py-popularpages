@@ -9,4 +9,5 @@ coverage.xml
 .coverage
 .env
 logs/*.txt
+logs/*.wikitext
 !logs/.gitkeep
