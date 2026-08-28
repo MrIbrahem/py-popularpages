@@ -12,6 +12,11 @@ from src.popularpages.config import config, load_wikis_config
 
 @pytest.fixture
 def patched(monkeypatch):
+    """Configure a mocked report updater for CLI tests.
+    
+    Parameters:
+    	monkeypatch: Pytest monkeypatch fixture used to replace the report updater.
+    """
     updater = MagicMock()
     updater.wiki_repository.get_stale_projects.return_value = []
     updater.update_reports = AsyncMock()
@@ -21,6 +26,7 @@ def patched(monkeypatch):
 
 def test_main_runs_for_explicit_wiki(patched, monkeypatch):
     # load_wikis_config reads the real config/wikis.yaml; en.wikipedia exists.
+    """Verify that report checks run once for an explicitly selected wiki."""
     monkeypatch.setattr(sys, "argv", ["check", "--wiki", "en.wikipedia"])
     cr_module.main()
     patched.update_reports.assert_awaited_once_with([])

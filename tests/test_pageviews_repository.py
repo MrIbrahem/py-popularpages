@@ -18,6 +18,15 @@ from src.popularpages.pageviews_repository import (
 
 
 def _make_mock_repo(handler) -> PageviewsRepository:
+    """
+    Create a pageviews repository configured with a mocked HTTP request handler.
+    
+    Parameters:
+    	handler: A callable that handles requests made by the repository's mock transport.
+    
+    Returns:
+    	PageviewsRepository: A repository using the supplied mock HTTP handler.
+    """
     repo = PageviewsRepository("en.wikipedia")
     repo._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     return repo

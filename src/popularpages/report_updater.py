@@ -85,9 +85,10 @@ class ReportUpdater:
     # ---------------------------------------------------
     async def update_reports(self, config: list[WikiProjectConfig]) -> None:
         """
-        Update popular pages reports. Primary async execution point.
-
-        :param config: The JSON config from the wiki page.
+        Generate and save popular-page reports for the configured WikiProjects, then update the index.
+        
+        Parameters:
+            config (list[WikiProjectConfig]): WikiProject configurations to process. An empty list aborts the update.
         """
         # Make sure config isn't empty.
         if not config:
@@ -180,16 +181,13 @@ class ReportUpdater:
         page_rows: list[dict] | None = None,
     ) -> None:
         """
-        Process an individual WikiProject and update its popular pages report.
-
-        :param project: WikiProject key/title.
-        :param config: As specified in the on-wiki JSON config.
-        :param cache: Optional :class:`PageviewsCache`. When provided, pageviews
-            are read from the shared, persisted cache instead of being fetched
-            per-project from the Pageviews API (the default path when invoked via
-            ``update_reports``).
-        :param page_rows: Optional pre-fetched page rows (targets + assessments
-            + redirects). When provided, avoids a second DB query.
+        Process a WikiProject and update its monthly popular-pages report.
+        
+        Parameters:
+            project (str): WikiProject key or title.
+            config (dict | WikiProjectConfig): WikiProject report configuration.
+            cache (PageviewsCache | None): Shared pageview cache, if available.
+            page_rows (list[dict] | None): Pre-fetched project pages with assessments and redirects.
         """
         if isinstance(config, dict):
             config = WikiProjectConfig.from_json(project, data=config)
