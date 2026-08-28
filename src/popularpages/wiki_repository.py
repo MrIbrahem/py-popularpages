@@ -22,14 +22,7 @@ import mwclient
 import mwclient.errors
 import wikitextparser as wtp
 
-from .config import (
-    ASSESSMENT_CONFIG_URL,
-    BATCH_SIZE_THRESHOLD,
-    LOG_DIR,
-    load_credentials,
-    load_wikis_config,
-    user_agent,
-)
+from .config import config, load_credentials, load_wikis_config
 from .i18n import I18n
 from .logger import log_to_file
 from .mapping import WikiProjectConfig
@@ -57,7 +50,7 @@ class WikiRepository:
         self.dry_run = dry_run
         self.creds = load_credentials()
 
-        _config: dict = load_wikis_config()
+        _config: dict = load_wikis_config(config.paths)
         self.wiki_config: dict = _config.get(wiki) or {}
 
         if not self.wiki_config:
@@ -71,11 +64,11 @@ class WikiRepository:
 
         self._assessment_config: dict | None = None
         self._http_client = httpx.Client(
-            timeout=10.0, follow_redirects=True, headers={"User-Agent": user_agent()}
+            timeout=10.0, follow_redirects=True, headers={"User-Agent": config.user_agent}
         )
 
         self.host = f"{wiki}.org"
-        self.username = self.creds["botuser"].split("@")[0]
+        self.username = self.creds.botuser.split("@")[0]
         logger.info(
             "WikiRepository initialized for wiki '%s' (user='%s', dry_run=%s)",
             wiki,
@@ -84,7 +77,7 @@ class WikiRepository:
         )
         logger.debug("Loaded wiki config: %s", self.wiki_config)
         self.site: mwclient.Site = mwclient.Site(
-            self.host, path="/w/", clients_useragent=user_agent()
+            self.host, path="/w/", clients_useragent=config.user_agent
         )
         self.login()
 
@@ -242,9 +235,9 @@ class WikiRepository:
             logger.debug("Returning cached assessment config")
             return self._assessment_config
 
-        logger.info("Fetching assessment config from %s", ASSESSMENT_CONFIG_URL)
+        logger.info("Fetching assessment config from %s", config.wiki.assessment_config_url)
         try:
-            resp = self._http_client.get(ASSESSMENT_CONFIG_URL)
+            resp = self._http_client.get(config.wiki.assessment_config_url)
             resp.raise_for_status()
             data = resp.json()
 
@@ -300,7 +293,7 @@ class WikiRepository:
             # queued. The 60 is arbitrary (see T-plan notes): we keep batches
             # close to the API's ~100 req/sec limit without a hard cap.
             batch_count += 1
-            if batch_count > BATCH_SIZE_THRESHOLD:
+            if batch_count > config.pageviews.batch_size_threshold:
                 log_to_file(f"Processing page {index} of {num_results}", self.wiki)
                 total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
                 batch_count = 0
@@ -426,9 +419,9 @@ class WikiRepository:
         The page title is sanitized so it is safe as a filename (colons and
         slashes in wiki titles are common).
         """
-        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        config.paths.log_dir.mkdir(parents=True, exist_ok=True)
         safe_title = re.sub(r"[^\w.\-]+", "_", page_title)
-        out_path = LOG_DIR / f"dryrun-{self.wiki}-{safe_title}.wikitext"
+        out_path = config.paths.log_dir / f"dryrun-{self.wiki}-{safe_title}.wikitext"
         out_path.write_text(text, encoding="utf-8")
         logger.info("dry-run: wrote wikitext for '%s' to %s", page_title, out_path)
 

@@ -1,12 +1,23 @@
 """
 Tests for src.popularpages.logger."""
 
+import dataclasses
+
+import src.popularpages.config as cfg
 import src.popularpages.logger as logger_module
 from src.popularpages.logger import log_to_file
 
 
+def _with_log_dir(tmp_path):
+    new_cfg = dataclasses.replace(
+        cfg.config,
+        paths=dataclasses.replace(cfg.config.paths, log_dir=tmp_path),
+    )
+    return new_cfg
+
+
 def test_log_to_file_writes_expected_line(tmp_path, monkeypatch):
-    monkeypatch.setattr(logger_module, "LOG_DIR", tmp_path)
+    monkeypatch.setattr(logger_module, "config", _with_log_dir(tmp_path))
 
     log_to_file("Test message", "en.wikipedia")
 
@@ -19,7 +30,7 @@ def test_log_to_file_writes_expected_line(tmp_path, monkeypatch):
 
 
 def test_log_to_file_appends_multiple_messages(tmp_path, monkeypatch):
-    monkeypatch.setattr(logger_module, "LOG_DIR", tmp_path)
+    monkeypatch.setattr(logger_module, "config", _with_log_dir(tmp_path))
 
     log_to_file("First", "ar.wikipedia")
     log_to_file("Second", "ar.wikipedia")

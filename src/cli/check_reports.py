@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
-from popularpages.config import load_wikis_config
+from popularpages.config import config, load_wikis_config
 from popularpages.logger import log_to_file
 from popularpages.report_updater import ReportUpdater
 
@@ -45,7 +45,7 @@ def main() -> None:
         format="%(asctime)s  %(levelname)s  %(name)s: %(message)s",
     )
 
-    wikis_config = load_wikis_config()
+    wikis_config = load_wikis_config(config.paths)
 
     if args.wiki:
         if args.wiki not in wikis_config:
