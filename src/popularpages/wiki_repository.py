@@ -27,15 +27,14 @@ from .config import (
     load_credentials,
     load_wikis_config,
 )
-
-logger = logging.getLogger(__name__)
-
 from .i18n import I18n
 from .logger import log_to_file
 from .mapping import WikiProjectConfig
 from .pageviews_repository import PageviewsRepository
 from .utils import first_of_this_month_timestamp, mediawiki_timestamp_to_epoch
 from .wiki_database_repository import WikiDatabaseRepository
+
+logger = logging.getLogger(__name__)
 
 
 class WikiRepository:
