@@ -69,12 +69,17 @@ class ReportUpdater:
         no I/O so it is safe to call from the render path.
         """
         dataset = config[type_]
+        if not config:
+           return {"name": "Unknown", "color": "gray", "category": "unknown"}
+        dataset = config.get(type_)
+        if not dataset:
+            return {"name": "Unknown", "color": "gray", "category": "unknown"}
+        value = value or ""
         for key, values in dataset.items():
             if value.lower() == key.lower():
-                return values
-
-        return dataset["Unknown"]
-
+                   return values
+        return dataset.get("Unknown", {"name": "Unknown", "color": "gray", "category": "unknown"})
+        
     # ---------------------------------------------------
     # Execution
     # ---------------------------------------------------
