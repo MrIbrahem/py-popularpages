@@ -64,7 +64,7 @@ def first_of_this_month_timestamp(now: datetime | None = None) -> float:
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()
 
 
-def format_date(value: date, fmt: str) -> str:
+def format_date(value: date, fmt: str = "%Y-%m-%d") -> str:
     """
     Custom 'date' Jinja filter accepting PHP-style format strings
     (this project only ever uses 'Y-m-d'), so templates ported from

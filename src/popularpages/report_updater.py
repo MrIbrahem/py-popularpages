@@ -43,20 +43,22 @@ class ReportUpdater:
 
     def _register_template_helpers(self) -> None:
         self.env.filters["ucfirst"] = uc_first
+        self.env.filters["date"] = format_date
 
-        def _msg(key, params=None) -> str:
+        def _msg(key, params=None):
             return self.i18n.msg(key, params or [])
 
         self.env.globals["msg"] = _msg
         self.env.globals["assessments"] = self._assessments
-        self.env.filters["date"] = format_date
 
     def _assessments(self, type_: str, value: str) -> dict:
         _config = self.wiki_repository.get_assessment_config()
         dataset = _config[type_]
+
         for key, values in dataset.items():
             if value.lower() == key.lower():
                 return values
+
         return dataset["Unknown"]
 
     # ---------------------------------------------------
