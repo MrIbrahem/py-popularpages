@@ -12,8 +12,8 @@ from datetime import datetime, timezone
 
 from jinja2 import Environment, FileSystemLoader
 
-from .config import config
-from .config import config as app_config  # AppConfig singleton (unshadowed by method params)
+from .config import config  # AppConfig singleton (unshadowed by method params)
+from .config import config as app_config
 from .logger import log_to_file
 from .mapping import WikiProjectConfig
 from .pageviews_cache import PageviewsCache
@@ -70,23 +70,23 @@ class ReportUpdater:
         """
         dataset = config[type_]
         if not config:
-           return {"name": "Unknown", "color": "gray", "category": "unknown"}
+            return {"name": "Unknown", "color": "gray", "category": "unknown"}
         dataset = config.get(type_)
         if not dataset:
             return {"name": "Unknown", "color": "gray", "category": "unknown"}
         value = value or ""
         for key, values in dataset.items():
             if value.lower() == key.lower():
-                   return values
+                return values
         return dataset.get("Unknown", {"name": "Unknown", "color": "gray", "category": "unknown"})
-        
+
     # ---------------------------------------------------
     # Execution
     # ---------------------------------------------------
     async def update_reports(self, config: list[WikiProjectConfig]) -> None:
         """
         Generate and save popular-page reports for the configured WikiProjects, then update the index.
-        
+
         Parameters:
             config (list[WikiProjectConfig]): WikiProject configurations to process. An empty list aborts the update.
         """
@@ -147,9 +147,7 @@ class ReportUpdater:
             # Release the per-run Pageviews HTTP client (async context).
             await self.wiki_repository.pageviews_repo.aclose()
 
-    async def _build_views_cache(
-        self, projects: list[WikiProjectConfig], all_titles: set[str]
-    ) -> PageviewsCache:
+    async def _build_views_cache(self, projects: list[WikiProjectConfig], all_titles: set[str]) -> PageviewsCache:
         """
         Build a :class:`PageviewsCache` for this wiki's reporting month and fetch
         every unique title across ``projects`` exactly once.
@@ -182,7 +180,7 @@ class ReportUpdater:
     ) -> None:
         """
         Process a WikiProject and update its monthly popular-pages report.
-        
+
         Parameters:
             project (str): WikiProject key or title.
             config (dict | WikiProjectConfig): WikiProject report configuration.
@@ -207,9 +205,7 @@ class ReportUpdater:
             return
 
         if cache is not None:
-            data, total_views = await self._views_for_project_from_cache(
-                page_rows, config.Limit, cache
-            )
+            data, total_views = await self._views_for_project_from_cache(page_rows, config.Limit, cache)
         else:
             start_date = self.start.strftime("%Y%m%d00")
             end_date = self.end.strftime("%Y%m%d00")
@@ -235,12 +231,8 @@ class ReportUpdater:
         # run, reused across every page and project.
         assessment_cfg = self.wiki_repository.get_assessment_config()
         for datum in data.values():
-            datum["class_assessment"] = self._resolve_assessment(
-                assessment_cfg, "class", datum["class"]
-            )
-            datum["importance_assessment"] = self._resolve_assessment(
-                assessment_cfg, "importance", datum["importance"]
-            )
+            datum["class_assessment"] = self._resolve_assessment(assessment_cfg, "class", datum["class"])
+            datum["importance_assessment"] = self._resolve_assessment(assessment_cfg, "importance", datum["importance"])
 
         has_lead_section = self.wiki_repository.has_lead_section(config.Report)
         logger.debug("Report has lead section: %s", has_lead_section)

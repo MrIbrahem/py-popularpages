@@ -8,27 +8,27 @@ validate_project_config, and the assessment resolver.
 """
 
 import dataclasses
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 import src.popularpages.config as cfg
 import src.popularpages.report_updater as ru_module
 from src.popularpages.i18n import I18n
 from src.popularpages.mapping import WikiProjectConfig
 from src.popularpages.wiki_repository import WikiRepository
-from unittest.mock import AsyncMock, MagicMock
-
-import pytest
 
 
 @pytest.fixture
 def updater(tmp_path, monkeypatch):
     """Create a configured `ReportUpdater` and mocked wiki repository for tests.
-    
+
     Parameters:
-    	tmp_path: Temporary directory used for the pageviews cache.
-    	monkeypatch: Pytest fixture used to replace repository and configuration dependencies.
-    
+        tmp_path: Temporary directory used for the pageviews cache.
+        monkeypatch: Pytest fixture used to replace repository and configuration dependencies.
+
     Returns:
-    	A tuple containing the configured `ReportUpdater` and its mocked repository.
+        A tuple containing the configured `ReportUpdater` and its mocked repository.
     """
     repo = MagicMock()
     repo.i18n = I18n("en")
@@ -279,9 +279,7 @@ def test_update_index_renders(updater):
     }
     u.update_index()
     repo.set_text.assert_called_once()
-    assert repo.set_text.call_args.kwargs["page_title"] == (
-        "Wikipedia:WikiProject/Popular pages/Index"
-    )
+    assert repo.set_text.call_args.kwargs["page_title"] == ("Wikipedia:WikiProject/Popular pages/Index")
 
 
 def test_update_index_no_projects(updater):

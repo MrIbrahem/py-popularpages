@@ -185,9 +185,7 @@ class PageviewsRepository:
         :return: Dict mapping each requested title -> total pageviews (0 if
             missing / errored).
         """
-        logger.info(
-            "Fetching pageviews for %d title(s) (start=%s, end=%s)", len(titles), start, end
-        )
+        logger.info("Fetching pageviews for %d title(s) (start=%s, end=%s)", len(titles), start, end)
         results = await asyncio.gather(*(self._fetch_title_views(t, start, end) for t in titles))
         return dict(zip(titles, results, strict=True))
 

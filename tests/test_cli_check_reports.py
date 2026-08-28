@@ -1,7 +1,6 @@
 """Tests for src/cli/check_reports.py (all-wikis run entry point)."""
 
 import sys
-
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -13,9 +12,9 @@ from src.popularpages.config import config, load_wikis_config
 @pytest.fixture
 def patched(monkeypatch):
     """Configure a mocked report updater for CLI tests.
-    
+
     Parameters:
-    	monkeypatch: Pytest monkeypatch fixture used to replace the report updater.
+        monkeypatch: Pytest monkeypatch fixture used to replace the report updater.
     """
     updater = MagicMock()
     updater.wiki_repository.get_stale_projects.return_value = []

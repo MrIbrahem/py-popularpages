@@ -52,10 +52,10 @@ class PathsConfig:
     def from_base_dir(cls, base_dir: Path) -> PathsConfig:
         """
         Create a paths configuration rooted at the specified base directory.
-        
+
         Parameters:
             base_dir (Path): Root directory used to derive application paths.
-        
+
         Returns:
             PathsConfig: Configuration containing paths derived from the base directory.
         """
@@ -107,9 +107,7 @@ class WikiConfig:
 
     fallback_lang: str = "en"
     max_project_size: int = 1_000_000
-    assessment_config_url: str = (
-        "https://xtools.wmcloud.org/api/project/assessments"
-    )
+    assessment_config_url: str = "https://xtools.wmcloud.org/api/project/assessments"
 
 
 @dataclass(frozen=True)
@@ -188,9 +186,7 @@ def load_wikis_config(
     """Load the wikis configuration from config/wikis.yaml."""
     logger.debug("Loading wikis config from %s", paths.wikis_config_file)
 
-    data = yaml.safe_load(
-        paths.wikis_config_file.read_text(encoding="utf-8")
-    )
+    data = yaml.safe_load(paths.wikis_config_file.read_text(encoding="utf-8"))
 
     logger.info("Loaded wikis config: %d wiki(s)", len(data))
     return data

@@ -4,11 +4,11 @@ Tests for src.popularpages.pageviews_repository.PageviewsRepository.
 Uses httpx.MockTransport to avoid real network calls.
 """
 
+import types
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
-import types
 
 from src.popularpages.pageviews_repository import (
     PageviewsRepository,
@@ -20,12 +20,12 @@ from src.popularpages.pageviews_repository import (
 def _make_mock_repo(handler) -> PageviewsRepository:
     """
     Create a pageviews repository configured with a mocked HTTP request handler.
-    
+
     Parameters:
-    	handler: A callable that handles requests made by the repository's mock transport.
-    
+        handler: A callable that handles requests made by the repository's mock transport.
+
     Returns:
-    	PageviewsRepository: A repository using the supplied mock HTTP handler.
+        PageviewsRepository: A repository using the supplied mock HTTP handler.
     """
     repo = PageviewsRepository("en.wikipedia")
     repo._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
@@ -94,9 +94,7 @@ def test_client_sets_user_agent_header():
 async def test_get_title_views_returns_per_title():
     def handler(request: httpx.Request) -> httpx.Response:
         if "Bar_Baz" in request.url.path:
-            return httpx.Response(
-                200, json={"items": [{"article": "Bar_Baz", "views": 7}]}
-            )
+            return httpx.Response(200, json={"items": [{"article": "Bar_Baz", "views": 7}]})
         if "Foo" in request.url.path:
             return httpx.Response(200, json={"items": [{"article": "Foo", "views": 3}]})
         return httpx.Response(404)
@@ -152,9 +150,7 @@ def test_retry_wait_falls_back_to_backoff():
 async def test_fetch_title_views_404_returns_zero():
     repo = PageviewsRepository("en.wikipedia")
     repo._get = AsyncMock(
-        side_effect=httpx.HTTPStatusError(
-            "x", request=MagicMock(), response=MagicMock(status_code=404)
-        )
+        side_effect=httpx.HTTPStatusError("x", request=MagicMock(), response=MagicMock(status_code=404))
     )
     assert await repo._fetch_title_views("Foo", "2024010100", "2024013100") == 0
 

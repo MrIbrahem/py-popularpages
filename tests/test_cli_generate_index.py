@@ -1,7 +1,6 @@
 """Tests for src/cli/generate_index.py (index page entry point)."""
 
 import sys
-
 from unittest.mock import MagicMock
 
 import pytest
@@ -13,12 +12,12 @@ import src.cli.generate_index as gi_module
 def patched(monkeypatch):
     """
     Provide a mocked report updater and replace the module's report updater constructor for a test.
-    
+
     Parameters:
-    	monkeypatch: Pytest monkeypatch fixture used to replace `ReportUpdater`.
-    
+        monkeypatch: Pytest monkeypatch fixture used to replace `ReportUpdater`.
+
     Returns:
-    	MagicMock: The mocked report updater with a mocked `update_index` method.
+        MagicMock: The mocked report updater with a mocked `update_index` method.
     """
     updater = MagicMock()
     updater.update_index = MagicMock()

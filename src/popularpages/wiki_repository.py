@@ -63,9 +63,7 @@ class WikiRepository:
         self.pageviews_repo = PageviewsRepository(wiki)
 
         self._assessment_config: dict | None = None
-        self._http_client = httpx.Client(
-            timeout=10.0, follow_redirects=True, headers={"User-Agent": config.user_agent}
-        )
+        self._http_client = httpx.Client(timeout=10.0, follow_redirects=True, headers={"User-Agent": config.user_agent})
 
         self.host = f"{wiki}.org"
         self.username = self.creds.botuser.split("@")[0]
@@ -76,9 +74,7 @@ class WikiRepository:
             dry_run,
         )
         logger.debug("Loaded wiki config: %s", self.wiki_config)
-        self.site: mwclient.Site = mwclient.Site(
-            self.host, path="/w/", clients_useragent=config.user_agent
-        )
+        self.site: mwclient.Site = mwclient.Site(self.host, path="/w/", clients_useragent=config.user_agent)
         self.login()
 
         self.db = WikiDatabaseRepository(

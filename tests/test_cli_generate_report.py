@@ -1,7 +1,6 @@
 """Tests for src/cli/generate_report.py (single-project report entry point)."""
 
 import sys
-
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

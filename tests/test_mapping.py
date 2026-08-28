@@ -64,10 +64,7 @@ class TestWikiProjectConfigParsing:
         )
 
     def test_trim_report_prefix_no_colon(self):
-        assert (
-            WikiProjectConfig.trim_report_prefix("Popular pages/Popular pages")
-            == "Popular_pages/Popular_pages"
-        )
+        assert WikiProjectConfig.trim_report_prefix("Popular pages/Popular pages") == "Popular_pages/Popular_pages"
 
     def test_is_incomplete_true_when_name_missing(self):
         cfg = WikiProjectConfig(

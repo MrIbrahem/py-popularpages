@@ -8,10 +8,10 @@ behavior.
 
 import dataclasses
 import json
+from unittest.mock import MagicMock
 
 import jsonlines
 import pytest
-from unittest.mock import MagicMock
 
 import src.popularpages.config as cfg
 import src.popularpages.pageviews_cache as cache_module

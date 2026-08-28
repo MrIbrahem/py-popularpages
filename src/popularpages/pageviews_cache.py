@@ -16,9 +16,10 @@ See docs/pageviews-persistence-and-dedup-plan.md.
 
 from __future__ import annotations
 
-import jsonlines
 import logging
 from pathlib import Path
+
+import jsonlines
 
 from .config import config
 
@@ -68,9 +69,7 @@ class PageviewsCache:
                         self._cache[obj["title"]] = int(obj["views"])
                         loaded += 1
                     except (KeyError, TypeError, ValueError):
-                        logger.debug(
-                            "Skipping malformed cache object in %s: %r", self.path, obj
-                        )
+                        logger.debug("Skipping malformed cache object in %s: %r", self.path, obj)
         except OSError as exc:
             logger.warning("Could not read pageviews cache %s: %s", self.path, exc)
             return

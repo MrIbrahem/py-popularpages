@@ -33,7 +33,6 @@ requires_creds = pytest.mark.skipif(
 )
 
 
-
 @pytest.fixture(scope="module")
 def repository() -> WikiRepository:
     try:
@@ -222,6 +221,4 @@ class TestWikiRepositoryPureMethods:
             WikiProjectConfig.from_json("P", data={"Report": "P/r", "Limit": "5", "Name": "N"})
         ]
         result = repo.get_projects_with_last_bot_timestamp()
-        assert result == [
-            {"page_title": "P/r", "rev_timestamp": "20240101120000"}
-        ]
+        assert result == [{"page_title": "P/r", "rev_timestamp": "20240101120000"}]
