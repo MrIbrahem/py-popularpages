@@ -7,9 +7,17 @@ Ported from bin/generateIndex.php.
 from __future__ import annotations
 
 import argparse
+import logging
 import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 
 from popularpages.report_updater import ReportUpdater
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -28,10 +36,16 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)s  %(name)s: %(message)s",
+    )
+
     if not re.match(r"^\w+\.\w+$", args.wiki):
-        print("Please specify wiki in the format lang.project (such as en.wikipedia)")
+        logger.info("Please specify wiki in the format lang.project (such as en.wikipedia)")
         return
 
+    logger.info("Generating index page for wiki '%s' (dry_run=%s)", args.wiki, args.dry_run)
     updater = ReportUpdater(args.wiki, dry_run=args.dry_run)
     updater.update_index()
 

@@ -7,7 +7,10 @@ page templates.
 
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timedelta, timezone
+
+logger = logging.getLogger(__name__)
 
 
 def uc_first(value: str) -> str:
@@ -15,7 +18,9 @@ def uc_first(value: str) -> str:
     Capitalize only the first character, leaving the rest untouched
     (Jinja's builtin `capitalize` also lowercases the remainder, unlike
     PHP's ucfirst() / Twig's custom filter used here)."""
-    return value[:1].upper() + value[1:] if value else value
+    result = value[:1].upper() + value[1:] if value else value
+    logger.debug("uc_first(%r) -> %r", value, result)
+    return result
 
 
 def previous_month_range(today: date) -> tuple[date, date]:
@@ -31,6 +36,12 @@ def previous_month_range(today: date) -> tuple[date, date]:
     # TODO: Check diffrent
     # end = last_day_of_prev_month.replace()
     # return first_day_of_prev_month, end
+    logger.debug(
+        "previous_month_range(%s) -> (%s, %s)",
+        today,
+        first_day_of_prev_month,
+        last_day_of_prev_month,
+    )
     return first_day_of_prev_month, last_day_of_prev_month
 
 
@@ -42,7 +53,9 @@ def mediawiki_timestamp_to_epoch(timestamp: str) -> float:
     Convert a MediaWiki DB-style timestamp (YYYYMMDDHHMMSS) to a Unix epoch."""
 
     dt = datetime.strptime(timestamp, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
-    return dt.timestamp()
+    epoch = dt.timestamp()
+    logger.debug("mediawiki_timestamp_to_epoch(%s) -> %s", timestamp, epoch)
+    return epoch
 
 
 def mediawiki_timestamp_to_date(timestamp: str) -> str:
@@ -51,7 +64,9 @@ def mediawiki_timestamp_to_date(timestamp: str) -> str:
 
     # API (formatversion=2) timestamps look like '2023-01-15T00:00:00Z'.
     dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
-    return dt.strftime("%Y-%m-%d")
+    result = dt.strftime("%Y-%m-%d")
+    logger.debug("mediawiki_timestamp_to_date(%s) -> %s", timestamp, result)
+    return result
 
 
 def first_of_this_month_timestamp(now: datetime | None = None) -> float:
@@ -61,7 +76,9 @@ def first_of_this_month_timestamp(now: datetime | None = None) -> float:
         now = datetime.now(timezone.utc)
 
     # Remove projects from the config that have already been updated.
-    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()
+    epoch = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()
+    logger.debug("first_of_this_month_timestamp(%s) -> %s", now, epoch)
+    return epoch
 
 
 def format_date(value: date, fmt: str = "%Y-%m-%d") -> str:
@@ -72,7 +89,9 @@ def format_date(value: date, fmt: str = "%Y-%m-%d") -> str:
     php_to_strftime = {"Y": "%Y", "m": "%m", "d": "%d"}
 
     strftime_fmt = "".join(php_to_strftime.get(ch, ch) for ch in fmt)
-    return value.strftime(strftime_fmt)
+    result = value.strftime(strftime_fmt)
+    logger.debug("format_date(%s, %s) -> %s", value, fmt, result)
+    return result
 
 
 __all__ = [

@@ -7,6 +7,6 @@ venv/
 .ruff_cache/
 coverage.xml
 .coverage
-config.ini
+.env
 logs/*.txt
 !logs/.gitkeep

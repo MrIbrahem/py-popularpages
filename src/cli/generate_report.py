@@ -11,10 +11,16 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import re
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from popularpages.report_updater import ReportUpdater
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -37,18 +43,30 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)s  %(name)s: %(message)s",
+    )
+
     if not re.match(r"^\w+\.\w+$", args.wiki):
-        print("Please specify wiki in the format lang.project (such as en.wikipedia)")
+        logger.info("Please specify wiki in the format lang.project (such as en.wikipedia)")
         return
 
+    logger.info(
+        "Generating report for project '%s' on wiki '%s' (dry_run=%s)",
+        args.project,
+        args.wiki,
+        args.dry_run,
+    )
     updater = ReportUpdater(args.wiki, dry_run=args.dry_run)
     project_config = updater.wiki_repository.get_project(args.project)
 
     if not project_config:
-        print(f"No WikiProject found with Name '{args.project}' on {args.wiki}.", file=sys.stderr)
+        logger.info(f"No WikiProject found with Name '{args.project}' on {args.wiki}.")
         sys.exit(1)
 
     asyncio.run(updater.update_reports([project_config]))
+    logger.info("Finished generating report for project '%s'", args.project)
 
 
 if __name__ == "__main__":

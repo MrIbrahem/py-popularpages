@@ -1,20 +1,41 @@
-""" """
+"""
+Configuration & credential loading.
+
+Credentials (bot username/password and replica-database access) are read from
+a ``.env`` file via python-dotenv, falling back to real environment variables.
+``.env.example`` is the committed template:
+
+    cp .env.example .env
+    # then edit .env with your bot username/password (from Special:BotPasswords)
+
+"""
 
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 
 import yaml
+from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
+
+try:
+    load_dotenv(override=False)
+except Exception as e:
+    logger.info(f"Failed to load .env: {e}")
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+# .env lives in the repo root. python-dotenv also honours real environment
+# variables (used in the Toolforge deployment), which take precedence.
 
 VIEWS_DIR = BASE_DIR / "views"
 
 MESSAGES_DIR = BASE_DIR / "messages"
 
 LOG_DIR = BASE_DIR / "logs"
-
-CONFIG_PATH = BASE_DIR / "config.ini"
 
 FALLBACK_LANG = "en"
 
@@ -34,11 +55,48 @@ BATCH_SIZE_THRESHOLD = 60
 ASSESSMENT_CONFIG_URL = "https://xtools.wmflabs.org/api/project/assessments"
 
 
+def load_credentials() -> dict[str, str]:
+    """
+    Build the credentials dict consumed by WikiRepository / WikiDatabaseRepository.
+
+    Values come from environment variables (loaded from ``.env`` at import time,
+    or set directly in the environment). Missing values default to empty strings
+    so callers can detect "no credentials configured" and skip live runs.
+    """
+    creds = {
+        # Wikipedia bot credentials (full name, e.g. "ExampleBot@MyTask").
+        "botuser": os.environ.get("WIKIPEDIA_BOT_USERNAME", ""),
+        "botpass": os.environ.get("WIKIPEDIA_BOT_PASSWORD", ""),
+    }
+    logger.debug(
+        "Loaded credentials: botuser='%s' (botpass set: %s)",
+        creds["botuser"],
+        bool(creds["botpass"]),
+    )
+    return creds
+
+
+def has_credentials() -> bool:
+    """
+    Return True when the minimum credentials for a live run are present.
+
+    Used by tests to skip integration tests that require real credentials.
+    """
+    creds = load_credentials()
+    has = bool(creds["botuser"]) and bool(creds["botpass"])
+    logger.debug("has_credentials=%s", has)
+    return has
+
+
 def load_wikis_config():
     """
     Load the wikis configuration from the config/wikis.yaml file.
     """
-    return yaml.safe_load((BASE_DIR / "config" / "wikis.yaml").read_text(encoding="utf-8"))
+    path = BASE_DIR / "config" / "wikis.yaml"
+    logger.debug("Loading wikis config from %s", path)
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    logger.info("Loaded wikis config: %d wiki(s)", len(data))
+    return data
 
 
 __all__ = [
@@ -46,10 +104,11 @@ __all__ = [
     "MESSAGES_DIR",
     "FALLBACK_LANG",
     "BASE_DIR",
-    "CONFIG_PATH",
     "MAX_PROJECT_SIZE",
     "BATCH_SIZE_THRESHOLD",
     "ASSESSMENT_CONFIG_URL",
+    "load_credentials",
+    "has_credentials",
     "load_wikis_config",
     "VIEWS_DIR",
 ]

@@ -7,6 +7,7 @@ page templates.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from jinja2 import Environment, FileSystemLoader
@@ -16,6 +17,8 @@ from .logger import log_to_file
 from .mapping import WikiProjectConfig
 from .utils import format_date, previous_month_range, uc_first
 from .wiki_repository import WikiRepository
+
+logger = logging.getLogger(__name__)
 
 
 class ReportUpdater:
@@ -32,6 +35,7 @@ class ReportUpdater:
         self.wiki_repository = WikiRepository(wiki, dry_run)
         self.wiki = wiki
         self.i18n = self.wiki_repository.i18n
+        logger.info("ReportUpdater initialized for wiki '%s' (dry_run=%s)", wiki, dry_run)
 
         # Dates for the previous month, mirroring PHP's
         # strtotime('first day of previous month') / ('last day of previous month').
@@ -42,6 +46,7 @@ class ReportUpdater:
         self._register_template_helpers()
 
     def _register_template_helpers(self) -> None:
+        logger.debug("Registering template helpers (ucfirst, date, msg, assessments)")
         self.env.filters["ucfirst"] = uc_first
         self.env.filters["date"] = format_date
 
@@ -52,14 +57,24 @@ class ReportUpdater:
         self.env.globals["assessments"] = self._assessments  # type: ignore[assignment]
 
     def _assessments(self, type_: str, value: str) -> dict:
-        _config = self.wiki_repository.get_assessment_config()
-        dataset = _config[type_]
+        logger.debug("Looking up assessment type='%s' value='%s'", type_, value)
+        try:
+            _config = self.wiki_repository.get_assessment_config()
+            dataset = _config[type_]
 
-        for key, values in dataset.items():
-            if value.lower() == key.lower():
-                return values
+            for key, values in dataset.items():
+                if value.lower() == key.lower():
+                    return values
 
-        return dataset["Unknown"]
+            return dataset["Unknown"]
+        except Exception as e:
+            logger.error("Error looking up assessment type='%s' value='%s': %s", type_, value, e)
+            return {
+                "name": "Unknown",
+                "color": "gray",
+                "icon": "unknown",
+                "category": "unknown",
+            }
 
     # ---------------------------------------------------
     # Execution
@@ -76,10 +91,12 @@ class ReportUpdater:
             return
 
         try:
+            logger.info("update_reports: processing %d project(s)", len(config))
             for project in config:
                 if not self.validate_project_config(project.project_main_page, project):
                     continue
 
+                logger.info("Processing project '%s'", project.Name)
                 await self.process_project(project.project_main_page, project)
 
                 log_to_file(f"Finished processing: {project.Name}", self.wiki)
@@ -100,7 +117,9 @@ class ReportUpdater:
         if isinstance(config, dict):
             config = WikiProjectConfig.from_json(project, data=config)
 
+        logger.info("Process project '%s' (config report='%s')", config.Name, config.Report)
         page_rows = self.wiki_repository.get_project_pages(config.Name)
+        logger.debug("Fetched %d page(s) for project '%s'", len(page_rows), config.Name)
 
         if not page_rows:
             log_to_file(f'No pages found for "{project}"', self.wiki)
@@ -113,6 +132,7 @@ class ReportUpdater:
 
         start_date = self.start.strftime("%Y%m%d00")
         end_date = self.end.strftime("%Y%m%d00")
+        logger.debug("Pageviews window: start=%s end=%s", start_date, end_date)
 
         data, total_views = await self.wiki_repository.get_monthly_pageviews_and_assessments(
             page_rows,
@@ -128,6 +148,7 @@ class ReportUpdater:
             datum["avgPageviews"] = datum["pageviews"] // days_in_month
 
         has_lead_section = self.wiki_repository.has_lead_section(config.Report)
+        logger.debug("Report has lead section: %s", has_lead_section)
 
         # Generate and return wikitext.
         render_argv = {
@@ -155,6 +176,7 @@ class ReportUpdater:
         """
         Update the index page listing each WikiProject, its report,
         and when it was last updated."""
+        logger.info("Updating index page for wiki '%s'", self.wiki)
         log_to_file("Updating index page", self.wiki)
 
         list_config_obj = self.retrieve_project_updates()
@@ -189,8 +211,10 @@ class ReportUpdater:
         """
         projects_config = self.wiki_repository.get_json_config()
         list_config_obj = WikiProjectConfig.from_json_list(projects_config)
+        logger.debug("Retrieved %d project config(s)", len(list_config_obj))
 
         last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
+        logger.debug("Retrieved %d last-edit timestamp(s)", len(last_edits))
 
         # Add the last updated date to the config.
         last_edits_times = {
@@ -215,6 +239,7 @@ class ReportUpdater:
 
         :return: True if valid, else False (with the reason logged).
         """
+        logger.debug("Validating project config for '%s'", project)
         if isinstance(config, dict):
             config = WikiProjectConfig.from_json(project, data=config)
 

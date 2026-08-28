@@ -12,8 +12,11 @@ Falls back to English for any key missing in the requested language.
 from __future__ import annotations
 
 import json
+import logging
 
 from .config import FALLBACK_LANG, MESSAGES_DIR
+
+logger = logging.getLogger(__name__)
 
 
 class I18n:
@@ -32,8 +35,10 @@ class I18n:
         if lang not in self._cache:
             path = MESSAGES_DIR / f"{lang}.json"
             if not path.exists():
+                logger.info("No messages file for lang '%s'; falling back", lang)
                 self._cache[lang] = {}
             else:
+                logger.debug("Loading messages for lang '%s' from %s", lang, path)
                 with path.open(encoding="utf-8") as f:
                     self._cache[lang] = json.load(f)
         return self._cache[lang]
@@ -52,12 +57,15 @@ class I18n:
         text = messages.get(key)
 
         if text is None and self.lang != FALLBACK_LANG:
+            logger.debug("Message key '%s' missing in '%s'; trying fallback", key, self.lang)
             text = self._load(FALLBACK_LANG).get(key)
 
         if text is None:
+            logger.debug("Message key '%s' not found in any lang; using raw key", key)
             text = key
 
         for index, value in enumerate(variables, start=1):
             text = text.replace(f"${index}", str(value))
 
+        logger.debug("Resolved message '%s' -> '%s'", key, text)
         return text

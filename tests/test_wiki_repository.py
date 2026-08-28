@@ -3,8 +3,8 @@ Tests for src.popularpages.wiki_repository.WikiRepository.
 
 Ported from tests/WikiRepositoryTest.php. These tests hit the live English
 Wikipedia API (and, for the currently-skipped tests, the replica database),
-matching the original PHP suite's approach -- they require a valid
-config.ini with bot credentials to run.
+matching the original PHP suite's approach -- they require valid credentials
+(from a ``.env`` file, see ``.env.example``) to run.
 
 The two tests that were disabled upstream (prefixed 'er' instead of 'test'
 in the PHP version, so PHPUnit never actually ran them) are kept here as
@@ -14,15 +14,15 @@ in the PHP version, so PHPUnit never actually ran them) are kept here as
 import mwclient.errors
 import pytest
 
-from src.popularpages.config import CONFIG_PATH
+from src.popularpages.config import has_credentials
 from src.popularpages.wiki_repository import WikiRepository
 
 # Integration tests that hit the live wiki/DB require real credentials, which
-# live in config.ini (gitignored). Skip them when that file is absent so the
-# suite stays green in CI.
+# live in .env (gitignored). Skip them when absent so the suite stays green in
+# CI.
 requires_creds = pytest.mark.skipif(
-    not CONFIG_PATH.exists(),
-    reason="requires config.ini with live credentials",
+    not has_credentials(),
+    reason="requires credentials in .env with live credentials",
 )
 
 
@@ -31,7 +31,7 @@ def repository() -> WikiRepository:
     try:
         return WikiRepository()
     except mwclient.errors.LoginError:
-        pytest.skip("requires valid live wiki credentials (config.ini present but login failed)")
+        pytest.skip("requires valid live wiki credentials (.env present but login failed)")
 
 
 @requires_creds

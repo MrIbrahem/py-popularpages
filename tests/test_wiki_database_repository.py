@@ -8,48 +8,33 @@ template rendering) expects ``str``. The live-DB tests in the PHP suite that
 exercised this path were disabled upstream; these offline tests replace them.
 """
 
+from src.popularpages.db_analytics.maps import WikiReplicaMaps
 from src.popularpages.wiki_database_repository import WikiDatabaseRepository
 
 
-def _make_repo() -> WikiDatabaseRepository:
+class _FakeMaps:
+    """Stand-in for WikiReplicaMaps so repo construction stays offline."""
+
+    def resolve_wiki(self, identifier):
+        return {
+            "dbname": "enwiki",
+            "slice": "s1",
+            "url": "https://en.wikipedia.org",
+            "lang": "en",
+        }
+
+
+def _make_repo(monkeypatch) -> WikiDatabaseRepository:
+    monkeypatch.setattr(WikiReplicaMaps, "get_instance", lambda: _FakeMaps())
     return WikiDatabaseRepository(
         wiki="en.wikipedia",
-        creds={"dbhost": "x", "dbuser": "u", "dbpass": "p", "dbport": "3306"},
         wiki_config={"database": "enwiki"},
         username="bot",
     )
 
 
-class _FakeCursor:
-    def __init__(self, rows):
-        self._rows = rows
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-    def execute(self, *args, **kwargs):
-        pass
-
-    def fetchall(self):
-        return self._rows
-
-
-class _FakeConn:
-    def __init__(self, rows):
-        self._rows = rows
-
-    def cursor(self):
-        return _FakeCursor(self._rows)
-
-    def close(self):
-        pass
-
-
 def test_get_project_pages_decodes_binary_columns(monkeypatch):
-    repo = _make_repo()
+    repo = _make_repo(monkeypatch)
     rows = [
         {
             "page_title": b"Foo_Bar",
@@ -58,7 +43,7 @@ def test_get_project_pages_decodes_binary_columns(monkeypatch):
             "redir_title": b"Foo",
         }
     ]
-    monkeypatch.setattr(repo, "_connect", lambda: _FakeConn(rows))
+    monkeypatch.setattr(repo.db, "select_safe", lambda *args, **kwargs: rows)
 
     result = repo.get_project_pages("X")
 
@@ -69,9 +54,9 @@ def test_get_project_pages_decodes_binary_columns(monkeypatch):
 
 
 def test_get_projects_with_last_bot_timestamp_decodes_binary(monkeypatch):
-    repo = _make_repo()
+    repo = _make_repo(monkeypatch)
     rows = [{"page_title": b"Popular_pages", "rev_timestamp": b"20230115000000"}]
-    monkeypatch.setattr(repo, "_connect", lambda: _FakeConn(rows))
+    monkeypatch.setattr(repo.db, "select_safe", lambda *args, **kwargs: rows)
 
     projects = {"Popular_pages": "MyProject"}
     result = repo.get_projects_timestamps(["Popular_pages"])
@@ -82,10 +67,10 @@ def test_get_projects_with_last_bot_timestamp_decodes_binary(monkeypatch):
 
 
 def test_get_stale_project_names_parses_str_timestamp(monkeypatch):
-    repo = _make_repo()
+    repo = _make_repo(monkeypatch)
     # A timestamp far in the future means "already updated this cycle".
     rows = [{"page_title": b"Popular_pages", "rev_timestamp": b"20990101000000"}]
-    monkeypatch.setattr(repo, "_connect", lambda: _FakeConn(rows))
+    monkeypatch.setattr(repo.db, "select_safe", lambda *args, **kwargs: rows)
 
     updated = repo.get_projects_timestamps(["Popular_pages"])
 

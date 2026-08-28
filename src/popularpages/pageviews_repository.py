@@ -10,6 +10,7 @@ mirroring the PHP version's use of caseyamcl/guzzle_retry_middleware.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 from urllib.parse import quote
 
@@ -23,6 +24,8 @@ from tenacity import (
 )
 
 from .logger import log_to_file
+
+logger = logging.getLogger(__name__)
 
 ENDPOINT_URL = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article"
 
@@ -93,6 +96,7 @@ class PageviewsRepository:
         :param domain: The wiki domain, e.g. 'en.wikipedia'.
         """
         self.domain = domain
+        logger.debug("PageviewsRepository initialized for domain '%s'", domain)
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(REQUEST_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS)
         )
@@ -100,6 +104,7 @@ class PageviewsRepository:
     async def aclose(self) -> None:
         """
         Close the underlying HTTP client. Call when done with this repository."""
+        logger.debug("Closing PageviewsRepository HTTP client for '%s'", self.domain)
         await self._client.aclose()
 
     def _log_retry(self, retry_state: RetryCallState) -> None:
@@ -131,8 +136,10 @@ class PageviewsRepository:
         # malformed and the API returns no data (silently counted as 0 pageviews).
         encoded_article = quote(article, safe="")
         url = f"{ENDPOINT_URL}/{self.domain}/all-access/user/{encoded_article}/monthly/{start}/{end}"
+        logger.debug("GET %s", url)
         response = await self._client.get(url)
         response.raise_for_status()
+        logger.debug("GET %s -> %s", url, response.status_code)
         return response
 
     async def get_pageviews(self, batch: dict[str, list[str]], start: str, end: str) -> dict[str, int]:
@@ -154,6 +161,14 @@ class PageviewsRepository:
         for titles in batch.values():
             all_titles.update(t for t in titles if t)
 
+        logger.info(
+            "Fetching pageviews for %d target(s) across %d unique title(s) (start=%s, end=%s)",
+            len(target_titles),
+            len(all_titles),
+            start,
+            end,
+        )
+
         async def fetch_one(title: str) -> tuple[Any | None, int | None] | None:
             await asyncio.sleep(REQUEST_DELAY_SECONDS)
             article = title.replace(" ", "_")
@@ -171,6 +186,7 @@ class PageviewsRepository:
                 return None
 
         results = await asyncio.gather(*(fetch_one(title) for title in all_titles))
+        logger.debug("Completed %d pageviews request(s)", len(results))
 
         for result in results:
             if result is None:
@@ -204,4 +220,5 @@ class PageviewsRepository:
             total_views += int(item["views"])
             article = item["article"].replace("_", " ")
 
+        logger.debug("Processed %d item(s) for '%s': %d total views", len(items), article, total_views)
         return article, total_views
