@@ -76,7 +76,6 @@ class WikiRepository:
 
         self.db = WikiDatabaseRepository(
             wiki=self.wiki,
-            creds=self.creds,
             wiki_config=self.wiki_config,
             username=self.username,
         )
@@ -114,18 +113,6 @@ class WikiRepository:
         return config
 
     # -- Setup / credentials -------------------------------------------------
-
-    @staticmethod
-    def _load_credentials() -> dict[str, str]:
-        """
-        Return the credentials dict built from environment variables.
-
-        The actual env-var -> creds mapping lives in
-        ``config.load_credentials()`` (which reads ``.env`` via python-dotenv
-        in the Toolforge/local-dev setup, or real environment variables in
-        production). This thin wrapper keeps the rest of the class unchanged.
-        """
-        return load_credentials()
 
     def login(self) -> None:
         """
