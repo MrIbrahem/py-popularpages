@@ -16,8 +16,8 @@
 ! {{ msg('limit') }}
 ! {{ msg('updated') }}
 |-
-{% for project, config in projects.items() %}
-| [[{{ project }}|{{ config.Name }}]]
+{% for config in projects %}
+| [[{{ config.project_main_page }}|{{ config.Name }}]]
 | [[{{ config.Report }}]]
 | {% raw %}{{FORMATNUM:{% endraw %}{{ config.Limit }}}}
 | {% if loop.index0 == 0 %}style="white-space:nowrap" | {% endif %}{{ config.Updated }}

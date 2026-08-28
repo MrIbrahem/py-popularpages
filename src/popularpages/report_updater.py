@@ -157,6 +157,22 @@ class ReportUpdater:
         and when it was last updated."""
         log_to_file("Updating index page", self.wiki)
 
+        list_config_obj = self.retrieve_project_updates()
+
+        wiki_config = self.wiki_repository.get_wiki_config()
+        # Generate and return wikitext.
+        output = self.env.get_template("index.wikitext.jinja").render(
+            projects=list_config_obj,
+            configPage=wiki_config["config"],
+        )
+
+        self.wiki_repository.set_text(
+            page_title=wiki_config["index"],
+            text=output,
+            summary=self.i18n.msg("edit-summary"),
+        )
+
+    def retrieve_project_updates(self) -> list[WikiProjectConfig]:
         projects_config = self.wiki_repository.get_json_config()
 
         last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
@@ -168,24 +184,34 @@ class ReportUpdater:
         }
 
         for proj_name, rev_date in last_edits_times.items():
-            # rev_timestamp from the DB is YYYYMMDDHHMMSS.
             if proj_name in projects_config:
+                # rev_timestamp from the DB is YYYYMMDDHHMMSS.
                 parsed = datetime.strptime(str(rev_date), "%Y%m%d%H%M%S")
                 projects_config[proj_name]["Updated"] = parsed.strftime("%Y-%m-%d")
 
-        wiki_config = self.wiki_repository.get_wiki_config()
+        list_config_obj = WikiProjectConfig.from_json_list(projects_config)
+        return list_config_obj
 
-        # Generate and return wikitext.
-        output = self.env.get_template("index.wikitext.jinja").render(
-            projects=projects_config,
-            configPage=wiki_config["config"],
-        )
+    def retrieve_project_updates_new(self) -> list[WikiProjectConfig]:
+        projects_config = self.wiki_repository.get_json_config()
+        list_config_obj = WikiProjectConfig.from_json_list(projects_config)
 
-        self.wiki_repository.set_text(
-            page_title=wiki_config["index"],
-            text=output,
-            summary=self.i18n.msg("edit-summary"),
-        )
+        last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
+
+        # Add the last updated date to the config.
+        last_edits_times = {
+            projects_config[row["page_title"]]: row["rev_timestamp"]
+            for row in last_edits
+        }
+
+        for x in list_config_obj:
+            if x.project_main_page in last_edits_times:
+                rev_date = last_edits_times[x.project_main_page]
+                # rev_timestamp from the DB is YYYYMMDDHHMMSS.
+                parsed = datetime.strptime(str(rev_date), "%Y%m%d%H%M%S")
+                x.Updated = parsed.strftime("%Y-%m-%d")
+
+        return list_config_obj
 
     def validate_project_config(self, project: str, config: dict | WikiProjectConfig) -> bool:
         """
