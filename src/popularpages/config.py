@@ -49,7 +49,16 @@ class PathsConfig:
     wikis_config_file: Path
 
     @classmethod
-    def from_base_dir(cls, base_dir: Path) -> "PathsConfig":
+    def from_base_dir(cls, base_dir: Path) -> PathsConfig:
+        """
+        Create a paths configuration rooted at the specified base directory.
+        
+        Parameters:
+            base_dir (Path): Root directory used to derive application paths.
+        
+        Returns:
+            PathsConfig: Configuration containing paths derived from the base directory.
+        """
         data_dir = base_dir / "data"
 
         return cls(

@@ -33,3 +33,15 @@ def test_user_agent_falls_back_without_creds(monkeypatch):
     monkeypatch.delenv("WIKIPEDIA_BOT_USERNAME", raising=False)
     ua = _config_with_env().user_agent
     assert "contact: tool" in ua
+
+
+def test_load_wikis_config_reads_yaml():
+    data = cfg.load_wikis_config(cfg.config.paths)
+    assert isinstance(data, dict)
+    assert len(data) > 0
+
+
+def test_has_credentials_true_and_false():
+    with_creds = cfg.CredentialsConfig(botuser="Bot@task", botpass="secret")
+    assert cfg.has_credentials(with_creds) is True
+    assert cfg.has_credentials(cfg.CredentialsConfig()) is False

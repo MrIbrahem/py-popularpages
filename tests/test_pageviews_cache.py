@@ -11,6 +11,7 @@ import json
 
 import jsonlines
 import pytest
+from unittest.mock import MagicMock
 
 import src.popularpages.config as cfg
 import src.popularpages.pageviews_cache as cache_module
@@ -207,3 +208,17 @@ async def test_flush_threshold_writes_incrementally(tmp_path, monkeypatch):
     assert len(lines) == 10
     expected = [{"title": f"T{i}", "views": i} for i in range(10)]
     assert sorted(lines, key=lambda d: d["title"]) == sorted(expected, key=lambda d: d["title"])
+
+
+@pytest.mark.asyncio
+async def test_load_oserror_is_swallowed(cache_config, monkeypatch):
+    """A read error while loading is logged and treated as an empty cache."""
+    repo = FakeRepo({"A": 10})
+    cache = PageviewsCache("en.wikipedia", "2024-07", repo)
+    # Make path.report exist (so we reach the read) but have read_text raise.
+    fake = MagicMock()
+    fake.exists.return_value = True
+    fake.read_text.side_effect = OSError("permission denied")
+    cache.path = fake
+    cache._load()  # must not raise
+    assert cache.get("A", []) == 0

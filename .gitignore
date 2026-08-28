@@ -14,3 +14,6 @@ logs/*.wikitext
 
 # Persisted pageviews cache (regenerated every run, see docs/pageviews-persistence-and-dedup-plan.md)
 data/
+
+# Local credentials, never commit
+config.ini

@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from jinja2 import Environment, FileSystemLoader
 
 from .config import config
+from .config import config as app_config  # AppConfig singleton (unshadowed by method params)
 from .logger import log_to_file
 from .mapping import WikiProjectConfig
 from .pageviews_cache import PageviewsCache
@@ -84,9 +85,10 @@ class ReportUpdater:
     # ---------------------------------------------------
     async def update_reports(self, config: list[WikiProjectConfig]) -> None:
         """
-        Update popular pages reports. Primary async execution point.
-
-        :param config: The JSON config from the wiki page.
+        Generate and save popular-page reports for the configured WikiProjects, then update the index.
+        
+        Parameters:
+            config (list[WikiProjectConfig]): WikiProject configurations to process. An empty list aborts the update.
         """
         # Make sure config isn't empty.
         if not config:
@@ -110,7 +112,7 @@ class ReportUpdater:
                     continue
 
                 # See T164178: guard against runaway memory for very large projects.
-                if len(page_rows) > config.wiki.max_project_size:
+                if len(page_rows) > app_config.wiki.max_project_size:
                     log_to_file(f"Error: {project.project_main_page} is too large. Skipping.", self.wiki)
                     continue
 
@@ -179,16 +181,13 @@ class ReportUpdater:
         page_rows: list[dict] | None = None,
     ) -> None:
         """
-        Process an individual WikiProject and update its popular pages report.
-
-        :param project: WikiProject key/title.
-        :param config: As specified in the on-wiki JSON config.
-        :param cache: Optional :class:`PageviewsCache`. When provided, pageviews
-            are read from the shared, persisted cache instead of being fetched
-            per-project from the Pageviews API (the default path when invoked via
-            ``update_reports``).
-        :param page_rows: Optional pre-fetched page rows (targets + assessments
-            + redirects). When provided, avoids a second DB query.
+        Process a WikiProject and update its monthly popular-pages report.
+        
+        Parameters:
+            project (str): WikiProject key or title.
+            config (dict | WikiProjectConfig): WikiProject report configuration.
+            cache (PageviewsCache | None): Shared pageview cache, if available.
+            page_rows (list[dict] | None): Pre-fetched project pages with assessments and redirects.
         """
         if isinstance(config, dict):
             config = WikiProjectConfig.from_json(project, data=config)
@@ -203,7 +202,7 @@ class ReportUpdater:
             return
 
         # See T164178: guard against runaway memory for very large projects.
-        if len(page_rows) > config.wiki.max_project_size:
+        if len(page_rows) > app_config.wiki.max_project_size:
             log_to_file(f"Error: {project} is too large. Skipping.", self.wiki)
             return
 
