@@ -44,7 +44,10 @@ class ReportUpdater:
     def _register_template_helpers(self) -> None:
         self.env.filters["ucfirst"] = uc_first
 
-        self.env.globals["msg"] = lambda key, params=None: self.i18n.msg(key, params or [])
+        def _msg(key, params=None) -> str:
+            return self.i18n.msg(key, params or [])
+
+        self.env.globals["msg"] = _msg
         self.env.globals["assessments"] = self._assessments
         self.env.filters["date"] = format_date
 
