@@ -9,7 +9,7 @@ On ``en.wikipedia`` many WikiProjects share the same popular articles (e.g.
 *World War II*, *United States*). Without this cache each shared article would
 be requested once per project that references it. The cache de-duplicates by
 title across all projects for the month and writes the JSONL incrementally
-(flushing at most once per :data:`VIEWS_FLUSH_TITLES` titles).
+(flushing at most once per :data:`config.pageviews.flush_titles` titles).
 
 See docs/pageviews-persistence-and-dedup-plan.md.
 """
@@ -20,7 +20,7 @@ import json
 import logging
 from pathlib import Path
 
-from .config import VIEWS_DATA_DIR, VIEWS_FETCH_BATCH, VIEWS_FLUSH_TITLES
+from .config import config
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class PageviewsCache:
         self.wiki = wiki
         self.year_month = year_month
         self.repo = pageviews_repo
-        self.path: Path = VIEWS_DATA_DIR / wiki / f"{year_month}.jsonl"
+        self.path: Path = config.paths.views_data_dir / wiki / f"{year_month}.jsonl"
 
         self._cache: dict[str, int] = {}
         self._pending: list[tuple[str, int]] = []
@@ -97,8 +97,8 @@ class PageviewsCache:
 
         Titles already present in the cache (from this run or a previous one)
         are not re-fetched. Missing titles are fetched from the Pageviews API in
-        batches of :data:`VIEWS_FETCH_BATCH` and written to the JSONL file as
-        they accumulate (flushing at most once per :data:`VIEWS_FLUSH_TITLES`
+        batches of :data:`config.pageviews.fetch_batch` and written to the JSONL file as
+        they accumulate (flushing at most once per :data:`config.pageviews.flush_titles`
         titles).
 
         :param titles: Unique article titles (spaces) to ensure.
@@ -123,14 +123,14 @@ class PageviewsCache:
             len(self._cache),
         )
 
-        for i in range(0, len(missing), VIEWS_FETCH_BATCH):
-            chunk = missing[i : i + VIEWS_FETCH_BATCH]
+        for i in range(0, len(missing), config.pageviews.fetch_batch):
+            chunk = missing[i : i + config.pageviews.fetch_batch]
             views = await self.repo.get_title_views(chunk, start, end)
             for title in chunk:
                 value = views.get(title, 0)
                 self._cache[title] = value
                 self._pending.append((title, value))
-            if len(self._pending) >= VIEWS_FLUSH_TITLES:
+            if len(self._pending) >= config.pageviews.flush_titles:
                 self._flush()
 
         # Flush any remainder so the on-disk file reflects the full run.

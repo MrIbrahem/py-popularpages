@@ -11,19 +11,23 @@ in the PHP version, so PHPUnit never actually ran them) are kept here as
 @pytest.mark.skip for parity, rather than silently dropped.
 """
 
+import dataclasses
+
 import mwclient.errors
 import pytest
 
-from src.popularpages.config import has_credentials
+import src.popularpages.config as cfg
+from src.popularpages.config import config, has_credentials
 from src.popularpages.wiki_repository import WikiRepository
 
 # Integration tests that hit the live wiki/DB require real credentials, which
 # live in .env (gitignored). Skip them when absent so the suite stays green in
 # CI.
 requires_creds = pytest.mark.skipif(
-    not has_credentials(),
+    not has_credentials(cfg.config.credentials),
     reason="requires credentials in .env with live credentials",
 )
+
 
 
 @pytest.fixture(scope="module")
@@ -101,12 +105,17 @@ class TestWriteDryRunText:
     """
     _write_dry_run_text persists the rendered wikitext to the logs folder.
     Exercises the method directly (bypassing WikiRepository.__init__, which
-    needs live credentials) by using __new__ and a monkeypatched LOG_DIR.
+    needs live credentials) by using __new__ and a monkeypatched config whose
+    log_dir points at a temp path.
     """
 
     def test_writes_file_with_sanitized_title(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            "src.popularpages.wiki_repository.LOG_DIR", tmp_path
+            "src.popularpages.wiki_repository.config",
+            dataclasses.replace(
+                cfg.config,
+                paths=dataclasses.replace(cfg.config.paths, log_dir=tmp_path),
+            ),
         )
         repo = WikiRepository.__new__(WikiRepository)
         repo.wiki = "en.wikipedia"
@@ -123,7 +132,11 @@ class TestWriteDryRunText:
 
     def test_filename_includes_wiki(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            "src.popularpages.wiki_repository.LOG_DIR", tmp_path
+            "src.popularpages.wiki_repository.config",
+            dataclasses.replace(
+                cfg.config,
+                paths=dataclasses.replace(cfg.config.paths, log_dir=tmp_path),
+            ),
         )
         repo = WikiRepository.__new__(WikiRepository)
         repo.wiki = "ar.wikipedia"

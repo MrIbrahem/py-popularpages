@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from jinja2 import Environment, FileSystemLoader
 
-from .config import VIEWS_DIR, MAX_PROJECT_SIZE
+from .config import config
 from .logger import log_to_file
 from .mapping import WikiProjectConfig
 from .pageviews_cache import PageviewsCache
@@ -43,7 +43,7 @@ class ReportUpdater:
         # NOTE: dont use date.today(), use datetime.now(timezone.utc).date() instead to avoid timezone issues.
         self.start, self.end = previous_month_range(datetime.now(timezone.utc).date())
 
-        self.env = Environment(loader=FileSystemLoader(str(VIEWS_DIR)))
+        self.env = Environment(loader=FileSystemLoader(str(config.paths.views_dir)))
         self._register_template_helpers()
 
     def _register_template_helpers(self) -> None:
@@ -105,7 +105,7 @@ class ReportUpdater:
                     continue
 
                 # See T164178: guard against runaway memory for very large projects.
-                if len(page_rows) > MAX_PROJECT_SIZE:
+                if len(page_rows) > config.wiki.max_project_size:
                     log_to_file(f"Error: {project.project_main_page} is too large. Skipping.", self.wiki)
                     continue
 
@@ -198,7 +198,7 @@ class ReportUpdater:
             return
 
         # See T164178: guard against runaway memory for very large projects.
-        if len(page_rows) > MAX_PROJECT_SIZE:
+        if len(page_rows) > config.wiki.max_project_size:
             log_to_file(f"Error: {project} is too large. Skipping.", self.wiki)
             return
 

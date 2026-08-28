@@ -6,10 +6,13 @@ calls are made; we only assert on de-duplication, persistence, and flush
 behavior.
 """
 
+import dataclasses
 import json
 
 import pytest
 
+import src.popularpages.config as cfg
+import src.popularpages.pageviews_cache as cache_module
 from src.popularpages.pageviews_cache import PageviewsCache
 
 
@@ -26,14 +29,18 @@ class FakeRepo:
 
 
 @pytest.fixture
-def cache_dir(tmp_path, monkeypatch):
+def cache_config(tmp_path, monkeypatch):
     """Redirect the persisted cache directory to a temp path."""
-    monkeypatch.setattr("src.popularpages.pageviews_cache.VIEWS_DATA_DIR", tmp_path)
-    return tmp_path
+    new_cfg = dataclasses.replace(
+        cfg.config,
+        paths=dataclasses.replace(cfg.config.paths, views_data_dir=tmp_path),
+    )
+    monkeypatch.setattr(cache_module, "config", new_cfg)
+    return new_cfg
 
 
 @pytest.mark.asyncio
-async def test_ensure_fetches_all_titles_once_and_persists(cache_dir):
+async def test_ensure_fetches_all_titles_once_and_persists(cache_config):
     repo = FakeRepo({"A": 10, "B": 20, "C": 30})
     cache = PageviewsCache("en.wikipedia", "2024-01", repo)
     await cache.ensure({"A", "B", "C"}, "2024010100", "2024013100")
@@ -42,7 +49,7 @@ async def test_ensure_fetches_all_titles_once_and_persists(cache_dir):
     assert len(repo.calls) == 1
     assert set(repo.calls[0]) == {"A", "B", "C"}
 
-    path = cache_dir / "en.wikipedia" / "2024-01.jsonl"
+    path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
     assert path.exists()
     lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     assert {"title": "A", "views": 10} in lines
@@ -51,7 +58,7 @@ async def test_ensure_fetches_all_titles_once_and_persists(cache_dir):
 
 
 @pytest.mark.asyncio
-async def test_get_sums_target_and_redirects(cache_dir):
+async def test_get_sums_target_and_redirects(cache_config):
     repo = FakeRepo({"A": 10, "A redir": 5})
     cache = PageviewsCache("en.wikipedia", "2024-01", repo)
     await cache.ensure({"A", "A redir"}, "2024010100", "2024013100")
@@ -61,7 +68,7 @@ async def test_get_sums_target_and_redirects(cache_dir):
 
 
 @pytest.mark.asyncio
-async def test_load_reuses_previous_run_and_only_fetches_missing(cache_dir):
+async def test_load_reuses_previous_run_and_only_fetches_missing(cache_config):
     repo1 = FakeRepo({"A": 10, "B": 20})
     cache1 = PageviewsCache("en.wikipedia", "2024-01", repo1)
     await cache1.ensure({"A", "B"}, "2024010100", "2024013100")
@@ -81,14 +88,19 @@ async def test_load_reuses_previous_run_and_only_fetches_missing(cache_dir):
 
 
 @pytest.mark.asyncio
-async def test_flush_threshold_writes_incrementally(cache_dir, monkeypatch):
-    monkeypatch.setattr("src.popularpages.pageviews_cache.VIEWS_FLUSH_TITLES", 3)
+async def test_flush_threshold_writes_incrementally(tmp_path, monkeypatch):
+    small_flush = dataclasses.replace(
+        cfg.config,
+        paths=dataclasses.replace(cfg.config.paths, views_data_dir=tmp_path),
+        pageviews=dataclasses.replace(cfg.config.pageviews, flush_titles=3),
+    )
+    monkeypatch.setattr(cache_module, "config", small_flush)
     mapping = {f"T{i}": i for i in range(10)}
     repo = FakeRepo(mapping)
     cache = PageviewsCache("en.wikipedia", "2024-02", repo)
     await cache.ensure(set(mapping), "2024020100", "2024022900")
 
-    path = cache_dir / "en.wikipedia" / "2024-02.jsonl"
+    path = tmp_path / "en.wikipedia" / "2024-02.jsonl"
     lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     # 10 titles flushed in chunks of 3 -> 4 flushes -> 10 lines total.
     assert len(lines) == 10
