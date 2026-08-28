@@ -35,44 +35,43 @@ and [Jinja2](https://jinja.palletsprojects.com/) for report templating.
 
 ##### Usage
 
-After installing and configuring the bot (see above), three console scripts are
-available. All of them accept a `--dry-run` flag to print the output instead of
-saving edits to the wiki, and `--wiki` to target a specific wiki (e.g.
-`en.wikipedia`).
+After installing and configuring the bot (see above), three commands are
+available, all run with `python -m`. All of them accept a `--dry-run` flag to
+print the output instead of saving edits to the wiki, and `--wiki` to target a
+specific wiki (e.g. `en.wikipedia`).
 
--   **`popularpages-check`** — Run a full update cycle. Checks every configured
-    wiki (or just `--wiki`) for WikiProjects not yet updated this month and
-    regenerates their reports. This is what the monthly cron job should call.
+-   **`python -m popularpages.cli.check_reports`** — Run a full update cycle.
+    Checks every configured wiki (or just `--wiki`) for WikiProjects not yet
+    updated this month and regenerates their reports. This is what the monthly
+    cron job should call.
 
     ```sh
     # Update all wikis
-    popularpages-check
+    python -m popularpages.cli.check_reports
 
     # Update only English Wikipedia
-    popularpages-check --wiki en.wikipedia
+    python -m popularpages.cli.check_reports --wiki en.wikipedia
 
     # Preview changes without writing to the wiki
-    popularpages-check --wiki en.wikipedia --dry-run
+    python -m popularpages.cli.check_reports --wiki en.wikipedia --dry-run
     ```
 
--   **`popularpages-report`** — Manually regenerate the report for a single
-    WikiProject. Useful for re-running a project that failed or for testing.
+-   **`python -m popularpages.cli.generate_report`** — Manually regenerate the
+    report for a single WikiProject. Useful for re-running a project that failed
+    or for testing.
 
     ```sh
-    popularpages-report --wiki en.wikipedia --project Dinosaurs
-    popularpages-report --wiki en.wikipedia --project Dinosaurs --dry-run
+    python -m popularpages.cli.generate_report --wiki en.wikipedia --project Dinosaurs
+    python -m popularpages.cli.generate_report --wiki en.wikipedia --project Dinosaurs --dry-run
     ```
 
--   **`popularpages-index`** — Regenerate only the index page for a wiki (the
-    page listing all of its WikiProject reports).
+-   **`python -m popularpages.cli.generate_index`** — Regenerate only the index
+    page for a wiki (the page listing all of its WikiProject reports).
 
     ```sh
-    popularpages-index --wiki en.wikipedia
-    popularpages-index --wiki en.wikipedia --dry-run
+    python -m popularpages.cli.generate_index --wiki en.wikipedia
+    python -m popularpages.cli.generate_index --wiki en.wikipedia --dry-run
     ```
-
-You can also run the modules directly, e.g.
-`python -m popularpages.cli.check_reports --wiki en.wikipedia`.
 
 ##### Dependencies
 
