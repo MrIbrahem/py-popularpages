@@ -8,9 +8,6 @@ a ``.env`` file via python-dotenv, falling back to real environment variables.
     cp .env.example .env
     # then edit .env with your bot username/password (from Special:BotPasswords)
 
-The flat ``creds`` mapping the rest of the code expects (botuser, botpass,
-dbhost, dbuser, dbpass, dbport) is assembled by ``load_credentials()`` so callers
-never need to know the underlying environment-variable names.
 """
 
 from __future__ import annotations
@@ -70,10 +67,6 @@ def load_credentials() -> dict[str, str]:
         # Wikipedia bot credentials (full name, e.g. "ExampleBot@MyTask").
         "botuser": os.environ.get("WIKIPEDIA_BOT_USERNAME", ""),
         "botpass": os.environ.get("WIKIPEDIA_BOT_PASSWORD", ""),
-        # Wikimedia replica database access (Toolforge environment).
-        "dbhost": os.environ.get("TOOL_REPLICA_HOST", ""),
-        "dbuser": os.environ.get("TOOL_REPLICA_USER", ""),
-        "dbpass": os.environ.get("TOOL_REPLICA_PASSWORD", ""),
     }
 
 
