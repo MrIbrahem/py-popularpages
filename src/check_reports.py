@@ -35,11 +35,6 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s  %(levelname)s  %(name)s: %(message)s",
-    )
-
     wikis_config = load_wikis_config(config.paths)
 
     if args.wiki:

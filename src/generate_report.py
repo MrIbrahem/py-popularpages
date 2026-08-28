@@ -15,7 +15,6 @@ import logging
 import re
 import sys
 
-from logger_config import setup_logging
 from popularpages.report_updater import ReportUpdater
 
 logger = logging.getLogger(__name__)
@@ -40,13 +39,6 @@ def main() -> None:
         help="Print output instead of saving edits to the wiki.",
     )
     args = parser.parse_args()
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s  %(levelname)s  %(name)s: %(message)s",
-    )
-
-    setup_logging(name="popularpages", level="INFO")
 
     if not re.match(r"^\w+\.\w+$", args.wiki):
         logger.info("Please specify wiki in the format lang.project (such as en.wikipedia)")

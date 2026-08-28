@@ -23,18 +23,27 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
-from dotenv import load_dotenv
-
 logger = logging.getLogger(__name__)
-
-try:
-    load_dotenv(override=False)
-except Exception as e:
-    logger.info("Failed to load .env: %s", e)
-
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+
+@dataclass(frozen=True)
+class DbConfig:
+    user: str
+    password: str
+    cache_ttl: int = 60 * 60 * 24 * 7  # 1 week
+
+    @classmethod
+    def load(cls) -> DbConfig:
+        return cls(
+            cache_ttl=int(os.getenv("TOOL_REPLICA_CACHE_TTL", 60 * 60 * 24 * 7)),
+            user=os.getenv("TOOL_REPLICA_USER") or "",
+            password=os.getenv("TOOL_REPLICA_PASSWORD") or "",
+        )
+
+    def has_db_data(self) -> bool:
+        return bool(self.user) and bool(self.password)
 
 @dataclass(frozen=True)
 class PathsConfig:
@@ -133,6 +142,7 @@ class AppConfig:
     pageviews: PageviewsConfig
     wiki: WikiConfig
     project: ProjectConfig
+    db: DbConfig
 
     @property
     def user_agent(self) -> str:
@@ -198,6 +208,7 @@ config = AppConfig(
     pageviews=PageviewsConfig(),
     wiki=WikiConfig(),
     project=ProjectConfig(),
+    db=DbConfig.load(),
 )
 
 

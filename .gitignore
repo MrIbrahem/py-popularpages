@@ -20,3 +20,4 @@ config.ini
 /_works_files
 src/logs/*.txt
 src/logs/*.wikitext
+wikimap.json
