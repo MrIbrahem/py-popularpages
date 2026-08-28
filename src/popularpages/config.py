@@ -20,22 +20,21 @@ from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
+try:
+    load_dotenv(override=False)
+except Exception as e:
+    print(f"Failed to load .env: {e}")
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # .env lives in the repo root. python-dotenv also honours real environment
 # variables (used in the Toolforge deployment), which take precedence.
-ENV_PATH = BASE_DIR / ".env"
 
 VIEWS_DIR = BASE_DIR / "views"
 
 MESSAGES_DIR = BASE_DIR / "messages"
 
 LOG_DIR = BASE_DIR / "logs"
-
-# Load credentials from .env (or the real environment) as early as possible so
-# that importing this module makes the env vars available everywhere.
-load_dotenv(ENV_PATH, override=False)
 
 FALLBACK_LANG = "en"
 
@@ -97,7 +96,6 @@ __all__ = [
     "MESSAGES_DIR",
     "FALLBACK_LANG",
     "BASE_DIR",
-    "ENV_PATH",
     "MAX_PROJECT_SIZE",
     "BATCH_SIZE_THRESHOLD",
     "ASSESSMENT_CONFIG_URL",
