@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# use bash strict mode
+set -euo pipefail
+
 # Name of the virtual environment directory
 VENV_DIR=".venv"
 
@@ -10,10 +13,10 @@ if [ -d "$VENV_DIR" ]; then
 else
     echo "Virtual environment not found. Creating..."
     python3 -m venv "$VENV_DIR"
-    
+
     echo "Activating virtual environment..."
     source "$VENV_DIR/bin/activate"
-    
+
     # Upgrade pip to the latest version
     pip install --upgrade pip
 
@@ -28,6 +31,6 @@ else
         echo "Installing dev-requirements.txt..."
         pip install -r dev-requirements.txt
     fi
-    
+
     echo "Setup and installation completed successfully!"
 fi

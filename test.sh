@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# use bash strict mode
+set -euo pipefail
+
 # toolforge-jobs run test --image python3.11 --command "~/REPOS_2026/py-popularpages/test.sh"
 cd ~/REPOS_2026/py-popularpages
 
