@@ -100,7 +100,9 @@ class WikiReplicaBaseDB:
         Executes query and returns all results as a list of dictionaries.
         """
         self._ensure_connection()
+
         assert self.connection is not None
+
         logger.debug("Executing query on %s/%s: %s", self.host, self.dbname, query)
         try:
             with self.connection.cursor() as cursor:
@@ -133,6 +135,15 @@ class WikiReplicaBaseDB:
     ) -> list[dict[str, Any]]:
         """ """
         results: list[dict[str, Any]] = []
+        try:
+            self._ensure_connection()
+        except pymysql.err.OperationalError as e:
+            logger.error(f"Failed to connect to {self.host}/{self.dbname}: {e}")
+            return results
+        except pymysql.Error as e:
+            logger.error(f"Failed to connect to {self.host}/{self.dbname}: {e}")
+            return results
+
         try:
             results = self.select(query, params)
         except pymysql.ProgrammingError:

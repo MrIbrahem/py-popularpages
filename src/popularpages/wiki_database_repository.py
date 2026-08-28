@@ -51,7 +51,7 @@ class WikiDatabaseRepository:
         placeholders = ", ".join(["%s"] * len(titles))
         logger.debug("Fetching timestamps for %d project(s)", len(titles))
 
-        rows = self.db.select_safe(
+        rows = self.db.select(
             f"""
             SELECT page_title, MAX(rev_timestamp) AS rev_timestamp
             FROM revision_userindex

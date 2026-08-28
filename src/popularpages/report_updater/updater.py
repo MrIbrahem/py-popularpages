@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+import pymysql
 from jinja2 import Environment, FileSystemLoader
 
 from ..config import config  # AppConfig singleton (unshadowed by method params)
@@ -316,6 +317,10 @@ class ReportUpdater:
 
         list_config_obj = self.retrieve_project_updates()
 
+        if not list_config_obj:
+            logger.error("No project updates retrieved")
+            return
+
         wiki_config = self.wiki_repository.get_wiki_config()
         # Generate and return wikitext.
         output = self.env.get_template("index.wikitext.jinja").render(
@@ -348,8 +353,20 @@ class ReportUpdater:
         list_config_obj = WikiProjectConfig.from_json_list(projects_config)
         logger.debug("Retrieved %d project config(s)", len(list_config_obj))
 
-        last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
+        try:
+            last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
+        except pymysql.err.OperationalError as e:
+            logger.error("Error retrieving last bot edit timestamps: %s", e)
+            return []
+        except pymysql.Error as e:
+            logger.error("Error retrieving last bot edit timestamps: %s", e)
+            return []
+
         logger.debug("Retrieved %d last-edit timestamp(s)", len(last_edits))
+
+        if not last_edits:
+            log_to_file("Error: No last-edit timestamps found!", self.wiki)
+            return list_config_obj
 
         # Add the last updated date to the config.
         last_edits_times = {
