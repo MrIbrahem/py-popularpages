@@ -12,13 +12,13 @@ from datetime import datetime, timezone
 
 from jinja2 import Environment, FileSystemLoader
 
-from .config import config  # AppConfig singleton (unshadowed by method params)
-from .config import config as app_config
-from .logger import log_to_file
-from .mapping import WikiProjectConfig
-from .pageviews_cache import PageviewsCache
-from .utils import format_date, previous_month_range, uc_first
-from .wiki_repository import WikiRepository
+from ..config import config  # AppConfig singleton (unshadowed by method params)
+from ..config import config as app_config
+from ..logger import log_to_file
+from ..mapping import WikiProjectConfig
+from ..pageviews_cache import PageviewsCache
+from ..utils import format_date, previous_month_range, uc_first
+from ..wiki_repository import WikiRepository
 
 logger = logging.getLogger(__name__)
 
