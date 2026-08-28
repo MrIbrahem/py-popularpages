@@ -12,7 +12,6 @@ import pymysql
 import pymysql.cursors
 
 from .logger import log_to_file
-from .utils import first_of_this_month_timestamp, mediawiki_timestamp_to_epoch
 
 
 def _to_str(value: object) -> object:
@@ -182,32 +181,3 @@ class WikiDatabaseRepository:
             row["pa_importance"] = _to_str(row["pa_importance"])
 
         return rows
-
-    def get_stale_project_names(self, config: dict, projects: dict[str, str]) -> set[str]:
-        """
-        Determine which WikiProject names (from `config`) have already been
-        updated this month, based on the bot's last-edit timestamps.
-
-        :param config: Full JSON config (project_main_page -> info).
-        :param projects: Mapping of db-key page title -> WikiProject name,
-            matching `config`'s keys.
-        :return: Set of project names that were already updated this cycle
-            (i.e. NOT stale) -- callers typically pop these out of `config`.
-        """
-        titles = list(projects.keys())
-        if not titles:
-            return set()
-
-        bot_timestamps = self.get_projects_timestamps(titles)
-        for row in bot_timestamps:
-            row["name"] = projects[row["page_title"]]
-
-        first_of_this_month = first_of_this_month_timestamp()
-
-        updated_names: set[str] = set()
-        for row in bot_timestamps:
-            rev_timestamp = mediawiki_timestamp_to_epoch(row["rev_timestamp"])
-            if rev_timestamp >= first_of_this_month:
-                updated_names.add(row["name"])
-
-        return updated_names

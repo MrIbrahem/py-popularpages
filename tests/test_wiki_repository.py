@@ -1,5 +1,5 @@
 """
-Tests for popularpages.wiki_repository.WikiRepository.
+Tests for src.popularpages.wiki_repository.WikiRepository.
 
 Ported from tests/WikiRepositoryTest.php. These tests hit the live English
 Wikipedia API (and, for the currently-skipped tests, the replica database),
@@ -83,3 +83,15 @@ async def test_get_monthly_pageviews(repository):
 def test_set_text(repository):
     result = repository.set_text("User:NKohli (WMF)/sandbox", "Hi there! This is a test")
     assert result["edit"]["result"] == "Success"
+
+
+class TestGetBotLastEditDate:
+    """
+    tests for get_bot_last_edit_date
+    """
+
+    @pytest.mark.network
+    def test_basic(self):
+        repo = WikiRepository(dry_run=True)
+        result1 = repo.get_bot_last_edit_date("Wikipedia:WikiProject A Song of Ice and Fire/Popular pages")
+        assert result1 == "2026-08-04"

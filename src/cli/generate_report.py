@@ -48,7 +48,7 @@ def main() -> None:
         print(f"No WikiProject found with Name '{args.project}' on {args.wiki}.", file=sys.stderr)
         sys.exit(1)
 
-    asyncio.run(updater.update_reports(project_config))
+    asyncio.run(updater.update_reports([project_config]))
 
 
 if __name__ == "__main__":

@@ -490,7 +490,7 @@ a plain `httpx`/`requests` GET to the XTools API):
 -   `get_stale_projects()`
 -   `get_projects_with_last_bot_timestamp()`
 -   `get_project(project_name)`
--   `get_bot_last_edit_date(page)`
+-   `get_bot_last_edit_date(title)`
 -   `get_assessment_config()`
 
 ### 5.5 `report_updater.py` (from `src/ReportUpdater.php`)

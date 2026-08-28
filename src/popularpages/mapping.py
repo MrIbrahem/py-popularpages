@@ -27,8 +27,14 @@ class WikiProjectConfig:
     Name: str
     Updated: str | None = None
 
+    def is_incomplete(self) -> bool:
+        """
+        not all(k in self for k in ("Name", "Limit", "Report"))
+        """
+        return not all([self.Name, self.Limit, self.Report])
+
     @classmethod
-    def from_json(cls, project_main_page: str, data: dict[str, Any]) -> WikiProjectConfig:
+    def from_json(cls, project_main_page: str, *, data: dict[str, Any]) -> WikiProjectConfig:
         return cls(
             project_main_page=project_main_page,
             Report=data["Report"],
@@ -47,7 +53,7 @@ class WikiProjectConfig:
 
     @classmethod
     def from_json_list(cls, data: dict[str, dict[str, Any]]) -> list[WikiProjectConfig]:
-        return [cls.from_json(project_main_page, data) for project_main_page, data in data.items()]
+        return [cls.from_json(project_main_page, data=data) for project_main_page, data in data.items()]
 
 
 __all__ = [

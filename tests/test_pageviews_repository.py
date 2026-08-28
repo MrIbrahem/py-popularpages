@@ -1,5 +1,5 @@
 """
-Tests for popularpages.pageviews_repository.PageviewsRepository.
+Tests for src.popularpages.pageviews_repository.PageviewsRepository.
 
 Uses httpx.MockTransport to avoid real network calls.
 """
@@ -7,7 +7,7 @@ Uses httpx.MockTransport to avoid real network calls.
 import httpx
 import pytest
 
-from popularpages.pageviews_repository import PageviewsRepository
+from src.popularpages.pageviews_repository import PageviewsRepository
 
 
 def _make_mock_repo(handler) -> PageviewsRepository:

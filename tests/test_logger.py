@@ -1,8 +1,8 @@
 """
-Tests for popularpages.logger."""
+Tests for src.popularpages.logger."""
 
-import popularpages.logger as logger_module
-from popularpages.logger import log_to_file
+import src.popularpages.logger as logger_module
+from src.popularpages.logger import log_to_file
 
 
 def test_log_to_file_writes_expected_line(tmp_path, monkeypatch):

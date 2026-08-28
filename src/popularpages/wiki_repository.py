@@ -14,11 +14,12 @@ from __future__ import annotations
 
 import configparser
 import json
-import re
+import time
 
 import httpx
 import mwclient
 import mwclient.errors
+import wikitextparser as wtp
 
 from .config import (
     ASSESSMENT_CONFIG_URL,
@@ -30,7 +31,7 @@ from .i18n import I18n
 from .logger import log_to_file
 from .mapping import WikiProjectConfig
 from .pageviews_repository import PageviewsRepository
-from .utils import mediawiki_timestamp_to_date
+from .utils import first_of_this_month_timestamp, mediawiki_timestamp_to_epoch
 from .wiki_database_repository import WikiDatabaseRepository
 
 
@@ -129,14 +130,15 @@ class WikiRepository:
     def login(self) -> None:
         """
         Log in to the wiki using bot password credentials."""
-        self.site.login(self.creds["botuser"], self.creds["botpass"])
+        if not self.dry_run:
+            self.site.login(self.creds["botuser"], self.creds["botpass"])
 
     def get_wiki_config(self) -> dict:
         """
         Get the configuration for the wiki as a whole (index/config/category)."""
         return self.wiki_config
 
-    def get_stale_projects(self) -> dict:
+    def get_stale_projects(self) -> list[WikiProjectConfig]:
         """
         Get WikiProjects that have not yet been updated for the current cycle.
 
@@ -145,16 +147,29 @@ class WikiRepository:
         log_to_file("Checking for stale projects", self.wiki)
         _config = self.get_config()
 
-        projects = self._project_report_titles_obj(_config)
+        projects = self._project_report_titles(_config)
 
-        config = self.get_json_config()
+        titles = list(projects.keys())
 
-        updated_names = self.db.get_stale_project_names(config, projects)
+        if not titles:
+            return _config
 
-        for name in updated_names:
-            config.pop(name, None)
+        first_of_this_month = first_of_this_month_timestamp()
 
-        return config
+        bot_timestamps = self.db.get_projects_timestamps(titles)
+
+        to_pop = []
+        for row in bot_timestamps:
+            proj_name = projects[row["page_title"]]
+            rev_timestamp = mediawiki_timestamp_to_epoch(row["rev_timestamp"])
+            if rev_timestamp >= first_of_this_month:
+                to_pop.append(proj_name)
+
+        return [
+            x for x in _config
+            if x.report_without_ns.replace(" ", "_")
+            not in to_pop
+        ]
 
     def get_projects_with_last_bot_timestamp(self) -> list[dict]:
         """
@@ -163,7 +178,7 @@ class WikiRepository:
         :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
         """
         config = self.get_config()
-        projects = self._project_report_titles_obj(config)
+        projects = self._project_report_titles(config)
 
         titles = list(projects.keys())
         if not titles:
@@ -196,10 +211,9 @@ class WikiRepository:
         :param title: Title to check existence for.
         :return: True if the title exists, else False.
         """
-        result = self.site.api("query", titles=title, formatversion=2)
-        for page in result["query"]["pages"]:
-            if "missing" in page or "invalid" in page:
-                return False
+        page = self.site.pages[title]
+        if page.exists:
+            return True
         return True
 
     def has_lead_section(self, title: str) -> bool:
@@ -209,59 +223,35 @@ class WikiRepository:
         :param title: The page title to check.
         :return: True if it exists, else False.
         """
-        if not self.does_title_exist(title):
+        page = self.site.pages[title]
+
+        if not page.exists:
             return False
-        result = self.site.api("parse", page=title, prop="sections", formatversion=2)
-        sections = result.get("parse", {}).get("sections")
+
+        page_text = page.text()
+
+        parsed = wtp.parse(page_text)
+        sections = parsed.sections
+
         if not sections or len(sections) < 1:
             # We return false if we didn't find any section
             return False
+
         return True
 
-    def get_project(self, project_name: str) -> dict | None:
+    def get_project(self, project_name: str) -> WikiProjectConfig | None:
         """
         Get config for a single WikiProject by its display name.
 
         :param project_name: Name of WikiProject as specified in the 'Name'
             parameter of the JSON config.
-        :return: {project_key: config} for the matching project, or None.
+        :return: WikiProjectConfig for the matching project, or None.
         """
-        config = self.get_json_config()
-        for project, info in config.items():
-            if info["Name"] == project_name:
-                return {project: info}
+        config = self.get_config()
+        for project in config:
+            if project.Name == project_name:
+                return project
         return None
-
-    def get_bot_last_edit_date(self, page: str) -> str:
-        """
-        Get the date the bot last edited the given page.
-
-        :param page: Page title.
-        :return: Date in YYYY-MM-DD format, or '' if never edited by the bot.
-        """
-        result = self.site.api(
-            "query",
-            prop="revisions",
-            titles=page,
-            rvprop="timestamp",
-            rvuser=self.username,
-            rvlimit=1,
-            formatversion=2,
-        )
-        timestamp = ""
-        try:
-            for p in result["query"]["pages"]:
-                revisions = p.get("revisions")
-                if revisions:
-                    timestamp = revisions[0]["timestamp"]
-                    break
-        except (KeyError, IndexError):
-            return ""
-
-        if timestamp:
-            return mediawiki_timestamp_to_date(timestamp)
-
-        return ""
 
     def get_assessment_config(self) -> dict:
         """
@@ -433,25 +423,28 @@ class WikiRepository:
         return result
 
     @staticmethod
-    def _project_report_titles(config: dict) -> dict[str, str]:
-        """
-        Map db-key page title -> WikiProject name (config key), derived
-        from each project's 'Report' page.
-
-        :param config: Full JSON config (project_main_page -> info).
-        :return: Mapping of db-key page title -> WikiProject name.
-        """
-        # FIXME: assumes reports are in the Project namespace (matches PHP TODO).
-        projects: dict[str, str] = {}
-        for project_main_page, info in config.items():
-            # db_key = info["Report"].split(":", 1)[-1]
-            db_key = re.sub(r"^.*?:", "", info["Report"])
-            projects[db_key.replace(" ", "_")] = project_main_page
-
-        return projects
-
-    @staticmethod
-    def _project_report_titles_obj(_config: list[WikiProjectConfig]) -> dict[str, str]:
+    def _project_report_titles(_config: list[WikiProjectConfig]) -> dict[str, str]:
         projects = {x.report_without_ns.replace(" ", "_"): x.project_main_page for x in _config}
 
         return projects
+
+    def get_bot_last_edit_date(self, title: str) -> str:
+        """
+        Get the date the bot last edited the given page.
+
+        :param page: Page title.
+        :return: Date in YYYY-MM-DD format, or '' if never edited by the bot.
+        """
+        page = self.site.pages[title]
+
+        revisions = page.revisions(
+            prop="timestamp",
+            user=self.username,
+            api_chunk_size=1,
+        )
+        if revisions:
+            for rev in revisions:
+                timestamp: time.struct_time = rev["timestamp"]
+                return time.strftime("%Y-%m-%d", timestamp)
+
+        return ""

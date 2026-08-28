@@ -13,6 +13,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from .config import VIEWS_DIR
 from .logger import log_to_file
+from .mapping import WikiProjectConfig
 from .utils import format_date, previous_month_range, uc_first
 from .wiki_repository import WikiRepository
 
@@ -63,7 +64,7 @@ class ReportUpdater:
     # ---------------------------------------------------
     # Execution
     # ---------------------------------------------------
-    async def update_reports(self, config: dict) -> None:
+    async def update_reports(self, config: list[WikiProjectConfig]) -> None:
         """
         Update popular pages reports. Primary async execution point.
 
@@ -75,13 +76,13 @@ class ReportUpdater:
             return
 
         try:
-            for project, project_config in config.items():
-                if not self.validate_project_config(project, project_config):
+            for project in config:
+                if not self.validate_project_config(project.project_main_page, project):
                     continue
 
-                await self.process_project(project, project_config)
+                await self.process_project(project.project_main_page, project)
 
-                log_to_file(f"Finished processing: {project_config['Name']}", self.wiki)
+                log_to_file(f"Finished processing: {project.Name}", self.wiki)
 
             # Update index page.
             self.update_index()
@@ -89,14 +90,17 @@ class ReportUpdater:
             # Release the per-run Pageviews HTTP client (async context).
             await self.wiki_repository.pageviews_repo.aclose()
 
-    async def process_project(self, project: str, config: dict) -> None:
+    async def process_project(self, project: str, config: dict | WikiProjectConfig) -> None:
         """
         Process an individual WikiProject and update its popular pages report.
 
         :param project: WikiProject key/title.
         :param config: As specified in the on-wiki JSON config.
         """
-        page_rows = self.wiki_repository.get_project_pages(config["Name"])
+        if isinstance(config, dict):
+            config = WikiProjectConfig.from_json(project, data=config)
+
+        page_rows = self.wiki_repository.get_project_pages(config.Name)
 
         if not page_rows:
             log_to_file(f'No pages found for "{project}"', self.wiki)
@@ -114,7 +118,7 @@ class ReportUpdater:
             page_rows,
             start_date,
             end_date,
-            config["Limit"],
+            config.Limit,
         )
 
         days_in_month = (self.end - self.start).days + 1
@@ -123,7 +127,7 @@ class ReportUpdater:
         for datum in data.values():
             datum["avgPageviews"] = datum["pageviews"] // days_in_month
 
-        has_lead_section = self.wiki_repository.has_lead_section(config["Report"])
+        has_lead_section = self.wiki_repository.has_lead_section(config.Report)
 
         # Generate and return wikitext.
         render_argv = {
@@ -141,7 +145,7 @@ class ReportUpdater:
         section_number = 1 if has_lead_section else None
 
         self.wiki_repository.set_text(
-            config["Report"],
+            config.Report,
             output,
             self.i18n.msg("edit-summary"),
             section_number=section_number,
@@ -178,28 +182,33 @@ class ReportUpdater:
             self.i18n.msg("edit-summary"),
         )
 
-    def validate_project_config(self, project: str, config: dict) -> bool:
+    def validate_project_config(self, project: str, config: dict | WikiProjectConfig) -> bool:
         """
         Validate a WikiProject config entry: required keys, target
         namespace, and target page existence.
 
         :return: True if valid, else False (with the reason logged).
         """
-        if not all(k in config for k in ("Name", "Limit", "Report")):
-            log_to_file(f"Error: Incomplete data in config for {project}. Skipping.", self.wiki)
+        if isinstance(config, dict):
+            config = WikiProjectConfig.from_json(project, data=config)
+
+        if config.is_incomplete():
+            log_to_file(f"Error: Incomplete data in config for {config.project_main_page}. Skipping.", self.wiki)
             return False
 
         # Don't allow writing the report to the main namespace. There's no easy way to grab the namespace ID here
         # so just reject titles that don't have a colon in them (matches the PHP heuristic).
-        if ":" not in config["Report"]:
-            log_to_file(f"Error: {project} is configured to write to the mainspace. Skipping.", self.wiki)
+        if ":" not in config.Report:
+            log_to_file(
+                f"Error: {config.project_main_page} is configured to write to the mainspace. Skipping.", self.wiki
+            )
             return False
 
-        log_to_file(f"Beginning to process: {config['Name']}", self.wiki)
+        log_to_file(f"Beginning to process: {config.Name}", self.wiki)
 
         # Check the project exists.
-        if not self.wiki_repository.does_title_exist(project):
-            log_to_file(f"Error: Project page for {config['Name']} does not exist! Skipping.", self.wiki)
+        if not self.wiki_repository.does_title_exist(config.project_main_page):
+            log_to_file(f"Error: Project page for {config.Name} does not exist! Skipping.", self.wiki)
             return False
 
         return True

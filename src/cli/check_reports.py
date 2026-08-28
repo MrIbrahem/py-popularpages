@@ -49,9 +49,11 @@ def main() -> None:
         try:
             updater = ReportUpdater(wiki, dry_run=args.dry_run)
             log_to_file("Beginning new cycle", wiki)
-            stale_config = updater.wiki_repository.get_stale_projects()
-            log_to_file(f"Number of projects pending update: {len(stale_config)}", wiki)
-            asyncio.run(updater.update_reports(stale_config))
+
+            stale_configs = updater.wiki_repository.get_stale_projects()
+            log_to_file(f"Number of projects pending update: {len(stale_configs)}", wiki)
+
+            asyncio.run(updater.update_reports(stale_configs))
         except Exception as exc:
             log_to_file(f"Error processing {wiki}: {exc}", wiki)
 

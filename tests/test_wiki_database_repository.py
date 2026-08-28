@@ -8,7 +8,7 @@ template rendering) expects ``str``. The live-DB tests in the PHP suite that
 exercised this path were disabled upstream; these offline tests replace them.
 """
 
-from popularpages.wiki_database_repository import WikiDatabaseRepository
+from src.popularpages.wiki_database_repository import WikiDatabaseRepository
 
 
 def _make_repo() -> WikiDatabaseRepository:
@@ -87,8 +87,6 @@ def test_get_stale_project_names_parses_str_timestamp(monkeypatch):
     rows = [{"page_title": b"Popular_pages", "rev_timestamp": b"20990101000000"}]
     monkeypatch.setattr(repo, "_connect", lambda: _FakeConn(rows))
 
-    config = {"MyProject": {"Report": "Wikipedia:Popular pages"}}
-    projects = {"Popular_pages": "MyProject"}
-    updated = repo.get_stale_project_names(config, projects)
+    updated = repo.get_projects_timestamps(["Popular_pages"])
 
-    assert "MyProject" in updated
+    assert updated == [{"page_title": "Popular_pages", "rev_timestamp": "20990101000000"}]
