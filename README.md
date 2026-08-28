@@ -137,7 +137,6 @@ this file and only requests the remainder. See
 ## Running tests
 
 ```sh
-pip install -e ".[dev]"
 pytest
 ```
 
