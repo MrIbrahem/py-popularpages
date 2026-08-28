@@ -10,14 +10,12 @@ See [the tool's homepage](https://wikitech.wikimedia.org/wiki/Tool:Popular_Pages
 ## Quick start
 
 ```sh
-# 1. Install (from the repo root)
-pip install -e ".[dev]"
 
-# 2. Add your bot credentials
+# 1. Add your bot credentials
 cp .env.example .env
 #    then edit .env with your bot username/password (from Special:BotPasswords)
 
-# 3. Run a full update cycle
+# 2. Run a full update cycle
 python3 src/cli/check_reports.py --wiki en.wikipedia
 ```
 

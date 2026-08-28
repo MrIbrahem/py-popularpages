@@ -124,8 +124,8 @@ class WikiRepository:
         """
         Log in to the wiki using bot password credentials."""
         if not self.dry_run:
-            logger.info("Logging in as '%s'", self.creds["botuser"])
-            self.site.login(self.creds["botuser"], self.creds["botpass"])
+            logger.info("Logging in as '%s'", self.creds.botuser)
+            self.site.login(self.creds.botuser, self.creds.botpass)
             logger.info("Logged in to %s", self.host)
         else:
             logger.info("dry_run=True; skipping login")
