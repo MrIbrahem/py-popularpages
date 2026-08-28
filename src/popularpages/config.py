@@ -44,7 +44,7 @@ class DbConfig:
         )
 
     def has_db_data(self) -> bool:
-        return bool(self.user) and bool(self.password)
+        return not self.user or not self.password
 
 
 @dataclass(frozen=True)

@@ -63,7 +63,7 @@ class WikiReplicaBaseDB:
 
     def _ensure_connection(self) -> None:
         if not self.user or not self.password:
-            logger.exception("No credentials provided, using anonymous connection.")
+            logger.exception("No credentials provided")
             raise pymysql.err.OperationalError("No credentials provided")
 
         args = {
