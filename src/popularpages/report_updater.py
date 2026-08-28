@@ -178,7 +178,10 @@ class ReportUpdater:
         last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
 
         # Add the last updated date to the config.
-        last_edits_times = {projects_config[row["page_title"]]: row["rev_timestamp"] for row in last_edits}
+        last_edits_times = {
+            projects_config[row["page_title"]]: row["rev_timestamp"] for row in last_edits
+            if row["page_title"] in projects_config
+        }
 
         for proj_name, rev_date in last_edits_times.items():
             if proj_name in projects_config:
@@ -196,7 +199,10 @@ class ReportUpdater:
         last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
 
         # Add the last updated date to the config.
-        last_edits_times = {projects_config[row["page_title"]]: row["rev_timestamp"] for row in last_edits}
+        last_edits_times = {
+            projects_config[row["page_title"]]: row["rev_timestamp"] for row in last_edits
+            if row["page_title"] in projects_config
+        }
 
         for x in list_config_obj:
             if x.project_main_page in last_edits_times:
