@@ -38,8 +38,9 @@ async def test_ensure_fetches_all_titles_once_and_persists(cache_dir):
     cache = PageviewsCache("en.wikipedia", "2024-01", repo)
     await cache.ensure({"A", "B", "C"}, "2024010100", "2024013100")
 
-    # All three titles fetched in a single batch call.
-    assert repo.calls == [["A", "B", "C"]]
+    # All three titles fetched in a single batch call (order is unspecified).
+    assert len(repo.calls) == 1
+    assert set(repo.calls[0]) == {"A", "B", "C"}
 
     path = cache_dir / "en.wikipedia" / "2024-01.jsonl"
     assert path.exists()
@@ -91,5 +92,5 @@ async def test_flush_threshold_writes_incrementally(cache_dir, monkeypatch):
     lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     # 10 titles flushed in chunks of 3 -> 4 flushes -> 10 lines total.
     assert len(lines) == 10
-    for i in range(10):
-        assert json.loads(lines[i]) == {"title": f"T{i}", "views": i}
+    expected = [{"title": f"T{i}", "views": i} for i in range(10)]
+    assert sorted(lines, key=lambda d: d["title"]) == sorted(expected, key=lambda d: d["title"])
