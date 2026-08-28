@@ -3,11 +3,14 @@ Shared pytest fixtures.
 """
 
 from __future__ import annotations
-
+import os
 from unittest.mock import MagicMock
 
 import pytest
 from pytest_socket import disable_socket
+
+os.environ.setdefault("TOOL_REPLICA_USER", "user")
+os.environ.setdefault("TOOL_REPLICA_PASSWORD", "pass")
 
 
 @pytest.fixture(autouse=True)
