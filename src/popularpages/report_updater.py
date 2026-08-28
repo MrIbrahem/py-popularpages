@@ -45,7 +45,7 @@ class ReportUpdater:
         self.env.filters["ucfirst"] = uc_first
         self.env.filters["date"] = format_date
 
-        def _msg(key, params=None):
+        def _msg(key: str, params: list | None = None) -> str:
             return self.i18n.msg(key, params or [])
 
         self.env.globals["msg"] = _msg
