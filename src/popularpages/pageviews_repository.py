@@ -10,10 +10,14 @@ mirroring the PHP version's use of caseyamcl/guzzle_retry_middleware.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 from urllib.parse import quote
 
 import httpx
+
+logger = logging.getLogger(__name__)
+
 from tenacity import (
     RetryCallState,
     retry,

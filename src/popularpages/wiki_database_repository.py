@@ -8,10 +8,14 @@ from WikiRepository, which deals with the MediaWiki Action API.
 
 from __future__ import annotations
 
+import logging
+
 import pymysql
 import pymysql.cursors
 
 from .logger import log_to_file
+
+logger = logging.getLogger(__name__)
 
 
 def _to_str(value: object) -> object:

@@ -9,6 +9,10 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def uc_first(value: str) -> str:
     """

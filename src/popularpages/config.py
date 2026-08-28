@@ -15,16 +15,19 @@ never need to know the underlying environment-variable names.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
 
+logger = logging.getLogger(__name__)
+
 try:
     load_dotenv(override=False)
 except Exception as e:
-    print(f"Failed to load .env: {e}")
+    logger.info(f"Failed to load .env: {e}")
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 

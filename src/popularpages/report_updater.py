@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import logging
+
 from jinja2 import Environment, FileSystemLoader
 
 from .config import VIEWS_DIR
@@ -16,6 +18,8 @@ from .logger import log_to_file
 from .mapping import WikiProjectConfig
 from .utils import format_date, previous_month_range, uc_first
 from .wiki_repository import WikiRepository
+
+logger = logging.getLogger(__name__)
 
 
 class ReportUpdater:

@@ -12,8 +12,11 @@ Falls back to English for any key missing in the requested language.
 from __future__ import annotations
 
 import json
+import logging
 
 from .config import FALLBACK_LANG, MESSAGES_DIR
+
+logger = logging.getLogger(__name__)
 
 
 class I18n:
