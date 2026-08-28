@@ -13,6 +13,7 @@ that requires SQL.
 from __future__ import annotations
 
 import json
+import logging
 import time
 
 import httpx
@@ -26,6 +27,9 @@ from .config import (
     load_credentials,
     load_wikis_config,
 )
+
+logger = logging.getLogger(__name__)
+
 from .i18n import I18n
 from .logger import log_to_file
 from .mapping import WikiProjectConfig
@@ -344,7 +348,7 @@ class WikiRepository:
         summary = summary or self.i18n.msg("edit-summary")
 
         if self.dry_run:
-            print(
+            logger.info(
                 {
                     "title": page_title,
                     "text": text,

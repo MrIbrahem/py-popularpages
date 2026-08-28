@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import sys
 from pathlib import Path
 
@@ -22,6 +23,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from popularpages.config import load_wikis_config
 from popularpages.logger import log_to_file
 from popularpages.report_updater import ReportUpdater
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -41,7 +44,7 @@ def main() -> None:
 
     if args.wiki:
         if args.wiki not in wikis_config:
-            print(f"Unknown wiki '{args.wiki}'. Available: {', '.join(wikis_config)}")
+            logger.info(f"Unknown wiki '{args.wiki}'. Available: {', '.join(wikis_config)}")
             return
 
         wikis = [args.wiki]

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import re
 import sys
 from pathlib import Path
@@ -18,6 +19,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from popularpages.report_updater import ReportUpdater
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -41,14 +44,14 @@ def main() -> None:
     args = parser.parse_args()
 
     if not re.match(r"^\w+\.\w+$", args.wiki):
-        print("Please specify wiki in the format lang.project (such as en.wikipedia)")
+        logger.info("Please specify wiki in the format lang.project (such as en.wikipedia)")
         return
 
     updater = ReportUpdater(args.wiki, dry_run=args.dry_run)
     project_config = updater.wiki_repository.get_project(args.project)
 
     if not project_config:
-        print(f"No WikiProject found with Name '{args.project}' on {args.wiki}.", file=sys.stderr)
+        logger.info(f"No WikiProject found with Name '{args.project}' on {args.wiki}.")
         sys.exit(1)
 
     asyncio.run(updater.update_reports([project_config]))
