@@ -12,6 +12,7 @@ from pathlib import Path
 
 import colorlog
 
+
 def prepare_log_file(log_file: str | None, project_logger: logging.Logger) -> Path | None:
     """
     Prepare the log file path and create parent directories if needed.

@@ -16,6 +16,7 @@ from .logger import log_to_file
 
 logger = logging.getLogger(__name__)
 
+
 class WikiDatabaseRepository:
     """
     Handles all replica-database access (connection + raw SQL queries)

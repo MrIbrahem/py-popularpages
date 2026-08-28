@@ -19,7 +19,7 @@ def patched(monkeypatch):
     updater = MagicMock()
     updater.wiki_repository.get_stale_projects.return_value = []
     updater.update_reports = AsyncMock()
-    monkeypatch.setattr(cr_module, "ReportUpdater", lambda *a, **k: updater) # type: ignore
+    monkeypatch.setattr(cr_module, "ReportUpdater", lambda *a, **k: updater)  # type: ignore
     return updater
 
 
