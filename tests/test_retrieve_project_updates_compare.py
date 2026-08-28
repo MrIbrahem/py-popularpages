@@ -23,12 +23,13 @@ comparison helper captures exceptions as well as return values, so a shared
 bug (e.g. a key-mapping mismatch) surfaces as *both* methods raising the same
 exception rather than silently diverging.
 
-Current status (see ``test_with_timestamps_both_raise_same_keyerror``): with
-the real keying -- ``get_json_config`` returns config keyed by
-``project_main_page`` while the last-edit rows are keyed by the report db-title
--- both implementations raise the same ``KeyError`` on populated input. The
-comparison therefore documents that they agree (both broken) rather than
-diverging.
+Current status (see ``test_with_timestamps_both_agree``): with the real
+keying -- ``get_json_config`` returns config keyed by ``project_main_page``
+while the last-edit rows are keyed by the report db-title --
+``row["page_title"] in projects_config`` is never true, so the guard drops
+every row and *both* implementations return the projects with ``Updated``
+left as ``None``. The comparison therefore documents that they agree (and
+that the timestamp -> ``Updated`` mapping is currently broken in both).
 """
 
 from __future__ import annotations
@@ -177,15 +178,18 @@ class TestCompareRetrieveProjectUpdates:
 
     def test_with_timestamps_both_agree(self) -> None:
         # With the current keying (config keyed by project_main_page, rows keyed
-        # by report db-title) both implementations raise the same KeyError --
-        # surfacing the shared key-mapping bug rather than diverging silently.
+        # by report db-title) the guard ``row["page_title"] in projects_config``
+        # is never satisfied, so every row is dropped and *both* implementations
+        # return the projects with ``Updated`` left as ``None``. The comparison
+        # confirms they agree -- and surfaces the shared key-mapping gap (the
+        # last-edit timestamp is never actually attached to a project).
         db_rows = _db_rows({"Dinosaurs": "20230115000000", "Medicine": "20230110000000"})
         updater = _make_updater(_build_json_config(), db_rows)
         old = _run(updater, "retrieve_project_updates")
         new = _run(updater, "retrieve_project_updates_new")
         _assert_same(old, new)
-        assert not old.ok
-        assert isinstance(old.error, KeyError)
+        assert old.ok
+        assert all(c.Updated is None for c in old.value)
 
     def test_parity_across_scenarios(self) -> None:
         scenarios = [
