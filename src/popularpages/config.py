@@ -75,9 +75,21 @@ class CredentialsConfig:
 class PageviewsConfig:
     """Pageviews fetching and persistence settings."""
 
+    # --- persistence ---
     fetch_batch: int = 100
     flush_titles: int = 100
     batch_size_threshold: int = 60
+
+    # --- Pageviews REST API client (https://wikimedia.org/api/rest_v1/metrics/pageviews) ---
+    endpoint_url: str = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article"
+    request_timeout_seconds: float = 3.0
+    connect_timeout_seconds: float = 3.0
+    # Delay between individual outgoing requests within a batch. This
+    # approximates the PHP client's `delay` option (500ms), which staggers
+    # dispatch of the underlying Guzzle promises.
+    request_delay_seconds: float = 0.5  # matches PHP's REQUEST_DELAY = 500ms
+    max_retry_attempts: int = 5
+    retry_status_codes: frozenset = frozenset({429, 500, 502, 503, 504})
 
 
 @dataclass(frozen=True)
