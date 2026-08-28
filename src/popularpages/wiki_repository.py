@@ -473,4 +473,4 @@ class WikiRepository:
             if rev_timestamp >= first_of_this_month:
                 to_pop.append(proj_name)
 
-        return [x for x in _config if x.report_without_ns.replace(" ", "_") not in to_pop]
+        return [x for x in _config if x.project_main_page not in to_pop]

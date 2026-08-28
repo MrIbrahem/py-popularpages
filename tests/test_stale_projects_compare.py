@@ -186,7 +186,7 @@ class TestCompareStaleProjects:
         assert old == expected  # old implementation is correct
         assert old == new  # comparison: do the two agree?
 
-    def test_single_project_updated_is_removed_both_agree(self, repo, monkeypatch):
+    def test_single_project_updated_is_removed_both_agree(self, repo: WikiRepository, monkeypatch):
         config_objs, json_config = _build_configs()
         db_rows = _db_rows(updated=["Medicine"], stale=[])
         _wire(repo, config_objs, json_config, db_rows, monkeypatch)
