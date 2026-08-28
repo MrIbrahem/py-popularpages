@@ -58,19 +58,12 @@ class PageviewsCache:
         if not self.path.exists():
             return
         try:
-            with self.path.open("r", encoding="utf-8") as fp:
+            with jsonlines.open(self.path, mode="r") as reader:
                 loaded = 0
-                for raw in fp:
-                    raw = raw.strip()
-                    if not raw:
-                        continue
-                    try:
-                        obj = next(iter(jsonlines.Reader([raw])))
-                    except jsonlines.InvalidLineError:
-                        logger.debug(
-                            "Skipping malformed cache line in %s: %r", self.path, raw
-                        )
-                        continue
+                # skip_invalid drops lines that are not valid JSON; type=dict
+                # drops any non-object lines. Malformed-but-valid objects
+                # (e.g. missing a key) are caught below.
+                for obj in reader.iter(type=dict, skip_invalid=True):
                     try:
                         self._cache[obj["title"]] = int(obj["views"])
                         loaded += 1
