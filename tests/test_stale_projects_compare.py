@@ -1,7 +1,4 @@
 """
-Comparison tests for ``WikiRepository.get_stale_projects`` vs
-``WikiRepository.get_stale_projects_new``.
-
 Both functions are supposed to return the WikiProjects that have *not* yet been
 updated for the current cycle (i.e. the "stale" projects). These tests exercise
 both side-by-side with mocked config/DB so we can verify whether the two
@@ -9,8 +6,7 @@ implementations agree.
 
 The two functions differ in how they identify a project to drop:
 
-* ``get_stale_projects``  -> pops from the JSON config using ``project_main_page``
-* ``get_stale_projects_new`` -> filters ``_config`` by
+* ``get_stale_projects`` -> filters ``_config`` by
   ``x.report_without_ns.replace(" ", "_") not in to_pop``, where ``to_pop``
   contains ``project_main_page`` values.
 
@@ -20,7 +16,7 @@ surface any divergence between the two.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -146,20 +142,16 @@ class TestCompareStaleProjects:
         _wire(repo, [], {}, [], monkeypatch)
 
         old = repo.get_stale_projects()
-        new = repo.get_stale_projects_new()
 
         assert old == []
-        assert new == []
 
     def test_no_timestamps_all_stale_both_agree(self, repo, monkeypatch):
         config_objs, json_config = _build_configs()
         _wire(repo, config_objs, json_config, [], monkeypatch)
 
         old = {c.Name for c in repo.get_stale_projects()}
-        new = {c.Name for c in repo.get_stale_projects_new()}
 
         assert old == {"Dinosaurs", "Medicine", "Physics"}
-        assert old == new
 
     def test_all_updated_this_cycle_both_agree(self, repo, monkeypatch):
         config_objs, json_config = _build_configs()
@@ -167,11 +159,9 @@ class TestCompareStaleProjects:
         _wire(repo, config_objs, json_config, db_rows, monkeypatch)
 
         old = {c.Name for c in repo.get_stale_projects()}
-        new = {c.Name for c in repo.get_stale_projects_new()}
 
         expected = _expected_stale(config_objs, db_rows)
         assert old == expected  # old implementation is correct
-        assert old == new  # comparison: do the two agree?
 
     def test_mixed_updated_and_stale_both_agree(self, repo, monkeypatch):
         config_objs, json_config = _build_configs()
@@ -180,11 +170,9 @@ class TestCompareStaleProjects:
         _wire(repo, config_objs, json_config, db_rows, monkeypatch)
 
         old = {c.Name for c in repo.get_stale_projects()}
-        new = {c.Name for c in repo.get_stale_projects_new()}
 
         expected = _expected_stale(config_objs, db_rows)
         assert old == expected  # old implementation is correct
-        assert old == new  # comparison: do the two agree?
 
     def test_single_project_updated_is_removed_both_agree(self, repo: WikiRepository, monkeypatch):
         config_objs, json_config = _build_configs()
@@ -192,12 +180,7 @@ class TestCompareStaleProjects:
         _wire(repo, config_objs, json_config, db_rows, monkeypatch)
 
         old = {c.Name for c in repo.get_stale_projects()}
-        new = {c.Name for c in repo.get_stale_projects_new()}
 
         expected = _expected_stale(config_objs, db_rows)
         assert old == expected  # old implementation is correct
-        assert old == new  # comparison: do the two agree?
 
-
-if __name__ == "__main__":
-    raise SystemExit(pytest.main([__file__, "-v"]))

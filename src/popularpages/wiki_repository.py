@@ -145,7 +145,7 @@ class WikiRepository:
         :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
         """
         config = self.get_config()
-        projects = self._project_report_titles(config)
+        projects = {x.report_without_ns: x.project_main_page for x in config}
 
         titles = list(projects.keys())
         if not titles:
@@ -384,12 +384,6 @@ class WikiRepository:
 
         return result
 
-    @staticmethod
-    def _project_report_titles(_config: list[WikiProjectConfig]) -> dict[str, str]:
-        projects = {x.report_without_ns: x.project_main_page for x in _config}
-
-        return projects
-
     def get_bot_last_edit_date(self, title: str) -> str:
         """
         Get the date the bot last edited the given page.
@@ -418,48 +412,17 @@ class WikiRepository:
         :return: Config for WikiProjects not updated so far this month.
         """
         log_to_file("Checking for stale projects", self.wiki)
+
         _config = self.get_config()
+        projects = {x.report_without_ns: x.project_main_page for x in _config}
 
-        projects = self._project_report_titles(_config)
-
-        config = self.get_json_config()
-
-        titles = list(projects.keys())
-
-        if not titles:
+        if not projects:
             return _config
 
-        first_of_this_month = first_of_this_month_timestamp()
-
-        bot_timestamps = self.db.get_projects_timestamps(titles)
-
-        for row in bot_timestamps:
-            proj_name = projects[row["page_title"]]
-            rev_timestamp = mediawiki_timestamp_to_epoch(row["rev_timestamp"])
-            if rev_timestamp >= first_of_this_month:
-                config.pop(proj_name, None)
-
-        return WikiProjectConfig.from_json_list(config)
-
-    def get_stale_projects_new(self) -> list[WikiProjectConfig]:
-        """
-        Get WikiProjects that have not yet been updated for the current cycle.
-
-        :return: Config for WikiProjects not updated so far this month.
-        """
-        log_to_file("Checking for stale projects", self.wiki)
-        _config = self.get_config()
-
-        projects = self._project_report_titles(_config)
-
         titles = list(projects.keys())
-
-        if not titles:
-            return _config
+        bot_timestamps = self.db.get_projects_timestamps(titles)
 
         first_of_this_month = first_of_this_month_timestamp()
-
-        bot_timestamps = self.db.get_projects_timestamps(titles)
 
         to_pop = []
         for row in bot_timestamps:
