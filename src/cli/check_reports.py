@@ -13,6 +13,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import sys
+
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 
 from popularpages.config import load_wikis_config
 from popularpages.logger import log_to_file

@@ -18,7 +18,7 @@ cp config.ini.example config.ini
 #    then edit config.ini with your bot username/password (from Special:BotPasswords)
 
 # 3. Run a full update cycle
-python3 cli/check_reports.py --wiki en.wikipedia
+python3 src/cli/check_reports.py --wiki en.wikipedia
 ```
 
 ## Usage
@@ -33,13 +33,13 @@ this month and regenerates their reports. This is what the monthly cron job call
 
 ```sh
 # All wikis
-python3 cli/check_reports.py
+python3 src/cli/check_reports.py
 
 # One wiki
-python3 cli/check_reports.py --wiki en.wikipedia
+python3 src/cli/check_reports.py --wiki en.wikipedia
 
 # Preview only, no wiki edits
-python3 cli/check_reports.py --wiki en.wikipedia --dry-run
+python3 src/cli/check_reports.py --wiki en.wikipedia --dry-run
 ```
 
 ### Regenerate one project (`generate_report`)
@@ -48,8 +48,8 @@ Manually rebuild the report for a single WikiProject (e.g. to re-run a failed
 project or for testing).
 
 ```sh
-python3 cli/generate_report.py --wiki en.wikipedia --project Dinosaurs
-python3 cli/generate_report.py --wiki en.wikipedia --project Dinosaurs --dry-run
+python3 src/cli/generate_report.py --wiki en.wikipedia --project Dinosaurs
+python3 src/cli/generate_report.py --wiki en.wikipedia --project Dinosaurs --dry-run
 ```
 
 ### Regenerate the index page (`generate_index`)
@@ -57,8 +57,8 @@ python3 cli/generate_report.py --wiki en.wikipedia --project Dinosaurs --dry-run
 Rebuild only the wiki's index page that lists all its WikiProject reports.
 
 ```sh
-python3 cli/generate_index.py --wiki en.wikipedia
-python3 cli/generate_index.py --wiki en.wikipedia --dry-run
+python3 src/cli/generate_index.py --wiki en.wikipedia
+python3 src/cli/generate_index.py --wiki en.wikipedia --dry-run
 ```
 
 ## How it works
@@ -73,7 +73,7 @@ python3 cli/generate_index.py --wiki en.wikipedia --dry-run
 Typically you run it once a month via cron, e.g.:
 
 ```cron
-0 0 1 * * python3 cli/check_reports.py --wiki en.wikipedia
+0 0 1 * * python3 src/cli/check_reports.py --wiki en.wikipedia
 ```
 
 ## Setting up a new wiki
@@ -83,7 +83,7 @@ Typically you run it once a month via cron, e.g.:
     WikiProjects config and index pages live.
 -   Add your WikiProjects configuration on the corresponding on-wiki JSON page.
 -   Add a cron job for the wiki, e.g.
-    `0 0 1 * * python3 cli/check_reports.py --wiki en.wikipedia`.
+    `0 0 1 * * python3 src/cli/check_reports.py --wiki en.wikipedia`.
 
 ## Project layout
 
