@@ -360,7 +360,9 @@ class WikiRepository:
         :return: The API result dict, or None if the edit failed or this is
             a dry run.
         """
-        logger.info("set_text: attempting to update '%s' (section=%s, dry_run=%s)", page_title, section_number, self.dry_run)
+        logger.info(
+            "set_text: attempting to update '%s' (section=%s, dry_run=%s)", page_title, section_number, self.dry_run
+        )
         log_to_file(f'Attempting to update "{page_title}"', self.wiki)
 
         if not self.site.logged_in:

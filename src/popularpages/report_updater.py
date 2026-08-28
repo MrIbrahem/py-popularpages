@@ -58,14 +58,23 @@ class ReportUpdater:
 
     def _assessments(self, type_: str, value: str) -> dict:
         logger.debug("Looking up assessment type='%s' value='%s'", type_, value)
-        _config = self.wiki_repository.get_assessment_config()
-        dataset = _config[type_]
+        try:
+            _config = self.wiki_repository.get_assessment_config()
+            dataset = _config[type_]
 
-        for key, values in dataset.items():
-            if value.lower() == key.lower():
-                return values
+            for key, values in dataset.items():
+                if value.lower() == key.lower():
+                    return values
 
-        return dataset["Unknown"]
+            return dataset["Unknown"]
+        except Exception as e:
+            logger.error("Error looking up assessment type='%s' value='%s': %s", type_, value, e)
+            return {
+                "name": "Unknown",
+                "color": "gray",
+                "icon": "unknown",
+                "category": "unknown",
+            }
 
     # ---------------------------------------------------
     # Execution
