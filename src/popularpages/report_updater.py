@@ -158,28 +158,36 @@ class ReportUpdater:
         log_to_file("Updating index page", self.wiki)
 
         projects_config = self.wiki_repository.get_json_config()
+        _config = WikiProjectConfig.from_json_dict(projects_config)
+
         last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
 
         # Add the last updated date to the config.
         for row in last_edits:
+            proj_name = projects_config[row["page_title"]]
             rev_date = row["rev_timestamp"]
             # rev_timestamp from the DB is YYYYMMDDHHMMSS.
 
             parsed = datetime.strptime(str(rev_date), "%Y%m%d%H%M%S")
 
-            if row["name"] in projects_config:
-                projects_config[row["name"]]["Updated"] = parsed.strftime("%Y-%m-%d")
+            if proj_name in projects_config:
+                projects_config[proj_name]["Updated"] = parsed.strftime("%Y-%m-%d")
+
+            if proj_name in _config:
+                _config[proj_name].Updated = parsed.strftime("%Y-%m-%d")
+
+        wiki_config = self.wiki_repository.get_wiki_config()
 
         # Generate and return wikitext.
         output = self.env.get_template("index.wikitext.jinja").render(
-            projects=projects_config,
-            configPage=self.wiki_repository.get_wiki_config()["config"],
+            projects=_config,
+            configPage=wiki_config["config"],
         )
 
         self.wiki_repository.set_text(
-            self.wiki_repository.get_wiki_config()["index"],
-            output,
-            self.i18n.msg("edit-summary"),
+            page_title=wiki_config["index"],
+            text=output,
+            summary=self.i18n.msg("edit-summary"),
         )
 
     def validate_project_config(self, project: str, config: dict | WikiProjectConfig) -> bool:

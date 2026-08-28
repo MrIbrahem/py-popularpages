@@ -151,12 +151,7 @@ class WikiRepository:
         if not titles:
             return []
 
-        result = self.db.get_projects_timestamps(titles)
-
-        for row in result:
-            row["name"] = projects[row["page_title"]]
-
-        return result
+        return self.db.get_projects_timestamps(titles)
 
     # -- Database-backed page/pageviews fetching ----------------------------
 
@@ -391,7 +386,7 @@ class WikiRepository:
 
     @staticmethod
     def _project_report_titles(_config: list[WikiProjectConfig]) -> dict[str, str]:
-        projects = {x.report_without_ns.replace(" ", "_"): x.project_main_page for x in _config}
+        projects = {x.report_without_ns: x.project_main_page for x in _config}
 
         return projects
 

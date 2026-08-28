@@ -49,11 +49,17 @@ class WikiProjectConfig:
         # FIXME: assumes reports are in the Project namespace (matches PHP FIXME).
         # db_key = report.split(":", 1)[-1]
         db_key = re.sub(r"^.*?:", "", report)
-        return db_key
+        return db_key.replace(" ", "_")
 
     @classmethod
     def from_json_list(cls, data: dict[str, dict[str, Any]]) -> list[WikiProjectConfig]:
         return [cls.from_json(project_main_page, data=data) for project_main_page, data in data.items()]
+
+    @classmethod
+    def from_json_dict(cls, data: dict[str, dict[str, Any]]) -> dict[str, WikiProjectConfig]:
+        return {
+            project_main_page: cls.from_json(project_main_page, data=data) for project_main_page, data in data.items()
+        }
 
 
 __all__ = [

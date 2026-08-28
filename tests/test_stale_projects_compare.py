@@ -108,7 +108,7 @@ def _expected_stale(config_objs: list[WikiProjectConfig], db_rows: list[dict]) -
     return {
         c.Name
         for c in config_objs
-        if c.report_without_ns.replace(" ", "_") not in updated_pages
+        if c.report_without_ns not in updated_pages
     }
 
 
