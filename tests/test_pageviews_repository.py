@@ -65,3 +65,10 @@ def test_process_response_sums_views_across_items():
     article, total = PageviewsRepository._process_response(response)
     assert article == "Foo Bar"
     assert total == 30
+
+
+def test_client_sets_user_agent_header():
+    repo = PageviewsRepository("en.wikipedia")
+    ua = repo._client.headers.get("User-Agent")
+    assert ua is not None
+    assert "py-popularpages" in ua
