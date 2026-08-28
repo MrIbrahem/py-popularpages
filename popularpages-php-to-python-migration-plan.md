@@ -299,13 +299,6 @@ class WikiRepository:
         self.username = self.creds["botuser"].split("@")[0]
         self.login()
 
-    def _load_credentials(self) -> dict:
-        # Credentials are read from environment variables (loaded from .env
-        # via python-dotenv in config.load_credentials), matching the PHP
-        # version's intent without INI parsing.
-        from .config import load_credentials
-        return load_credentials()
-
     def login(self) -> None:
         self.site.login(self.creds["botuser"], self.creds["botpass"])
 ```
