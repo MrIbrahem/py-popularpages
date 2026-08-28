@@ -50,8 +50,6 @@ class WikiDatabaseRepository:
         self.wiki_config = wiki_config
         self.username = username
 
-    # -- Connection -----------------------------------------------------
-
     # -- Database -----------------------------------------
 
     def _connect(self) -> pymysql.connections.Connection:
