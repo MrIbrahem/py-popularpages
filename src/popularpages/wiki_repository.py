@@ -345,7 +345,7 @@ class WikiRepository:
         page_title: str,
         text: str,
         summary: str | None = None,
-        section: bool = False,
+        section_number: int | None = None,
     ) -> dict | None:
         """
         Update a wiki page with the given text.
@@ -353,9 +353,7 @@ class WikiRepository:
         :param page_title: Page to set text for.
         :param text: Text to set on the page.
         :param summary: Edit summary.
-        :param section: If truthy, edit only section 0 (the lead) instead of
-            replacing the whole page -- matches the PHP version's use of
-            the 'section' API param to only touch the lead when it exists.
+        :param section: Section to update. If None, the entire page is updated.
         :return: The API result dict, or None if the edit failed or this is
             a dry run.
         """
@@ -372,29 +370,29 @@ class WikiRepository:
                     "title": page_title,
                     "text": text,
                     "summary": summary,
-                    "section": "0" if section else False,
+                    "section": section_number,
+                    "bot": True,
                 }
             )
             return None
 
         page = self.site.pages[page_title]
 
-        # When the report page already has a lead section, edit only section 0
-        # (the lead) instead of replacing the whole page. mwclient's page.edit
-        # takes a `section` argument (string). This matches the PHP version's
-        # intent: `if ($section) $params['section'] = $section;` was meant to
-        # target the lead (section 0), not section 1.
-        edit_kwargs: dict = {"summary": summary, "bot": True}
-        if section:
-            edit_kwargs["section"] = "0"
+        # NOTE: In the original PHP setText, $hasLeadSection (bool) is passed directly as the section param
+        # `if ( $section ) $params['section'] = $section;`. Since True casts to 1, this sets section=1, not
+        # section=0 -- and that's intentional, not a bug: when the page has a lead section.
+        # report.wikitext.jinja skips the 'report-header' line and starts the generated content straight at
+        # '== {{ msg('list') }} ==', meant to replace the section AFTER the lead (section 1), leaving the
+        # human-written intro (section 0) untouched.
 
+        section = str(section_number) if section_number else None
         result = None
         try:
-            result = page.edit(text=text, **edit_kwargs)
+            result = page.edit(text=text, summary=summary, bot=True, section=section)
         except mwclient.errors.LoginError:
             # Session likely expired; log back in and retry once.
             self.login()
-            result = page.edit(text=text, **edit_kwargs)
+            result = page.edit(text=text, summary=summary, bot=True, section=section)
         except Exception:
             result = None
 

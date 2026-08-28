@@ -110,6 +110,7 @@ class WikiDatabaseRepository:
         # PyMySQL returns the BINARY(14) rev_timestamp and VARBINARY page_title
         # as bytes; decode to str before using page_title as a config-key lookup
         # and before the timestamps are parsed by strptime elsewhere.
+
         for row in rows:
             row["page_title"] = _to_str(row["page_title"])
             row["rev_timestamp"] = _to_str(row["rev_timestamp"])

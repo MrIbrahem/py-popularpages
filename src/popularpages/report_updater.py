@@ -134,11 +134,13 @@ class ReportUpdater:
         }
         output = self.env.get_template("report.wikitext.jinja").render(render_argv)
 
+        section_number = 1 if has_lead_section else None
+
         self.wiki_repository.set_text(
             config["Report"],
             output,
             self.i18n.msg("edit-summary"),
-            has_lead_section,
+            section_number=section_number,
         )
 
     def update_index(self) -> None:
