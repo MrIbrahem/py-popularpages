@@ -21,7 +21,7 @@ from pathlib import Path
 
 import jsonlines
 
-from .config import config
+from ..config import config
 
 logger = logging.getLogger(__name__)
 

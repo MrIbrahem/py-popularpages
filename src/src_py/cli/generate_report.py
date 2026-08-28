@@ -14,12 +14,9 @@ import asyncio
 import logging
 import re
 import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.src_py.logger_config import setup_logging
-from src.src_py.popularpages.report_updater.report_updater import ReportUpdater
+from src.src_py.popularpages.report_updater import ReportUpdater
 
 logger = logging.getLogger(__name__)
 

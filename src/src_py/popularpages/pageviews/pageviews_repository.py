@@ -23,8 +23,8 @@ from tenacity import (
     wait_exponential,
 )
 
-from .config import config
-from .logger import log_to_file
+from ..config import config
+from ..logger import log_to_file
 
 logger = logging.getLogger(__name__)
 
