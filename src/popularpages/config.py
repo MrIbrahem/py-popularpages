@@ -74,7 +74,6 @@ def load_credentials() -> dict[str, str]:
         "dbhost": os.environ.get("TOOL_REPLICA_HOST", ""),
         "dbuser": os.environ.get("TOOL_REPLICA_USER", ""),
         "dbpass": os.environ.get("TOOL_REPLICA_PASSWORD", ""),
-        "dbport": os.environ.get("TOOL_REPLICA_PORT", "3306"),
     }
 
 
