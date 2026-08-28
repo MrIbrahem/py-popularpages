@@ -1,9 +1,10 @@
 """ """
 
 from __future__ import annotations
-import yaml
 
 from pathlib import Path
+
+import yaml
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -31,6 +32,7 @@ MAX_PROJECT_SIZE = 1_000_000
 BATCH_SIZE_THRESHOLD = 60
 
 ASSESSMENT_CONFIG_URL = "https://xtools.wmflabs.org/api/project/assessments"
+
 
 def load_wikis_config():
     """

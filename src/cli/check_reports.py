@@ -55,5 +55,6 @@ def main() -> None:
         except Exception as exc:
             log_to_file(f"Error processing {wiki}: {exc}", wiki)
 
+
 if __name__ == "__main__":
     main()

@@ -12,6 +12,7 @@ from datetime import datetime
 
 from .config import LOG_DIR
 
+
 def log_to_file(message: str, wiki: str) -> None:
     """
     Append a timestamped message to logs/log-{wiki}.txt.

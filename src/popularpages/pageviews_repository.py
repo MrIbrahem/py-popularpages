@@ -178,7 +178,8 @@ class PageviewsRepository:
             page, count = result
             for target in target_titles:
                 if page in batch[target]:
-                    pageviews[target] += count
+                    count_int = int(count)  # pyright: ignore[reportArgumentType]
+                    pageviews[target] += count_int
                     break
 
         return pageviews

@@ -13,10 +13,8 @@ that requires SQL.
 from __future__ import annotations
 
 import configparser
-from dataclasses import dataclass
 import json
 import re
-from typing import Any
 
 import httpx
 import mwclient
@@ -24,57 +22,17 @@ import mwclient.errors
 
 from .config import (
     ASSESSMENT_CONFIG_URL,
-    CONFIG_PATH,
     BATCH_SIZE_THRESHOLD,
+    CONFIG_PATH,
     load_wikis_config,
 )
-
 from .i18n import I18n
 from .logger import log_to_file
+from .mapping import WikiProjectConfig
 from .pageviews_repository import PageviewsRepository
 from .utils import mediawiki_timestamp_to_date
 from .wiki_database_repository import WikiDatabaseRepository
 
-@dataclass
-class WikiProjectConfig:
-    """
-    data example:
-    {
-        "Wikipedia:WikiProject Dinosaurs": {
-            "Report": "Wikipedia:WikiProject Dinosaurs/Popular pages",
-            "Limit": "500",
-            "Name": "Dinosaurs"
-        }
-    }
-    """
-    page_title: str
-    Report: str
-    report_without_ns: str
-    Limit: int
-    Name: str
-    Updated: str | None = None
-
-    @classmethod
-    def from_json(cls, page_title: str, data: dict[str, Any]) -> WikiProjectConfig:
-        return cls(
-            page_title=page_title,
-            Report=data["Report"],
-            report_without_ns=cls.trim_report_prefix(data["Report"]),
-            Limit=int(data["Limit"]),
-            Name=data["Name"],
-            Updated=data.get("Updated"),
-        )
-
-    @classmethod
-    def trim_report_prefix(cls, report: str) -> str:
-        # FIXME: assumes reports are in the Project namespace (matches PHP FIXME).
-        # db_key = report.split(":", 1)[-1]
-        db_key = re.sub(r"^.*?:", "", report)
-        return db_key
-
-    @classmethod
-    def from_json_list(cls, data: dict[str, dict[str, str | int]]) -> list[WikiProjectConfig]:
-        return [cls.from_json(page_title, data) for page_title, data in data.items()]
 
 class WikiRepository:
     """
@@ -185,9 +143,12 @@ class WikiRepository:
         :return: Config for WikiProjects not updated so far this month.
         """
         log_to_file("Checking for stale projects", self.wiki)
+        _config = self.get_config()
+
+        projects = self._project_report_titles_obj(_config)
+
         config = self.get_json_config()
 
-        projects = self._project_report_titles(config)
         updated_names = self.db.get_stale_project_names(config, projects)
 
         for name in updated_names:
@@ -201,9 +162,19 @@ class WikiRepository:
 
         :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
         """
-        config = self.get_json_config()
-        projects = self._project_report_titles(config)
-        return self.db.get_projects_with_last_bot_timestamp(projects)
+        config = self.get_config()
+        projects = self._project_report_titles_obj(config)
+
+        titles = list(projects.keys())
+        if not titles:
+            return []
+
+        result = self.db.get_projects_timestamps(titles)
+
+        for row in result:
+            row["name"] = projects[row["page_title"]]
+
+        return result
 
     # -- Database-backed page/pageviews fetching ----------------------------
 
@@ -467,14 +438,20 @@ class WikiRepository:
         Map db-key page title -> WikiProject name (config key), derived
         from each project's 'Report' page.
 
-        :param config: Full JSON config (project_name -> info).
+        :param config: Full JSON config (project_main_page -> info).
         :return: Mapping of db-key page title -> WikiProject name.
         """
         # FIXME: assumes reports are in the Project namespace (matches PHP TODO).
         projects: dict[str, str] = {}
-        for project_name, info in config.items():
+        for project_main_page, info in config.items():
             # db_key = info["Report"].split(":", 1)[-1]
             db_key = re.sub(r"^.*?:", "", info["Report"])
-            projects[db_key.replace(" ", "_")] = project_name
+            projects[db_key.replace(" ", "_")] = project_main_page
+
+        return projects
+
+    @staticmethod
+    def _project_report_titles_obj(_config: list[WikiProjectConfig]) -> dict[str, str]:
+        projects = {x.report_without_ns.replace(" ", "_"): x.project_main_page for x in _config}
 
         return projects

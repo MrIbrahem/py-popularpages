@@ -66,20 +66,13 @@ class WikiDatabaseRepository:
             cursorclass=pymysql.cursors.DictCursor,
         )
 
-    # -- Queries ----------------------------------------------------------
-
-    def get_projects_with_last_bot_timestamp(self, projects: dict[str, str]) -> list[dict]:
+    def _get_projects_timestamps(self, titles: list[str]) -> list[dict]:
         """
         Get timestamps of the bot's last edits for the given WikiProjects.
 
         :param projects: Mapping of db-key page title -> WikiProject name.
         :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
         """
-        log_to_file("Fetching timestamps of the bot's last edits", self.wiki)
-
-        titles = list(projects.keys())
-        if not titles:
-            return []
 
         conn = self._connect()
         try:
@@ -105,47 +98,15 @@ class WikiDatabaseRepository:
         finally:
             conn.close()
 
-        # PyMySQL returns the BINARY(14) rev_timestamp and VARBINARY page_title
-        # as bytes; decode to str before using page_title as a config-key lookup
-        # and before the timestamps are parsed by strptime elsewhere.
+        return rows  # pyright: ignore[reportReturnType]
 
-        for row in rows:
-            row["page_title"] = _to_str(row["page_title"])
-            row["rev_timestamp"] = _to_str(row["rev_timestamp"])
-            row["name"] = projects[row["page_title"]]
-
-        return rows
-
-    def get_stale_project_names(self, config: dict, projects: dict[str, str]) -> set[str]:
-        """
-        Determine which WikiProject names (from `config`) have already been
-        updated this month, based on the bot's last-edit timestamps.
-
-        :param config: Full JSON config (project_name -> info).
-        :param projects: Mapping of db-key page title -> WikiProject name,
-            matching `config`'s keys.
-        :return: Set of project names that were already updated this cycle
-            (i.e. NOT stale) -- callers typically pop these out of `config`.
-        """
-        bot_timestamps = self.get_projects_with_last_bot_timestamp(projects)
-        first_of_this_month = first_of_this_month_timestamp()
-
-        updated_names: set[str] = set()
-        for row in bot_timestamps:
-            rev_timestamp = mediawiki_timestamp_to_epoch(row["rev_timestamp"])
-            if rev_timestamp >= first_of_this_month:
-                updated_names.add(row["name"])
-
-        return updated_names
-
-    def get_project_pages(self, project: str) -> list[dict]:
+    def _get_project_pages(self, project: str) -> list[dict]:
         """
         Get titles & assessments for all pages in a WikiProject.
 
         :param project: Name of the project, e.g. 'Medicine'.
         :return: List of rows with page_title, pa_class, pa_importance, redir_title.
         """
-        log_to_file(f"Fetching pages and assessments for project {project}", self.wiki)
 
         conn = self._connect()
         try:
@@ -174,6 +135,43 @@ class WikiDatabaseRepository:
         finally:
             conn.close()
 
+        return rows  # pyright: ignore[reportReturnType]
+
+    # -- Queries ----------------------------------------------------------
+
+    def get_projects_timestamps(self, titles: list[str]) -> list[dict]:
+        """
+        Get timestamps of the bot's last edits for the given WikiProjects.
+
+        :param titles: Mapping of db-key page title -> WikiProject name.
+        :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
+        """
+        log_to_file("Fetching timestamps of the bot's last edits", self.wiki)
+
+        rows = self._get_projects_timestamps(titles)
+
+        # PyMySQL returns the BINARY(14) rev_timestamp and VARBINARY page_title
+        # as bytes; decode to str before using page_title as a config-key lookup
+        # and before the timestamps are parsed by strptime elsewhere.
+
+        for row in rows:
+            row["page_title"] = _to_str(row["page_title"])
+            row["rev_timestamp"] = _to_str(row["rev_timestamp"])
+            # row["name"] = projects[row["page_title"]]
+
+        return rows
+
+    def get_project_pages(self, project: str) -> list[dict]:
+        """
+        Get titles & assessments for all pages in a WikiProject.
+
+        :param project: Name of the project, e.g. 'Medicine'.
+        :return: List of rows with page_title, pa_class, pa_importance, redir_title.
+        """
+        log_to_file(f"Fetching pages and assessments for project {project}", self.wiki)
+
+        rows = self._get_project_pages(project)
+
         # MediaWiki returns page_title/redir_title as VARBINARY and
         # pa_class/pa_importance as VARBINARY/strings; PyMySQL yields bytes for
         # the binary ones. Decode so downstream URL/strptime/template code sees str.
@@ -182,4 +180,34 @@ class WikiDatabaseRepository:
             row["redir_title"] = _to_str(row["redir_title"])
             row["pa_class"] = _to_str(row["pa_class"])
             row["pa_importance"] = _to_str(row["pa_importance"])
+
         return rows
+
+    def get_stale_project_names(self, config: dict, projects: dict[str, str]) -> set[str]:
+        """
+        Determine which WikiProject names (from `config`) have already been
+        updated this month, based on the bot's last-edit timestamps.
+
+        :param config: Full JSON config (project_main_page -> info).
+        :param projects: Mapping of db-key page title -> WikiProject name,
+            matching `config`'s keys.
+        :return: Set of project names that were already updated this cycle
+            (i.e. NOT stale) -- callers typically pop these out of `config`.
+        """
+        titles = list(projects.keys())
+        if not titles:
+            return set()
+
+        bot_timestamps = self.get_projects_timestamps(titles)
+        for row in bot_timestamps:
+            row["name"] = projects[row["page_title"]]
+
+        first_of_this_month = first_of_this_month_timestamp()
+
+        updated_names: set[str] = set()
+        for row in bot_timestamps:
+            rev_timestamp = mediawiki_timestamp_to_epoch(row["rev_timestamp"])
+            if rev_timestamp >= first_of_this_month:
+                updated_names.add(row["name"])
+
+        return updated_names

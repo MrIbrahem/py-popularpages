@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 
-from .config import MESSAGES_DIR, FALLBACK_LANG
+from .config import FALLBACK_LANG, MESSAGES_DIR
 
 
 class I18n:

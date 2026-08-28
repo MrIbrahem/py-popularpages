@@ -39,6 +39,28 @@ class TestPreviousMonthRange:
         assert start == date(2023, 12, 1)
         assert end == date(2023, 12, 31)
 
+    # ------------------------------------------------------------
+    # Pure unit tests (no network/credentials required)
+    # ------------------------------------------------------------
+    def test_previous_month_range_midyear(self):
+        today = datetime(2023, 6, 15, 10, 30, 0)
+        start, end = previous_month_range(today)
+        assert (start.year, start.month, start.day) == (2023, 5, 1)
+        assert (end.year, end.month, end.day) == (2023, 5, 31)
+
+    def test_previous_month_range_year_boundary2(self):
+        today = datetime(2023, 1, 10, 0, 0, 0)
+        start, end = previous_month_range(today)
+        assert (start.year, start.month, start.day) == (2022, 12, 1)
+        assert (end.year, end.month, end.day) == (2022, 12, 31)
+
+    def test_previous_month_range_days_in_month(self):
+        # February in a non-leap year.
+        today = datetime(2023, 3, 5)
+        start, end = previous_month_range(today)
+        days_in_month = (end - start).days + 1
+        assert days_in_month == 28
+
 
 class TestFormatDate:
     def test_format_date_php_style_format(self):
