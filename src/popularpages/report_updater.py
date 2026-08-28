@@ -48,8 +48,8 @@ class ReportUpdater:
         def _msg(key: str, params: list | None = None) -> str:
             return self.i18n.msg(key, params or [])
 
-        self.env.globals["msg"] = _msg
-        self.env.globals["assessments"] = self._assessments
+        self.env.globals["msg"] = _msg  # type: ignore[assignment]
+        self.env.globals["assessments"] = self._assessments  # type: ignore[assignment]
 
     def _assessments(self, type_: str, value: str) -> dict:
         _config = self.wiki_repository.get_assessment_config()
