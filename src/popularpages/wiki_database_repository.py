@@ -40,16 +40,14 @@ class WikiDatabaseRepository:
     for a given wiki.
     """
 
-    def __init__(self, wiki: str, creds: dict[str, str], wiki_config: dict, username: str):
+    def __init__(self, wiki: str, wiki_config: dict, username: str):
         """
         :param wiki: Wiki in the form lang.project, e.g. 'en.wikipedia'.
-        :param creds: Credentials dict (dbhost, dbuser, dbpass, dbport, ...).
         :param wiki_config: This wiki's config (index/config/category/database).
         :param username: Bot username (without the @clientname suffix), used
             to look up the bot's own edits.
         """
         self.wiki = wiki
-        self.creds = creds
         self.wiki_config = wiki_config
         self.username = username
 
