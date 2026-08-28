@@ -370,7 +370,6 @@ class WikiRepository:
             logger.info(
                 {
                     "title": page_title,
-                    "text": text,
                     "summary": summary,
                     "section": section_number,
                     "bot": True,
@@ -417,8 +416,10 @@ class WikiRepository:
         """
         config.paths.log_dir.mkdir(parents=True, exist_ok=True)
         safe_title = re.sub(r"[^\w.\-]+", "_", page_title)
+
         out_path = config.paths.log_dir / f"dryrun-{self.wiki}-{safe_title}.wikitext"
         out_path.write_text(text, encoding="utf-8")
+
         logger.info("dry-run: wrote wikitext for '%s' to %s", page_title, out_path)
 
     def get_bot_last_edit_date(self, title: str) -> str:
