@@ -8,7 +8,6 @@ template rendering) expects ``str``. The live-DB tests in the PHP suite that
 exercised this path were disabled upstream; these offline tests replace them.
 """
 
-from src.popularpages.db_analytics import WikiReplicaDB
 from src.popularpages.db_analytics.maps import WikiReplicaMaps
 from src.popularpages.wiki_database_repository import WikiDatabaseRepository
 

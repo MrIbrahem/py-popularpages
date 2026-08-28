@@ -12,7 +12,6 @@ import logging
 from typing import Any
 
 from .db_analytics import WikiReplicaDB
-
 from .logger import log_to_file
 
 logger = logging.getLogger(__name__)
