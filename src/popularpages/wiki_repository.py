@@ -149,6 +149,36 @@ class WikiRepository:
 
         projects = self._project_report_titles(_config)
 
+        config = self.get_json_config()
+
+        titles = list(projects.keys())
+
+        if not titles:
+            return _config
+
+        first_of_this_month = first_of_this_month_timestamp()
+
+        bot_timestamps = self.db.get_projects_timestamps(titles)
+
+        for row in bot_timestamps:
+            proj_name = projects[row["page_title"]]
+            rev_timestamp = mediawiki_timestamp_to_epoch(row["rev_timestamp"])
+            if rev_timestamp >= first_of_this_month:
+                config.pop(proj_name, None)
+
+        return WikiProjectConfig.from_json_list(config)
+
+    def get_stale_projects_new(self) -> list[WikiProjectConfig]:
+        """
+        Get WikiProjects that have not yet been updated for the current cycle.
+
+        :return: Config for WikiProjects not updated so far this month.
+        """
+        log_to_file("Checking for stale projects", self.wiki)
+        _config = self.get_config()
+
+        projects = self._project_report_titles(_config)
+
         titles = list(projects.keys())
 
         if not titles:
