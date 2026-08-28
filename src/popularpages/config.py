@@ -52,7 +52,7 @@ MAX_PROJECT_SIZE = 1_000_000
 # handler in PageviewsRepository absorbs the rest.
 BATCH_SIZE_THRESHOLD = 60
 
-ASSESSMENT_CONFIG_URL = "https://xtools.wmflabs.org/api/project/assessments"
+ASSESSMENT_CONFIG_URL = "https://xtools.wmcloud.org/api/project/assessments"
 
 # Used to build the HTTP User-Agent for every outbound request (XTools,
 # Pageviews REST API, and the MediaWiki action API via mwclient). Wikimedia's

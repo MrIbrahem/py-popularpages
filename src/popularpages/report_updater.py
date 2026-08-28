@@ -53,28 +53,25 @@ class ReportUpdater:
         def _msg(key: str, params: list | None = None) -> str:
             return self.i18n.msg(key, params or [])
 
+        # NOTE: Deliberately *no* `assessments` global here. Jinja templates must
+        # not perform network I/O, and the assessment config is fetched/resolved
+        # in the data-fetch phase (see `process_project`) before rendering.
         self.env.globals["msg"] = _msg  # type: ignore[assignment]
-        self.env.globals["assessments"] = self._assessments  # type: ignore[assignment]
 
-    def _assessments(self, type_: str, value: str) -> dict:
-        logger.debug("Looking up assessment type='%s' value='%s'", type_, value)
-        try:
-            _config = self.wiki_repository.get_assessment_config()
-            dataset = _config[type_]
+    @staticmethod
+    def _resolve_assessment(config: dict, type_: str, value: str) -> dict:
+        """
+        Resolve a class/importance value to its display config (color, category).
 
-            for key, values in dataset.items():
-                if value.lower() == key.lower():
-                    return values
+        Pure function over an already-fetched assessment config dict; performs
+        no I/O so it is safe to call from the render path.
+        """
+        dataset = config[type_]
+        for key, values in dataset.items():
+            if value.lower() == key.lower():
+                return values
 
-            return dataset["Unknown"]
-        except Exception as e:
-            logger.error("Error looking up assessment type='%s' value='%s': %s", type_, value, e)
-            return {
-                "name": "Unknown",
-                "color": "gray",
-                "icon": "unknown",
-                "category": "unknown",
-            }
+        return dataset["Unknown"]
 
     # ---------------------------------------------------
     # Execution
@@ -146,6 +143,20 @@ class ReportUpdater:
         # Add in averages.
         for datum in data.values():
             datum["avgPageviews"] = datum["pageviews"] // days_in_month
+
+        # Resolve assessment colors/categories here, in the data-fetch phase, so
+        # the template performs no network I/O (issue #4: Jinja templates must
+        # not make network requests). `get_assessment_config()` is fetched once
+        # and cached on the WikiRepository, so this is a single network call per
+        # run, reused across every page and project.
+        assessment_cfg = self.wiki_repository.get_assessment_config()
+        for datum in data.values():
+            datum["class_assessment"] = self._resolve_assessment(
+                assessment_cfg, "class", datum["class"]
+            )
+            datum["importance_assessment"] = self._resolve_assessment(
+                assessment_cfg, "importance", datum["importance"]
+            )
 
         has_lead_section = self.wiki_repository.has_lead_section(config.Report)
         logger.debug("Report has lead section: %s", has_lead_section)
