@@ -23,6 +23,7 @@ from tenacity import (
     wait_exponential,
 )
 
+from .config import user_agent
 from .logger import log_to_file
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,8 @@ class PageviewsRepository:
         self.domain = domain
         logger.debug("PageviewsRepository initialized for domain '%s'", domain)
         self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(REQUEST_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS)
+            timeout=httpx.Timeout(REQUEST_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS),
+            headers={"User-Agent": user_agent()},
         )
 
     async def aclose(self) -> None:
