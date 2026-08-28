@@ -140,8 +140,8 @@ class ReportUpdater:
             for project in valid_projects:
                 logger.info("Processing project '%s'", project.Name)
                 await self.process_project(
-                    project.project_main_page,
-                    project,
+                    project=project.project_main_page,
+                    config=project,
                     cache=cache,
                     page_rows=project_pages[project.project_main_page],
                 )
@@ -199,6 +199,7 @@ class ReportUpdater:
         logger.info("Process project '%s' (config report='%s')", config.Name, config.Report)
         if page_rows is None:
             page_rows = self.wiki_repository.get_project_pages(config.Name)
+
         logger.debug("Fetched %d page(s) for project '%s'", len(page_rows), config.Name)
 
         if not page_rows:

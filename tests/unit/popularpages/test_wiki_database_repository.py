@@ -8,6 +8,8 @@ template rendering) expects ``str``. The live-DB tests in the PHP suite that
 exercised this path were disabled upstream; these offline tests replace them.
 """
 
+from unittest.mock import MagicMock
+
 from src.popularpages.db_analytics.maps import WikiReplicaMaps
 from src.popularpages.wiki_database_repository import WikiDatabaseRepository
 
@@ -43,7 +45,8 @@ def test_get_project_pages_decodes_binary_columns(monkeypatch):
             "redir_title": b"Foo",
         }
     ]
-    monkeypatch.setattr(repo.db, "select_safe", lambda *args, **kwargs: rows)
+    monkeypatch.setattr(repo.db, "_ensure_connection", MagicMock(return_value=True))
+    monkeypatch.setattr(repo.db, "_select", lambda *args, **kwargs: rows)
 
     result = repo.get_project_pages("X")
 

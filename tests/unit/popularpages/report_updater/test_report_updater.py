@@ -12,8 +12,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from src.generate_report import ReportUpdater
 import src.popularpages.config as cfg
-import src.popularpages.report_updater as ru_module
+import src.popularpages.report_updater.updater as ru_module
 from src.popularpages.i18n import I18n
 from src.popularpages.mapping import WikiProjectConfig
 from src.popularpages.wiki_repository import WikiRepository
@@ -66,7 +67,7 @@ def updater(tmp_path, monkeypatch):
         cfg.config,
         paths=dataclasses.replace(cfg.config.paths, views_data_dir=tmp_path),
     )
-    monkeypatch.setattr("src.popularpages.pageviews_cache.config", new_cfg)
+    monkeypatch.setattr("src.popularpages.pageviews.pageviews_cache.config", new_cfg)
     monkeypatch.setattr(ru_module, "config", new_cfg)
 
     return u, repo
@@ -113,7 +114,7 @@ def test_validate_project_config_incomplete(updater):
         project_main_page="Wikipedia:WikiProject Foo",
         Report="Wikipedia:WikiProject Foo/Popular pages",
         report_without_ns="Wikipedia:WikiProject_Foo/Popular_pages",
-        Limit="10",
+        Limit="10", # pyright: ignore[reportArgumentType]
         Name="",
     )
     assert u.validate_project_config("Wikipedia:WikiProject Foo", incomplete) is False
@@ -228,7 +229,7 @@ async def test_process_project_accepts_dict_config(updater):
 # update_reports (full pipeline)
 # ---------------------------------------------------------------
 @pytest.mark.asyncio
-async def test_update_reports_runs_pipeline(updater):
+async def test_update_reports_runs_pipeline(updater: tuple[ReportUpdater, MagicMock]):
     u, repo = updater
     page_rows = [
         {

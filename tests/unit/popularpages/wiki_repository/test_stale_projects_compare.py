@@ -20,10 +20,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.popularpages import wiki_repository
+from src.popularpages.wiki_repository import repository
 from src.popularpages.mapping import WikiProjectConfig
 from src.popularpages.utils import mediawiki_timestamp_to_epoch
-from src.popularpages.wiki_repository import WikiRepository
+from src.popularpages.wiki_repository.repository import WikiRepository
 
 # Fixed "first of this month" epoch used to make staleness deterministic.
 FIRST_OF_MONTH = mediawiki_timestamp_to_epoch("20230101000000")
@@ -128,15 +128,15 @@ def _wire(
     repo.get_config = MagicMock(return_value=config_objs)
     repo.get_json_config = MagicMock(return_value=json_config)
     repo.db.get_projects_timestamps.return_value = db_rows
-    monkeypatch.setattr(wiki_repository, "first_of_this_month_timestamp", lambda *a, **k: FIRST_OF_MONTH)
-    monkeypatch.setattr(wiki_repository, "log_to_file", lambda *a, **k: None)
+    monkeypatch.setattr(repository, "first_of_this_month_timestamp", lambda *a, **k: FIRST_OF_MONTH)
+    monkeypatch.setattr(repository, "log_to_file", lambda *a, **k: None)
 
 
 # -- Comparison tests ------------------------------------------------------
 
 
 class TestCompareStaleProjects:
-    def test_empty_config_returns_empty(self, repo, monkeypatch):
+    def test_empty_config_returns_empty_value(self, repo, monkeypatch):
         _wire(repo, [], {}, [], monkeypatch)
 
         old = repo.get_stale_projects()

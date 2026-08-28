@@ -300,6 +300,7 @@ reportMissingParameterType = false
 reportUnknownParameterType = false
 reportMissingTypeStubs = false
 reportUnknownArgumentType = false
+reportUnknownLambdaType = false
 
 # Fine-tune specific warning rules
 reportPossiblyUnboundVariable = true
@@ -330,3 +331,4 @@ reportOptionalSubscript = "warning"
 # the whole src/shared package is still ~80.5% (>= 80%).
 [tool.coverage.run]
 omit = ["src/shared/cos/cosmetic_new.py"]
+

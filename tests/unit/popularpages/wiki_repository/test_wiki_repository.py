@@ -1,5 +1,5 @@
 """
-Tests for src.popularpages.wiki_repository.WikiRepository.
+Tests for src.popularpages.wiki_repository.repository.WikiRepository.
 
 Ported from tests/WikiRepositoryTest.php. These tests hit the live English
 Wikipedia API (and, for the currently-skipped tests, the replica database),
@@ -22,7 +22,7 @@ import pytest
 import src.popularpages.config as cfg
 from src.popularpages.config import has_credentials
 from src.popularpages.mapping import WikiProjectConfig
-from src.popularpages.wiki_repository import WikiRepository
+from src.popularpages.wiki_repository.repository import WikiRepository
 
 # Integration tests that hit the live wiki/DB require real credentials, which
 # live in .env (gitignored). Skip them when absent so the suite stays green in
@@ -114,7 +114,7 @@ class TestWriteDryRunText:
 
     def test_writes_file_with_sanitized_title(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            "src.popularpages.wiki_repository.config",
+            "src.popularpages.wiki_repository.repository.config",
             dataclasses.replace(
                 cfg.config,
                 paths=dataclasses.replace(cfg.config.paths, log_dir=tmp_path),
@@ -135,7 +135,7 @@ class TestWriteDryRunText:
 
     def test_filename_includes_wiki(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            "src.popularpages.wiki_repository.config",
+            "src.popularpages.wiki_repository.repository.config",
             dataclasses.replace(
                 cfg.config,
                 paths=dataclasses.replace(cfg.config.paths, log_dir=tmp_path),

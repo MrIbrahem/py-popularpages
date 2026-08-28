@@ -79,8 +79,7 @@ class WikiDatabaseRepository:
         """
 
         logger.debug("Fetching pages and assessments for project '%s'", project)
-        rows = self.db.select_safe(
-            """
+        query = """
             SELECT page_title, pa_class, pa_importance, (
                 SELECT rp.page_title
                 FROM page rp
@@ -96,11 +95,10 @@ class WikiDatabaseRepository:
                 WHERE pap_project_title = %s
             )
             AND page_namespace = 0
-            """,
-            (project,),
-        )
+        """
+        rows = self.db.select_safe(query, (project,))
 
-        return rows  # pyright: ignore[reportReturnType]
+        return rows
 
     # -- Queries ----------------------------------------------------------
 
