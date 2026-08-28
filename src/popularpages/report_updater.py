@@ -188,47 +188,14 @@ class ReportUpdater:
             last update date (if available).
         """
         projects_config = self.wiki_repository.get_json_config()
-
-        last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
-
-        # Add the last updated date to the config.
-        last_edits_times = {
-            projects_config[row["page_title"]]: row["rev_timestamp"] for row in last_edits
-            if row["page_title"] in projects_config
-        }
-
-        for proj_name, rev_date in last_edits_times.items():
-            if proj_name in projects_config:
-                # rev_timestamp from the DB is YYYYMMDDHHMMSS.
-                parsed = datetime.strptime(str(rev_date), "%Y%m%d%H%M%S")
-                projects_config[proj_name]["Updated"] = parsed.strftime("%Y-%m-%d")
-
-        list_config_obj = WikiProjectConfig.from_json_list(projects_config)
-        return list_config_obj
-
-    def retrieve_project_updates_new(self) -> list[WikiProjectConfig]:
-        """
-        Retrieve project configurations and update them with their last edit timestamps.
-
-        Fetches the JSON configuration for WikiProjects and their corresponding
-        last bot edit timestamps from the repository. It then parses the raw
-        timestamp (YYYYMMDDHHMMSS format) from the database into a standardized
-        date string (YYYY-MM-DD format) and assigns it to each project's
-        `Updated` attribute.
-
-        Returns:
-            list[WikiProjectConfig]: A list of WikiProjectConfig objects,
-            where each object contains its configuration and the formatted
-            last update date (if available).
-        """
-        projects_config = self.wiki_repository.get_json_config()
         list_config_obj = WikiProjectConfig.from_json_list(projects_config)
 
         last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
 
         # Add the last updated date to the config.
         last_edits_times = {
-            projects_config[row["page_title"]]: row["rev_timestamp"] for row in last_edits
+            projects_config[row["page_title"]]: row["rev_timestamp"]
+            for row in last_edits
             if row["page_title"] in projects_config
         }
 
