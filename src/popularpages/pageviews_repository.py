@@ -28,21 +28,6 @@ from .logger import log_to_file
 
 logger = logging.getLogger(__name__)
 
-ENDPOINT_URL = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article"
-
-REQUEST_TIMEOUT_SECONDS = 3.0
-CONNECT_TIMEOUT_SECONDS = 3.0
-
-# Delay between individual outgoing requests within a batch. This
-# approximates the PHP client's `delay` option (500ms), which staggers
-# dispatch of the underlying Guzzle promises.
-REQUEST_DELAY_SECONDS = 0.5  # matches PHP's REQUEST_DELAY = 500ms
-
-MAX_RETRY_ATTEMPTS = 5
-
-
-RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
-
 
 def _is_retryable(exc: BaseException) -> bool:
     """
@@ -54,7 +39,7 @@ def _is_retryable(exc: BaseException) -> bool:
     not 4xx/5xx transport problems (e.g. DNS/connect) are also retried.
     """
     if isinstance(exc, httpx.HTTPStatusError):
-        return exc.response.status_code in RETRY_STATUS_CODES
+        return exc.response.status_code in config.pageviews.retry_status_codes
     # Connection/transport errors and timeouts are retryable too.
     if isinstance(exc, httpx.TimeoutException | httpx.TransportError):
         return True
@@ -99,7 +84,10 @@ class PageviewsRepository:
         self.domain = domain
         logger.debug("PageviewsRepository initialized for domain '%s'", domain)
         self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(REQUEST_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS),
+            timeout=httpx.Timeout(
+                config.pageviews.request_timeout_seconds,
+                connect=config.pageviews.connect_timeout_seconds,
+            ),
             headers={"User-Agent": config.user_agent},
         )
 
@@ -128,7 +116,7 @@ class PageviewsRepository:
     @retry(
         retry=retry_if_exception(_is_retryable),
         wait=_retry_wait,
-        stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
+        stop=stop_after_attempt(config.pageviews.max_retry_attempts),
         after=lambda retry_state: retry_state.args[0]._log_retry(retry_state),
         reraise=True,
     )
@@ -137,7 +125,7 @@ class PageviewsRepository:
         # page titles may contain &, /, ?, #, +, % etc.; without encoding the URL is
         # malformed and the API returns no data (silently counted as 0 pageviews).
         encoded_article = quote(article, safe="")
-        url = f"{ENDPOINT_URL}/{self.domain}/all-access/user/{encoded_article}/monthly/{start}/{end}"
+        url = f"{config.pageviews.endpoint_url}/{self.domain}/all-access/user/{encoded_article}/monthly/{start}/{end}"
         logger.debug("GET %s", url)
         response = await self._client.get(url)
         response.raise_for_status()
@@ -211,7 +199,7 @@ class PageviewsRepository:
         error occurs; only 429/5xx-style retryable failures are retried by the
         tenacity wrapper on :meth:`_get`.
         """
-        await asyncio.sleep(REQUEST_DELAY_SECONDS)
+        await asyncio.sleep(config.pageviews.request_delay_seconds)
         article = title.replace(" ", "_")
         try:
             response = await self._get(article, start, end)

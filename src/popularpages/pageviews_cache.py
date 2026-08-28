@@ -16,7 +16,7 @@ See docs/pageviews-persistence-and-dedup-plan.md.
 
 from __future__ import annotations
 
-import json
+import jsonlines
 import logging
 from pathlib import Path
 
@@ -58,22 +58,22 @@ class PageviewsCache:
         if not self.path.exists():
             return
         try:
-            text = self.path.read_text(encoding="utf-8")
+            with jsonlines.open(self.path, mode="r") as reader:
+                loaded = 0
+                # skip_invalid drops lines that are not valid JSON; type=dict
+                # drops any non-object lines. Malformed-but-valid objects
+                # (e.g. missing a key) are caught below.
+                for obj in reader.iter(type=dict, skip_invalid=True):
+                    try:
+                        self._cache[obj["title"]] = int(obj["views"])
+                        loaded += 1
+                    except (KeyError, TypeError, ValueError):
+                        logger.debug(
+                            "Skipping malformed cache object in %s: %r", self.path, obj
+                        )
         except OSError as exc:
             logger.warning("Could not read pageviews cache %s: %s", self.path, exc)
             return
-
-        loaded = 0
-        for line in text.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                obj = json.loads(line)
-                self._cache[obj["title"]] = int(obj["views"])
-                loaded += 1
-            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
-                logger.debug("Skipping malformed cache line in %s: %r", self.path, line)
         if loaded:
             logger.info("Loaded %d cached title(s) from %s", loaded, self.path)
 
@@ -82,9 +82,9 @@ class PageviewsCache:
         if not self._pending:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as f:
+        with jsonlines.open(self.path, mode="a") as writer:
             for title, views in self._pending:
-                f.write(json.dumps({"title": title, "views": views}, ensure_ascii=False) + "\n")
+                writer.write({"title": title, "views": views})
         logger.debug("Flushed %d title(s) to %s", len(self._pending), self.path)
         self._pending = []
 

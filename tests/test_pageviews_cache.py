@@ -9,6 +9,7 @@ behavior.
 import dataclasses
 import json
 
+import jsonlines
 import pytest
 
 import src.popularpages.config as cfg
@@ -85,6 +86,106 @@ async def test_load_reuses_previous_run_and_only_fetches_missing(cache_config):
     # Values come from disk (10), not the fake's 999.
     assert cache2.get("A", []) == 10
     assert cache2.get("C", []) == 999
+
+
+@pytest.mark.asyncio
+async def test_written_file_is_valid_jsonl_readable_by_jsonlines(cache_config):
+    """The on-disk cache must be valid JSONL that jsonlines can read back."""
+    repo = FakeRepo({"A": 10, "B": 20, "C": 30})
+    cache = PageviewsCache("en.wikipedia", "2024-01", repo)
+    await cache.ensure({"A", "B", "C"}, "2024010100", "2024013100")
+
+    path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
+    # Read the file back with jsonlines itself (not json.loads line-by-line).
+    with jsonlines.open(path, mode="r") as reader:
+        lines = list(reader)
+    assert {"title": "A", "views": 10} in lines
+    assert {"title": "B", "views": 20} in lines
+    assert {"title": "C", "views": 30} in lines
+    # Values come from disk, not the fake.
+    assert cache.get("A", []) == 10
+
+
+@pytest.mark.asyncio
+async def test_non_ascii_title_round_trips(cache_config):
+    """Non-ASCII titles are written as UTF-8 and read back identically."""
+    title = "Café_İstanbul"
+    repo = FakeRepo({title: 7})
+    cache = PageviewsCache("en.wikipedia", "2024-03", repo)
+    await cache.ensure({title}, "2024030100", "2024033100")
+
+    path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-03.jsonl"
+    with jsonlines.open(path, mode="r") as reader:
+        lines = list(reader)
+    assert lines == [{"title": title, "views": 7}]
+    # The title is stored as literal UTF-8, not \u-escaped ASCII.
+    raw = path.read_text(encoding="utf-8")
+    assert "Café_İstanbul" in raw
+    assert cache.get(title, []) == 7
+
+
+@pytest.mark.asyncio
+async def test_malformed_lines_are_skipped_on_load(cache_config):
+    """Invalid JSON and malformed-but-valid objects are skipped, not fatal."""
+    repo1 = FakeRepo({"A": 10, "B": 20})
+    cache1 = PageviewsCache("en.wikipedia", "2024-01", repo1)
+    await cache1.ensure({"A", "B"}, "2024010100", "2024013100")
+
+    path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
+    # Append a line that is not valid JSON and a dict missing 'views'.
+    with path.open("a", encoding="utf-8") as f:
+        f.write("this is not json\n")
+        f.write(json.dumps({"title": "Z"}) + "\n")
+
+    # A fresh cache must load only the two valid entries and not crash.
+    repo2 = FakeRepo({"A": 999, "B": 999})
+    cache2 = PageviewsCache("en.wikipedia", "2024-01", repo2)
+    assert repo2.calls == []  # nothing fetched -- both entries were on disk
+    assert cache2.get("A", []) == 10
+    assert cache2.get("B", []) == 20
+    assert cache2.get("Z", []) == 0  # malformed object skipped
+
+
+@pytest.mark.asyncio
+async def test_missing_file_loads_empty(cache_config):
+    """A wiki/month with no cache file loads an empty cache, no fetch."""
+    repo = FakeRepo({"A": 10})
+    cache = PageviewsCache("en.wikipedia", "2099-12", repo)
+    # _load() ran at construction and found nothing.
+    assert cache.get("A", []) == 0
+    # No on-disk file is created until something is flushed.
+    path = cache_config.paths.views_data_dir / "en.wikipedia" / "2099-12.jsonl"
+    assert not path.exists()
+
+
+@pytest.mark.asyncio
+async def test_empty_file_loads_empty(cache_config):
+    """An existing but empty cache file loads an empty cache, no crash."""
+    path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-05.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("", encoding="utf-8")
+
+    repo = FakeRepo({"A": 10})
+    cache = PageviewsCache("en.wikipedia", "2024-05", repo)
+    assert cache.get("A", []) == 0
+
+
+@pytest.mark.asyncio
+async def test_incremental_appends_do_not_truncate(cache_config):
+    """Two ensures append to the same JSONL file rather than overwriting."""
+    repo = FakeRepo({"A": 1, "B": 2, "C": 3})
+    cache = PageviewsCache("en.wikipedia", "2024-06", repo)
+    await cache.ensure({"A", "B"}, "2024060100", "2024063000")
+    await cache.ensure({"C"}, "2024060100", "2024063000")
+
+    path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-06.jsonl"
+    with jsonlines.open(path, mode="r") as reader:
+        lines = list(reader)
+    assert len(lines) == 3
+    titles = {line["title"] for line in lines}
+    assert titles == {"A", "B", "C"}
+    # A and B were already cached on the second ensure, so only C was fetched.
+    assert [sorted(c) for c in repo.calls] == [["A", "B"], ["C"]]
 
 
 @pytest.mark.asyncio
