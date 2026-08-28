@@ -1,0 +1,18 @@
+{
+    "description": "This is the config page for Popular pages reports.\nTo request modifications, use {{edit fully-protected}} on the talk page.\nPlease keep the following points in mind before editing this page:\n* The 'Name' field should match the PROJECT parameter used in your project's banner template. A full list of valid project names can be found at https://en.wikipedia.org/w/api.php?action=query\u0026list=projects\u0026pjsubprojects=true. You can also refer to Special:PageAssessments. If you don't see your project, it's probably because the WikiProject template isn't set up properly.\n* The maximum limit for the report length is 1000 records.\n* Projects with more than 1,000,000 pages (e.g. WikiProject Biography) cannot currently be processed by the bot.\n* Please try to avoid changing the Report link for the sake of consistency across projects. Instead, it'd be helpful to redirect existing pages to this link.\n\nWhen requesting a new project addition or changing one, make sure the project block looks like:\n\"Wikipedia:WikiProject A Song of Ice and Fire\": {\n\t\"Report\": \"Wikipedia:WikiProject A Song of Ice and Fire/Popular pages\",\n\t\"Limit\": 1000,\n\t\"Name\": \"A Song of Ice and Fire\"\n},\n",
+    "Wikipedia:WikiProject A Song of Ice and Fire": {
+        "Report": "Wikipedia:WikiProject A Song of Ice and Fire/Popular pages",
+        "Limit": 1000,
+        "Name": "A Song of Ice and Fire"
+    },
+    "Wikipedia:WikiProject Dinosaurs": {
+        "Report": "Wikipedia:WikiProject Dinosaurs/Popular pages",
+        "Limit": "500",
+        "Name": "Dinosaurs"
+    },
+    "ويكيبيديا:مشروع ويكي أعلام": {
+        "Report": "ويكيبيديا:مشروع ويكي أعلام/الصفحات الأكثر مشاهدة",
+        "Limit": "200",
+        "Name": "أعلام"
+    }
+}

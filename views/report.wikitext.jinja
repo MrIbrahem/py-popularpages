@@ -1,0 +1,32 @@
+{% if not hasLeadSection %}
+{{ msg('report-header', ['[[' ~ project ~ ']]']) }}
+
+{% endif %}
+== {{ msg('list') }} ==
+<!-- Changes made below this line will be overwritten on the next update. -->
+'''{{ msg('period') }}''': {{ msg('date-range', [start|date('Y-m-d'), end|date('Y-m-d')]) }}
+
+'''{{ msg('total-views') }}''': {% raw %}{{FORMATNUM:{% endraw %}{{ totalViews }}}}
+
+{{ msg('updated') }}: ~~~~~
+
+{| class="wikitable sortable"
+! {{ msg('rank') }}
+! {{ msg('page-title') }}
+! {{ msg('views') }}
+! {{ msg('daily-average') }}
+! {{ msg('assessment') }}
+! {{ msg('importance') }}
+|-
+{% for title, data in pages.items() %}
+| {{ loop.index }}
+| [[{{ title }}]]
+| [https://pageviews.toolforge.org/?project={{ wiki }}.org&amp;start={{ start|date('Y-m-d') }}&amp;end={{ end|date('Y-m-d') }}&amp;pages={{ title|replace(' ', '_') }}&amp;redirects=1 {% raw %}{{FORMATNUM:{% endraw %}{{ data.pageviews }}}}]
+| {% raw %}{{FORMATNUM:{% endraw %}{{ data.avgPageviews }}}}
+| style="text-align:center; white-space:nowrap; font-weight:bold; background:{{ assessments('class', data.class).color }}" | [[:{{ assessments('class', data.class).category }}|{{ data.class|ucfirst }}]]
+| style="text-align:center; white-space:nowrap; font-weight:bold; background:{{ assessments('importance', data.importance).color }}" | [[:{{ assessments('importance', data.importance).category }}|{{ data.importance|ucfirst }}]]
+|-
+{% endfor %}
+|}
+
+[[{{ category }}]]
