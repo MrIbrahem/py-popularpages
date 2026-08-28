@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from jinja2 import Environment, FileSystemLoader
 
 from .config import config
+from .config import config as app_config  # AppConfig singleton (unshadowed by method params)
 from .logger import log_to_file
 from .mapping import WikiProjectConfig
 from .pageviews_cache import PageviewsCache
@@ -105,7 +106,7 @@ class ReportUpdater:
                     continue
 
                 # See T164178: guard against runaway memory for very large projects.
-                if len(page_rows) > config.wiki.max_project_size:
+                if len(page_rows) > app_config.wiki.max_project_size:
                     log_to_file(f"Error: {project.project_main_page} is too large. Skipping.", self.wiki)
                     continue
 
@@ -198,7 +199,7 @@ class ReportUpdater:
             return
 
         # See T164178: guard against runaway memory for very large projects.
-        if len(page_rows) > config.wiki.max_project_size:
+        if len(page_rows) > app_config.wiki.max_project_size:
             log_to_file(f"Error: {project} is too large. Skipping.", self.wiki)
             return
 

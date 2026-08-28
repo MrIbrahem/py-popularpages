@@ -12,12 +12,16 @@ in the PHP version, so PHPUnit never actually ran them) are kept here as
 """
 
 import dataclasses
+import json
+from datetime import datetime
+from unittest.mock import MagicMock
 
 import mwclient.errors
 import pytest
 
 import src.popularpages.config as cfg
-from src.popularpages.config import config, has_credentials
+from src.popularpages.config import has_credentials
+from src.popularpages.mapping import WikiProjectConfig
 from src.popularpages.wiki_repository import WikiRepository
 
 # Integration tests that hit the live wiki/DB require real credentials, which
@@ -142,3 +146,82 @@ class TestWriteDryRunText:
         repo.wiki = "ar.wikipedia"
         repo._write_dry_run_text("User:Foo/Bar", "x")
         assert any("ar.wikipedia" in f.name for f in tmp_path.glob("*.wikitext"))
+
+
+class TestWikiRepositoryPureMethods:
+    """
+    Unit tests for parse-only methods that don't need the network/DB.
+    Objects are built with __new__ to skip WikiRepository.__init__.
+    """
+
+    JSON = {"P": {"Report": "P/r", "Limit": "5", "Name": "N"}}
+
+    def test_sort_and_truncate_pages_list(self):
+        out = {"a": {"pageviews": 3}, "b": {"pageviews": 10}, "c": {"pageviews": 1}}
+        res = WikiRepository._sort_and_truncate_pages_list(out, 2)
+        assert list(res.keys()) == ["b", "a"]
+        # Limit larger than the list keeps everything.
+        assert len(WikiRepository._sort_and_truncate_pages_list(out, 100)) == 3
+
+    def test_get_config_parses_json(self):
+        repo = WikiRepository.__new__(WikiRepository)
+        repo.get_json_config = lambda *a, **k: self.JSON
+        configs = repo.get_config()
+        assert isinstance(configs, list)
+        assert configs[0].Name == "N"
+
+    def test_get_project_by_name(self):
+        repo = WikiRepository.__new__(WikiRepository)
+        repo.get_json_config = lambda *a, **k: self.JSON
+        assert repo.get_project("N").Name == "N"
+        assert repo.get_project("Nope") is None
+
+    def test_get_wiki_config_returns_stored(self):
+        repo = WikiRepository.__new__(WikiRepository)
+        repo.wiki_config = {"category": "X"}
+        assert repo.get_wiki_config() == {"category": "X"}
+
+    def test_get_stale_projects_returns_not_updated_this_month(self):
+        repo = WikiRepository.__new__(WikiRepository)
+        repo.wiki = "en.wikipedia"
+        repo.get_json_config = lambda *a, **k: {
+            "P": {"Report": "P/r", "Limit": "5", "Name": "N"},
+            "Q": {"Report": "Q/r", "Limit": "5", "Name": "M"},
+        }
+        repo.db = MagicMock()
+        now_ts = datetime.now().strftime("%Y%m%d%H%M%S")
+        # P was updated this month -> not stale; Q never was -> stale.
+        repo.db.get_projects_timestamps.return_value = [
+            {"page_title": "P/r", "rev_timestamp": now_ts},
+        ]
+        stale = repo.get_stale_projects()
+        names = {c.Name for c in stale}
+        assert "M" in names
+        assert "N" not in names
+
+    def test_get_json_config_strips_description(self):
+        repo = WikiRepository.__new__(WikiRepository)
+        repo.wiki_config_page = "Wikipedia:WikiProject/Popular pages config.json"
+        repo.site = MagicMock()
+        payload = {
+            "P": {"Report": "P/r", "Limit": "5", "Name": "N"},
+            "description": "Please do not modify manually.",
+        }
+        repo.site.pages[repo.wiki_config_page].text.return_value = json.dumps(payload)
+        data = repo.get_json_config()
+        assert "description" not in data
+        assert data["P"]["Name"] == "N"
+
+    def test_get_projects_with_last_bot_timestamp(self):
+        repo = WikiRepository.__new__(WikiRepository)
+        repo.db = MagicMock()
+        repo.db.get_projects_timestamps.return_value = [
+            {"page_title": "P/r", "rev_timestamp": "20240101120000"},
+        ]
+        repo.get_config = lambda *a, **k: [
+            WikiProjectConfig.from_json("P", data={"Report": "P/r", "Limit": "5", "Name": "N"})
+        ]
+        result = repo.get_projects_with_last_bot_timestamp()
+        assert result == [
+            {"page_title": "P/r", "rev_timestamp": "20240101120000"}
+        ]

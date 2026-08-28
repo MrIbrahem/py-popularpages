@@ -31,3 +31,9 @@ def test_msg_falls_back_to_english_for_missing_key():
 def test_msg_unknown_key_returns_key_itself():
     i18n = I18n("en")
     assert i18n.msg("totally-made-up-key") == "totally-made-up-key"
+
+
+def test_msg_falls_back_when_lang_file_missing():
+    # 'zz' has no messages file, so it should fall back to English.
+    i18n = I18n("zz")
+    assert i18n.msg("rank") == "Rank"

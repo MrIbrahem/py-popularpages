@@ -49,7 +49,7 @@ class PathsConfig:
     wikis_config_file: Path
 
     @classmethod
-    def from_base_dir(cls, base_dir: Path) -> "PathsConfig":
+    def from_base_dir(cls, base_dir: Path) -> PathsConfig:
         data_dir = base_dir / "data"
 
         return cls(
