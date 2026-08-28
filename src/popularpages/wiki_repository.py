@@ -236,11 +236,15 @@ class WikiRepository:
             return self._assessment_config
 
         logger.info("Fetching assessment config from %s", ASSESSMENT_CONFIG_URL)
-        resp = self._http_client.get(ASSESSMENT_CONFIG_URL)
-        resp.raise_for_status()
-        data = resp.json()
+        try:
+            resp = self._http_client.get(ASSESSMENT_CONFIG_URL)
+            resp.raise_for_status()
+            data = resp.json()
 
-        self._assessment_config = data["config"][f"{self.wiki}.org"]
+            self._assessment_config = data["config"][f"{self.wiki}.org"]
+        except Exception as e:
+            logger.error("Failed to fetch assessment config: %s", e)
+
         logger.debug("Loaded assessment config for '%s.org'", self.wiki)
         return self._assessment_config  # pyright: ignore[reportReturnType]
 
