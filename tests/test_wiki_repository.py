@@ -95,3 +95,37 @@ class TestGetBotLastEditDate:
         repo = WikiRepository(dry_run=True)
         result1 = repo.get_bot_last_edit_date("Wikipedia:WikiProject A Song of Ice and Fire/Popular pages")
         assert result1 == "2026-08-04"
+
+
+class TestWriteDryRunText:
+    """
+    _write_dry_run_text persists the rendered wikitext to the logs folder.
+    Exercises the method directly (bypassing WikiRepository.__init__, which
+    needs live credentials) by using __new__ and a monkeypatched LOG_DIR.
+    """
+
+    def test_writes_file_with_sanitized_title(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "src.popularpages.wiki_repository.LOG_DIR", tmp_path
+        )
+        repo = WikiRepository.__new__(WikiRepository)
+        repo.wiki = "en.wikipedia"
+
+        title = "Wikipedia:WikiProject Medicine/Popular pages"
+        text = "== List ==\n| A | B\n"
+        repo._write_dry_run_text(title, text)
+
+        files = list(tmp_path.glob("*.wikitext"))
+        assert len(files) == 1
+        # Colons and slashes in the title must be sanitized out of the filename.
+        assert ":" not in files[0].name and "/" not in files[0].name
+        assert files[0].read_text(encoding="utf-8") == text
+
+    def test_filename_includes_wiki(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "src.popularpages.wiki_repository.LOG_DIR", tmp_path
+        )
+        repo = WikiRepository.__new__(WikiRepository)
+        repo.wiki = "ar.wikipedia"
+        repo._write_dry_run_text("User:Foo/Bar", "x")
+        assert any("ar.wikipedia" in f.name for f in tmp_path.glob("*.wikitext"))

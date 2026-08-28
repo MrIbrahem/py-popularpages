@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 
 import httpx
@@ -24,6 +25,7 @@ import wikitextparser as wtp
 from .config import (
     ASSESSMENT_CONFIG_URL,
     BATCH_SIZE_THRESHOLD,
+    LOG_DIR,
     load_credentials,
     load_wikis_config,
 )
@@ -380,6 +382,7 @@ class WikiRepository:
                     "bot": True,
                 }
             )
+            self._write_dry_run_text(page_title, text)
             return None
 
         page = self.site.pages[page_title]
@@ -408,6 +411,21 @@ class WikiRepository:
         log_to_file(msg, self.wiki)
 
         return result
+
+    def _write_dry_run_text(self, page_title: str, text: str) -> None:
+        """
+        Persist the rendered wikitext to the logs folder when in dry-run mode.
+
+        Lets you inspect the exact output that *would* have been saved to the
+        wiki, since a dry run otherwise discards the text after logging it.
+        The page title is sanitized so it is safe as a filename (colons and
+        slashes in wiki titles are common).
+        """
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        safe_title = re.sub(r"[^\w.\-]+", "_", page_title)
+        out_path = LOG_DIR / f"dryrun-{self.wiki}-{safe_title}.wikitext"
+        out_path.write_text(text, encoding="utf-8")
+        logger.info("dry-run: wrote wikitext for '%s' to %s", page_title, out_path)
 
     def get_bot_last_edit_date(self, title: str) -> str:
         """
