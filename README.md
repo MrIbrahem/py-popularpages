@@ -4,76 +4,99 @@
 
 A tool for generating monthly "most popular pages" reports for WikiProjects.
 
+This is a Python port of [the original PHP implementation](https://github.com/MrIbrahem/popularpages).
 See [the tool's homepage](https://wikitech.wikimedia.org/wiki/Tool:Popular_Pages) for more information.
 
-This is a Python port of [the original PHP implementation](https://github.com/MrIbrahem/popularpages), using
-[`mwclient`](https://github.com/mwclient/mwclient) for MediaWiki API access
-and [Jinja2](https://jinja.palletsprojects.com/) for report templating.
+## Quick start
 
-##### Setting up the bot
+```sh
+# 1. Install (from the repo root)
+pip install -e ".[dev]"
 
--   Copy `config.ini.example` to `config.ini` and add the bot's username and password.
--   Run `pip install -e ".[dev]"` (or `uv pip install -e ".[dev]"`) from the command line.
--   Either run the bot manually or set up a cron job to run it once a month.
+# 2. Add your bot credentials
+cp config.ini.example config.ini
+#    then edit config.ini with your bot username/password (from Special:BotPasswords)
 
-##### How does the bot work?
+# 3. Run a full update cycle
+python -m popularpages.cli.check_reports --wiki en.wikipedia
+```
 
--   Fetches config from [on wiki config page](https://en.wikipedia.org/wiki/User:Community_Tech_bot/Popular_pages_config.json) (example for English Wikipedia).
--   Runs on all projects listed in the config, compiling pageviews statistics for the previous month.
--   Updates [the info page on wiki](https://en.wikipedia.org/wiki/User:Community_Tech_bot/Popular_pages) with the timestamp of the page update.
+## Usage
 
-##### App structure:
+All commands run as `python -m <module>` and accept a `--dry-run` flag to print
+output instead of writing to the wiki.
 
--   **`src/popularpages/cli/check_reports.py`**: Starting point for a new bot run. Gets config info for all projects not already updated for past month and then passes it to `ReportUpdater`. Also available as the `popularpages-check` console script.
--   **`src/popularpages/cli/generate_report.py`**: Script to manually regenerate a report for a single project. Also available as `popularpages-report`.
--   **`src/popularpages/cli/generate_index.py`**: Script for generating the index page. Also available as `popularpages-index`.
--   **`src/popularpages/report_updater.py`**: The module that actually updates projects.
--   **`src/popularpages/wiki_repository.py`**: Contains all helper functions for dealing with the MediaWiki API (via `mwclient`) and the replica database.
--   **`src/popularpages/pageviews_repository.py`**: Contains all helper functions for dealing with the Pageviews API.
--   **`src/popularpages/logger.py`**: Responsible for logging updates to the files in the `logs` directory.
--   **`src/popularpages/i18n.py`**: Minimal message-translation layer reading `messages/*.json`.
+### Update all stale reports (`check_reports`)
 
-##### Usage
+Checks every configured wiki (or just `--wiki`) for WikiProjects not yet updated
+this month and regenerates their reports. This is what the monthly cron job calls.
 
-After installing and configuring the bot (see above), three commands are
-available, all run with `python -m`. All of them accept a `--dry-run` flag to
-print the output instead of saving edits to the wiki, and `--wiki` to target a
-specific wiki (e.g. `en.wikipedia`).
+```sh
+# All wikis
+python -m popularpages.cli.check_reports
 
--   **`python -m popularpages.cli.check_reports`** — Run a full update cycle.
-    Checks every configured wiki (or just `--wiki`) for WikiProjects not yet
-    updated this month and regenerates their reports. This is what the monthly
-    cron job should call.
+# One wiki
+python -m popularpages.cli.check_reports --wiki en.wikipedia
 
-    ```sh
-    # Update all wikis
-    python -m popularpages.cli.check_reports
+# Preview only, no wiki edits
+python -m popularpages.cli.check_reports --wiki en.wikipedia --dry-run
+```
 
-    # Update only English Wikipedia
-    python -m popularpages.cli.check_reports --wiki en.wikipedia
+### Regenerate one project (`generate_report`)
 
-    # Preview changes without writing to the wiki
-    python -m popularpages.cli.check_reports --wiki en.wikipedia --dry-run
-    ```
+Manually rebuild the report for a single WikiProject (e.g. to re-run a failed
+project or for testing).
 
--   **`python -m popularpages.cli.generate_report`** — Manually regenerate the
-    report for a single WikiProject. Useful for re-running a project that failed
-    or for testing.
+```sh
+python -m popularpages.cli.generate_report --wiki en.wikipedia --project Dinosaurs
+python -m popularpages.cli.generate_report --wiki en.wikipedia --project Dinosaurs --dry-run
+```
 
-    ```sh
-    python -m popularpages.cli.generate_report --wiki en.wikipedia --project Dinosaurs
-    python -m popularpages.cli.generate_report --wiki en.wikipedia --project Dinosaurs --dry-run
-    ```
+### Regenerate the index page (`generate_index`)
 
--   **`python -m popularpages.cli.generate_index`** — Regenerate only the index
-    page for a wiki (the page listing all of its WikiProject reports).
+Rebuild only the wiki's index page that lists all its WikiProject reports.
 
-    ```sh
-    python -m popularpages.cli.generate_index --wiki en.wikipedia
-    python -m popularpages.cli.generate_index --wiki en.wikipedia --dry-run
-    ```
+```sh
+python -m popularpages.cli.generate_index --wiki en.wikipedia
+python -m popularpages.cli.generate_index --wiki en.wikipedia --dry-run
+```
 
-##### Dependencies
+## How it works
+
+- Fetches config from the on-wiki JSON config page (e.g.
+  [English Wikipedia's config](https://en.wikipedia.org/wiki/User:Community_Tech_bot/Popular_pages_config.json)).
+- Runs on all projects listed in the config, compiling pageviews statistics for
+  the previous month.
+- Updates [the info page on wiki](https://en.wikipedia.org/wiki/User:Community_Tech_bot/Popular_pages)
+  with the timestamp of the page update.
+
+Typically you run it once a month via cron, e.g.:
+
+```cron
+0 0 1 * * python -m popularpages.cli.check_reports --wiki en.wikipedia
+```
+
+## Setting up a new wiki
+
+- Make sure the translations for the language are in the `messages/` directory.
+- Add the project's configuration in `config/wikis.yaml`, indicating where the
+  WikiProjects config and index pages live.
+- Add your WikiProjects configuration on the corresponding on-wiki JSON page.
+- Add a cron job for the wiki, e.g.
+  `0 0 1 * * python -m popularpages.cli.check_reports --wiki en.wikipedia`.
+
+## Project layout
+
+- `src/popularpages/cli/check_reports.py` — Entry point for a full bot run.
+- `src/popularpages/cli/generate_report.py` — Manually regenerate one project.
+- `src/popularpages/cli/generate_index.py` — Generate the index page.
+- `src/popularpages/report_updater.py` — The module that updates projects.
+- `src/popularpages/wiki_repository.py` — MediaWiki API + replica DB helpers.
+- `src/popularpages/pageviews_repository.py` — Pageviews API helpers.
+- `src/popularpages/logger.py` — Logging updates to the `logs/` directory.
+- `src/popularpages/i18n.py` — Minimal message-translation layer (`messages/*.json`).
+
+## Dependencies
 
 | PHP dependency                      | Python replacement                     |
 | ----------------------------------- | -------------------------------------- |
@@ -87,14 +110,7 @@ specific wiki (e.g. `en.wikipedia`).
 | `phpunit`                           | `pytest`                               |
 | `mediawiki-codesniffer`             | `ruff`                                 |
 
-##### Setting up a new wiki
-
--   Make sure the translations for the language are in the `/messages` directory.
--   Add the configuration for the project in `config/wikis.yaml`. This indicates where the WikiProjects configuration and index pages live.
--   Add your WikiProjects configuration on the corresponding on-wiki JSON page.
--   Add a new cron job for the wiki, such as `0 0 1 * * popularpages-check --wiki en.wikipedia`.
-
-##### Running tests
+## Running tests
 
 ```sh
 pip install -e ".[dev]"

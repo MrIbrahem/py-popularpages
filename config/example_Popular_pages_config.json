@@ -9,5 +9,10 @@
         "Report": "Wikipedia:WikiProject Dinosaurs/Popular pages",
         "Limit": "500",
         "Name": "Dinosaurs"
+    },
+    "ويكيبيديا:مشروع ويكي أعلام": {
+        "Report": "ويكيبيديا:مشروع ويكي أعلام/الصفحات الأكثر مشاهدة",
+        "Limit": "200",
+        "Name": "أعلام"
     }
 }

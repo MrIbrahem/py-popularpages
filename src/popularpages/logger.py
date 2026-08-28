@@ -10,10 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from popularpages.config import BASE_DIR
-
-LOG_DIR = BASE_DIR / "logs"
-
+from .config import LOG_DIR
 
 def log_to_file(message: str, wiki: str) -> None:
     """

@@ -19,12 +19,12 @@ import re
 import httpx
 import mwclient
 import mwclient.errors
-import yaml
 
-from popularpages.config import (
+from .config import (
     ASSESSMENT_CONFIG_URL,
-    BASE_DIR,
+    CONFIG_PATH,
     BATCH_SIZE_THRESHOLD,
+    load_wikis_config,
 )
 
 from .i18n import I18n
@@ -51,7 +51,13 @@ class WikiRepository:
         self.dry_run = dry_run
         self.creds = self._load_credentials()
 
-        self.wiki_config: dict = yaml.safe_load((BASE_DIR / "config" / "wikis.yaml").read_text(encoding="utf-8"))[wiki]
+        _config: dict = load_wikis_config()
+        self.wiki_config: dict = _config.get(wiki) or {}
+
+        if not self.wiki_config:
+            raise ValueError(f"Wiki {wiki} not found in config")
+
+        self.wiki_config_page: str = self.wiki_config["config"]
 
         lang = wiki.split(".")[0]
         self.i18n = I18n(lang)
@@ -83,9 +89,8 @@ class WikiRepository:
         """
         parser = configparser.ConfigParser()
 
-        config_path = BASE_DIR / "config.ini"
         # config.ini has no section headers, like PHP's parse_ini_file.
-        content = "[DEFAULT]\n" + config_path.read_text(encoding="utf-8")
+        content = "[DEFAULT]\n" + CONFIG_PATH.read_text(encoding="utf-8")
         parser.read_string(content)
         return {key: value.strip("'\"") for key, value in parser["DEFAULT"].items()}
 
@@ -168,19 +173,18 @@ class WikiRepository:
             return False
         return True
 
-    def get_json_config(self) -> dict:
+    def get_json_config(self, title: str | None = None) -> dict:
         """
         Fetch JSON config from the wiki's config page.
 
         :return: Config data, with the 'description' explanatory entry removed.
         """
-        params = {"page": self.wiki_config["config"], "prop": "wikitext"}
+        if title is None:
+            title = self.wiki_config_page
 
-        result = self.site.api("parse", **params)
-        wikitext = result["parse"]["wikitext"]
+        page = self.site.pages[title]
 
-        if isinstance(wikitext, dict):
-            wikitext = wikitext.get("*", "")
+        wikitext = page.text()
 
         config = json.loads(wikitext)
 
@@ -417,4 +421,5 @@ class WikiRepository:
             # db_key = info["Report"].split(":", 1)[-1]
             db_key = re.sub(r"^.*?:", "", info["Report"])
             projects[db_key.replace(" ", "_")] = project_name
+
         return projects

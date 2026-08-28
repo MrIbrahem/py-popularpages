@@ -13,9 +13,8 @@ from jinja2 import Environment, FileSystemLoader
 
 from .logger import log_to_file
 from .utils import format_date, previous_month_range, uc_first
-from .wiki_repository import BASE_DIR, WikiRepository
-
-VIEWS_DIR = BASE_DIR / "views"
+from .wiki_repository import WikiRepository
+from .config import VIEWS_DIR
 
 
 class ReportUpdater:

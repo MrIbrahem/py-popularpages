@@ -13,11 +13,7 @@ from __future__ import annotations
 
 import json
 
-from popularpages.config import BASE_DIR
-
-MESSAGES_DIR = BASE_DIR / "messages"
-
-FALLBACK_LANG = "en"
+from .config import MESSAGES_DIR, FALLBACK_LANG
 
 
 class I18n:
