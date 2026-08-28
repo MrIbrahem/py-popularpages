@@ -33,6 +33,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 VIEWS_DIR = BASE_DIR / "views"
 
+# Persisted pageviews cache (see docs/pageviews-persistence-and-dedup-plan.md).
+# Layout: DATA_DIR / "views" / <wiki> / <YYYY-MM>.jsonl
+DATA_DIR = BASE_DIR / "data"
+VIEWS_DATA_DIR = DATA_DIR / "views"
+
+# Number of unique titles fetched from the Pageviews API per request batch.
+VIEWS_FETCH_BATCH = 100
+# Number of freshly fetched titles buffered in memory before a JSONL write is
+# flushed to disk (the "save one time per 100 title" behavior).
+VIEWS_FLUSH_TITLES = 100
+
 MESSAGES_DIR = BASE_DIR / "messages"
 
 LOG_DIR = BASE_DIR / "logs"
@@ -131,4 +142,8 @@ __all__ = [
     "has_credentials",
     "load_wikis_config",
     "VIEWS_DIR",
+    "DATA_DIR",
+    "VIEWS_DATA_DIR",
+    "VIEWS_FETCH_BATCH",
+    "VIEWS_FLUSH_TITLES",
 ]

@@ -11,3 +11,6 @@ coverage.xml
 logs/*.txt
 logs/*.wikitext
 !logs/.gitkeep
+
+# Persisted pageviews cache (regenerated every run, see docs/pageviews-persistence-and-dedup-plan.md)
+data/

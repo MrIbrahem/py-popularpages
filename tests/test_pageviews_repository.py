@@ -72,3 +72,29 @@ def test_client_sets_user_agent_header():
     ua = repo._client.headers.get("User-Agent")
     assert ua is not None
     assert "py-popularpages" in ua
+
+
+@pytest.mark.asyncio
+async def test_get_title_views_returns_per_title():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "Bar_Baz" in request.url.path:
+            return httpx.Response(
+                200, json={"items": [{"article": "Bar_Baz", "views": 7}]}
+            )
+        if "Foo" in request.url.path:
+            return httpx.Response(200, json={"items": [{"article": "Foo", "views": 3}]})
+        return httpx.Response(404)
+
+    repo = _make_mock_repo(handler)
+    result = await repo.get_title_views(["Foo", "Bar Baz"], "2024010100", "2024013100")
+    assert result == {"Foo": 3, "Bar Baz": 7}
+
+
+@pytest.mark.asyncio
+async def test_get_title_views_zero_on_404():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404)
+
+    repo = _make_mock_repo(handler)
+    result = await repo.get_title_views(["Missing"], "2024010100", "2024013100")
+    assert result == {"Missing": 0}
