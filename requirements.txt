@@ -9,3 +9,4 @@ wikitextparser
 python-dotenv>=1.0
 tenacity
 jinja2
+colorlog

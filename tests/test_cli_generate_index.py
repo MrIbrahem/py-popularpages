@@ -1,11 +1,11 @@
-"""Tests for src/cli/generate_index.py (index page entry point)."""
+"""Tests for src/src_py/cli/generate_index.py (index page entry point)."""
 
 import sys
 from unittest.mock import MagicMock
 
 import pytest
 
-import src.cli.generate_index as gi_module
+import src.src_py.cli.generate_index as gi_module
 
 
 @pytest.fixture

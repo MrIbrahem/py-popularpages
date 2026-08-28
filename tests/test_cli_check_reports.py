@@ -1,12 +1,12 @@
-"""Tests for src/cli/check_reports.py (all-wikis run entry point)."""
+"""Tests for src/src_py/cli/check_reports.py (all-wikis run entry point)."""
 
 import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import src.cli.check_reports as cr_module
-from src.popularpages.config import config, load_wikis_config
+import src.src_py.cli.check_reports as cr_module
+from src.src_py.popularpages.config import config, load_wikis_config
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def patched(monkeypatch):
     updater = MagicMock()
     updater.wiki_repository.get_stale_projects.return_value = []
     updater.update_reports = AsyncMock()
-    monkeypatch.setattr(cr_module, "ReportUpdater", lambda *a, **k: updater)
+    monkeypatch.setattr(cr_module, "ReportUpdater", lambda *a, **k: updater) # type: ignore
     return updater
 
 

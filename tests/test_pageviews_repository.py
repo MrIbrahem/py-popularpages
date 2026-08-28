@@ -1,5 +1,5 @@
 """
-Tests for src.popularpages.pageviews_repository.PageviewsRepository.
+Tests for src.src_py.popularpages.pageviews_repository.PageviewsRepository.
 
 Uses httpx.MockTransport to avoid real network calls.
 """
@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 import pytest
 
-from src.popularpages.pageviews_repository import (
+from src.src_py.popularpages.pageviews_repository import (
     PageviewsRepository,
     _is_retryable,
     _retry_wait,

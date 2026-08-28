@@ -4,7 +4,7 @@ Manually regenerate a report for a single WikiProject.
 Ported from bin/generateReport.php.
 
 Example:
-    - python popularpages/generate_report.py --wiki en.wikipedia --project Dinosaurs
+    - python3 src/src_py/cli/generate_report.py --wiki en.wikipedia --project Dinosaurs
 """
 
 from __future__ import annotations
@@ -18,7 +18,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from popularpages.report_updater import ReportUpdater
+from src.src_py.popularpages.report_updater import ReportUpdater
+from src.src_py.logger_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,8 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s  %(levelname)s  %(name)s: %(message)s",
     )
+
+    setup_logging(name="popularpages", level="INFO")
 
     if not re.match(r"^\w+\.\w+$", args.wiki):
         logger.info("Please specify wiki in the format lang.project (such as en.wikipedia)")

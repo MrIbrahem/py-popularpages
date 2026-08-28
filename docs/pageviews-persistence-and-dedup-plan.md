@@ -37,7 +37,7 @@ file and data for a finished month is stable.
 
 ## Design
 
-### 1. New config constants (`src/popularpages/config.py`)
+### 1. New config constants (`src/src_py/popularpages/config.py`)
 
 ```python
 DATA_DIR = BASE_DIR / "data"
@@ -64,7 +64,7 @@ async def get_title_views(self, titles: list[str], start: str, end: str) -> dict
 `get_pageviews()` is rewritten on top of `_fetch_title_views()` so existing
 behavior (sum target + redirects, 0 for missing) and its tests are unchanged.
 
-### 3. New `PageviewsCache` (`src/popularpages/pageviews_cache.py`)
+### 3. New `PageviewsCache` (`src/src_py/popularpages/pageviews_cache.py`)
 
 A small async-aware cache keyed by title for one wiki + one month.
 
@@ -154,10 +154,10 @@ Append `data/` so the persisted pageviews cache is never committed.
 
 | File | Change |
 |------|--------|
-| `src/popularpages/config.py` | Add `DATA_DIR`, `VIEWS_DATA_DIR`, `VIEWS_FETCH_BATCH`, `VIEWS_FLUSH_TITLES`. |
-| `src/popularpages/pageviews_repository.py` | Extract `_fetch_title_views`; add `get_title_views`; rewrite `get_pageviews` on top of it. |
-| `src/popularpages/pageviews_cache.py` | **New** `PageviewsCache`. |
-| `src/popularpages/report_updater.py` | Two-phase `update_reports`; cache-aware `process_project`; `_build_views_cache`, `_views_for_project_from_cache`. |
+| `src/src_py/popularpages/config.py` | Add `DATA_DIR`, `VIEWS_DATA_DIR`, `VIEWS_FETCH_BATCH`, `VIEWS_FLUSH_TITLES`. |
+| `src/src_py/popularpages/pageviews_repository.py` | Extract `_fetch_title_views`; add `get_title_views`; rewrite `get_pageviews` on top of it. |
+| `src/src_py/popularpages/pageviews_cache.py` | **New** `PageviewsCache`. |
+| `src/src_py/popularpages/report_updater.py` | Two-phase `update_reports`; cache-aware `process_project`; `_build_views_cache`, `_views_for_project_from_cache`. |
 | `.gitignore` | Ignore `data/`. |
 | `README.md` | Document the `data/views` cache. |
 | `tests/test_pageviews_cache.py` | Unit tests for the cache (load, dedup fetch, flush threshold, `get` sum). |

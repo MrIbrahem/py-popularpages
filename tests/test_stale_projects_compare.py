@@ -20,10 +20,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.popularpages import wiki_repository
-from src.popularpages.mapping import WikiProjectConfig
-from src.popularpages.utils import mediawiki_timestamp_to_epoch
-from src.popularpages.wiki_repository import WikiRepository
+from src.src_py.popularpages import wiki_repository
+from src.src_py.popularpages.mapping import WikiProjectConfig
+from src.src_py.popularpages.utils import mediawiki_timestamp_to_epoch
+from src.src_py.popularpages.wiki_repository import WikiRepository
 
 # Fixed "first of this month" epoch used to make staleness deterministic.
 FIRST_OF_MONTH = mediawiki_timestamp_to_epoch("20230101000000")

@@ -17,3 +17,4 @@ data/
 
 # Local credentials, never commit
 config.ini
+/_works_files

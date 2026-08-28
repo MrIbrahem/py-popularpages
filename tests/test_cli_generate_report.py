@@ -1,11 +1,11 @@
-"""Tests for src/cli/generate_report.py (single-project report entry point)."""
+"""Tests for src/src_py/cli/generate_report.py (single-project report entry point)."""
 
 import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import src.cli.generate_report as gr_module
+import src.src_py.cli.generate_report as gr_module
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ def patched(monkeypatch):
     updater = MagicMock()
     updater.wiki_repository.get_project.return_value = MagicMock()
     updater.update_reports = AsyncMock()
-    monkeypatch.setattr(gr_module, "ReportUpdater", lambda *a, **k: updater)
+    monkeypatch.setattr(gr_module, "ReportUpdater", lambda *a, **k: updater) # type: ignore
     return updater
 
 

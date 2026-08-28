@@ -6,7 +6,7 @@ fetches config for WikiProjects not already updated this month, and passes
 it to ReportUpdater.
 
 Example:
-    - python popularpages/check_reports.py --wiki en.wikipedia
+    - python3 src/src_py/cli/check_reports.py --wiki en.wikipedia
 """
 
 from __future__ import annotations
@@ -20,9 +20,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
-from popularpages.config import config, load_wikis_config
-from popularpages.logger import log_to_file
-from popularpages.report_updater import ReportUpdater
+from src.src_py.popularpages.config import config, load_wikis_config
+from src.src_py.popularpages.logger import log_to_file
+from src.src_py.popularpages.report_updater import ReportUpdater
 
 logger = logging.getLogger(__name__)
 
