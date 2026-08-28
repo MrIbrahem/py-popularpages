@@ -173,6 +173,20 @@ class ReportUpdater:
         )
 
     def retrieve_project_updates(self) -> list[WikiProjectConfig]:
+        """
+        Retrieve project configurations and update them with their last edit timestamps.
+
+        Fetches the JSON configuration for WikiProjects and their corresponding
+        last bot edit timestamps from the repository. It then parses the raw
+        timestamp (YYYYMMDDHHMMSS format) from the database into a standardized
+        date string (YYYY-MM-DD format) and assigns it to each project's
+        `Updated` attribute.
+
+        Returns:
+            list[WikiProjectConfig]: A list of WikiProjectConfig objects,
+            where each object contains its configuration and the formatted
+            last update date (if available).
+        """
         projects_config = self.wiki_repository.get_json_config()
 
         last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
@@ -193,6 +207,20 @@ class ReportUpdater:
         return list_config_obj
 
     def retrieve_project_updates_new(self) -> list[WikiProjectConfig]:
+        """
+        Retrieve project configurations and update them with their last edit timestamps.
+
+        Fetches the JSON configuration for WikiProjects and their corresponding
+        last bot edit timestamps from the repository. It then parses the raw
+        timestamp (YYYYMMDDHHMMSS format) from the database into a standardized
+        date string (YYYY-MM-DD format) and assigns it to each project's
+        `Updated` attribute.
+
+        Returns:
+            list[WikiProjectConfig]: A list of WikiProjectConfig objects,
+            where each object contains its configuration and the formatted
+            last update date (if available).
+        """
         projects_config = self.wiki_repository.get_json_config()
         list_config_obj = WikiProjectConfig.from_json_list(projects_config)
 
