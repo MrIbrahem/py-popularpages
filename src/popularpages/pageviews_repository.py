@@ -171,36 +171,63 @@ class PageviewsRepository:
             end,
         )
 
-        async def fetch_one(title: str) -> tuple[Any | None, int | None] | None:
-            await asyncio.sleep(REQUEST_DELAY_SECONDS)
-            article = title.replace(" ", "_")
-            try:
-                response = await self._get(article, start, end)
-                return self._process_response(response.json())
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code == 404:
-                    # No data available; okay to omit this page from the report.
-                    return None
-                log_to_file(f"Exception during pageviews request: {exc}", self.domain)
-                return None
-            except httpx.HTTPError as exc:
-                log_to_file(f"Exception during pageviews request: {exc}", self.domain)
-                return None
+        results = await asyncio.gather(*(self._fetch_title_views(t, start, end) for t in all_titles))
+        views_by_title = dict(zip(all_titles, results, strict=True))
 
-        results = await asyncio.gather(*(fetch_one(title) for title in all_titles))
-        logger.debug("Completed %d pageviews request(s)", len(results))
-
-        for result in results:
-            if result is None:
-                continue
-            page, count = result
+        for title, count in views_by_title.items():
             for target in target_titles:
-                if page in batch[target]:
-                    count_int = int(count)  # pyright: ignore[reportArgumentType]
-                    pageviews[target] += count_int
+                if title in batch[target]:
+                    pageviews[target] += count
                     break
 
         return pageviews
+
+    async def get_title_views(self, titles: list[str], start: str, end: str) -> dict[str, int]:
+        """
+        Fetch total pageviews for each of the given titles, once each.
+
+        Unlike :meth:`get_pageviews`, this does *not* deal with target/redirect
+        grouping; it simply returns ``{title: total_views}`` for every title
+        requested. Callers (e.g. the cross-project :class:`PageviewsCache`)
+        are responsible for summing a target with its redirects.
+
+        :param titles: Page titles (spaces) to query, deduplicated by caller.
+        :param start: Start date in YYYYMMDD00 format.
+        :param end: End date in YYYYMMDD00 format.
+        :return: Dict mapping each requested title -> total pageviews (0 if
+            missing / errored).
+        """
+        logger.info(
+            "Fetching pageviews for %d title(s) (start=%s, end=%s)", len(titles), start, end
+        )
+        results = await asyncio.gather(*(self._fetch_title_views(t, start, end) for t in titles))
+        return dict(zip(titles, results, strict=True))
+
+    async def _fetch_title_views(self, title: str, start: str, end: str) -> int:
+        """
+        Fetch the total monthly pageviews for a single title.
+
+        Returns 0 when the title has no data (404) or when a transport/network
+        error occurs; only 429/5xx-style retryable failures are retried by the
+        tenacity wrapper on :meth:`_get`.
+        """
+        await asyncio.sleep(REQUEST_DELAY_SECONDS)
+        article = title.replace(" ", "_")
+        try:
+            response = await self._get(article, start, end)
+            page, count = self._process_response(response.json())
+            if page is None or count is None:
+                return 0
+            return int(count)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                # No data available; okay to treat as 0 views.
+                return 0
+            log_to_file(f"Exception during pageviews request: {exc}", self.domain)
+            return 0
+        except httpx.HTTPError as exc:
+            log_to_file(f"Exception during pageviews request: {exc}", self.domain)
+            return 0
 
     @staticmethod
     def _process_response(response: dict) -> tuple[Any | None, int | None]:

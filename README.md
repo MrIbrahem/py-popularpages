@@ -76,6 +76,26 @@ Typically you run it once a month via cron, e.g.:
 0 0 1 * * python3 src/cli/check_reports.py --wiki en.wikipedia
 ```
 
+## Pageviews cache
+
+Pageviews are fetched from the Wikimedia Pageviews REST API. Because many
+WikiProjects on large wikis (notably `en.wikipedia`) share the same popular
+articles, the tool **collects every unique article title across all projects**
+for the wiki and fetches each one **exactly once** per month, instead of once
+per project that references it.
+
+The fetched counts are persisted to disk so they are not lost when the run
+finishes and can be reused by later runs in the same month:
+
+```
+data/views/<wiki>/<YYYY-MM>.jsonl   # one JSON object per line: {"title": ..., "views": ...}
+```
+
+The JSONL file is written incrementally (flushing at most once per 100 titles).
+When a run is interrupted, the next run loads the already-fetched titles from
+this file and only requests the remainder. See
+`docs/pageviews-persistence-and-dedup-plan.md` for the full design.
+
 ## Setting up a new wiki
 
 -   Make sure the translations for the language are in the `messages/` directory.
