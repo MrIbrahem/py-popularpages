@@ -54,6 +54,23 @@ BATCH_SIZE_THRESHOLD = 60
 
 ASSESSMENT_CONFIG_URL = "https://xtools.wmflabs.org/api/project/assessments"
 
+# Used to build the HTTP User-Agent for every outbound request (XTools,
+# Pageviews REST API, and the MediaWiki action API via mwclient). Wikimedia's
+# User-Agent policy requires an identifying agent with a contact.
+PROJECT_NAME = "py-popularpages"
+PROJECT_URL = "https://github.com/MrIbrahem/py-popularpages"
+
+
+def user_agent() -> str:
+    """
+    Build an HTTP User-Agent string compliant with Wikimedia's UA policy
+    (https://meta.wikimedia.org/wiki/User-Agent_policy): identifies the tool
+    and provides a contact. Falls back to the tool name when no bot creds are
+    configured.
+    """
+    contact = load_credentials().get("botuser") or "tool"
+    return f"{PROJECT_NAME} (contact: {contact}; +{PROJECT_URL})"
+
 
 def load_credentials() -> dict[str, str]:
     """
@@ -107,6 +124,9 @@ __all__ = [
     "MAX_PROJECT_SIZE",
     "BATCH_SIZE_THRESHOLD",
     "ASSESSMENT_CONFIG_URL",
+    "PROJECT_NAME",
+    "PROJECT_URL",
+    "user_agent",
     "load_credentials",
     "has_credentials",
     "load_wikis_config",

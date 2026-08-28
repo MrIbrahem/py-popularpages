@@ -26,6 +26,7 @@ from .config import (
     BATCH_SIZE_THRESHOLD,
     load_credentials,
     load_wikis_config,
+    user_agent,
 )
 from .i18n import I18n
 from .logger import log_to_file
@@ -67,7 +68,9 @@ class WikiRepository:
         self.pageviews_repo = PageviewsRepository(wiki)
 
         self._assessment_config: dict | None = None
-        self._http_client = httpx.Client(timeout=10.0)
+        self._http_client = httpx.Client(
+            timeout=10.0, follow_redirects=True, headers={"User-Agent": user_agent()}
+        )
 
         self.host = f"{wiki}.org"
         self.username = self.creds["botuser"].split("@")[0]
@@ -78,7 +81,9 @@ class WikiRepository:
             dry_run,
         )
         logger.debug("Loaded wiki config: %s", self.wiki_config)
-        self.site: mwclient.Site = mwclient.Site(self.host, path="/w/")
+        self.site: mwclient.Site = mwclient.Site(
+            self.host, path="/w/", clients_useragent=user_agent()
+        )
         self.login()
 
         self.db = WikiDatabaseRepository(
