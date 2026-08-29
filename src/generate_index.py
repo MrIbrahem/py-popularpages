@@ -2,6 +2,8 @@
 Generate/update only the index page for a wiki.
 
 Ported from bin/generateIndex.php.
+Example:
+    - python3 src/generate_index.py --wiki en.wikipedia
 """
 
 from __future__ import annotations
@@ -9,11 +11,6 @@ from __future__ import annotations
 import argparse
 import logging
 import re
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 
 from popularpages.report_updater import ReportUpdater
 
@@ -35,11 +32,6 @@ def main() -> None:
         help="Print output instead of saving edits to the wiki.",
     )
     args = parser.parse_args()
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s  %(levelname)s  %(name)s: %(message)s",
-    )
 
     if not re.match(r"^\w+\.\w+$", args.wiki):
         logger.info("Please specify wiki in the format lang.project (such as en.wikipedia)")

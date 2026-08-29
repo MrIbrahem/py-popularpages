@@ -23,17 +23,28 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
-from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-try:
-    load_dotenv(override=False)
-except Exception as e:
-    logger.info("Failed to load .env: %s", e)
-
-
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+@dataclass(frozen=True)
+class DbConfig:
+    user: str
+    password: str
+    cache_ttl: int = 60 * 60 * 24 * 7  # 1 week
+
+    @classmethod
+    def load(cls) -> DbConfig:
+        return cls(
+            cache_ttl=int(os.getenv("TOOL_REPLICA_CACHE_TTL", 60 * 60 * 24 * 7)),
+            user=os.getenv("TOOL_REPLICA_USER") or "",
+            password=os.getenv("TOOL_REPLICA_PASSWORD") or "",
+        )
+
+    def has_db_data(self) -> bool:
+        return not self.user or not self.password
 
 
 @dataclass(frozen=True)
@@ -52,10 +63,10 @@ class PathsConfig:
     def from_base_dir(cls, base_dir: Path) -> PathsConfig:
         """
         Create a paths configuration rooted at the specified base directory.
-        
+
         Parameters:
             base_dir (Path): Root directory used to derive application paths.
-        
+
         Returns:
             PathsConfig: Configuration containing paths derived from the base directory.
         """
@@ -107,9 +118,7 @@ class WikiConfig:
 
     fallback_lang: str = "en"
     max_project_size: int = 1_000_000
-    assessment_config_url: str = (
-        "https://xtools.wmcloud.org/api/project/assessments"
-    )
+    assessment_config_url: str = "https://xtools.wmcloud.org/api/project/assessments"
 
 
 @dataclass(frozen=True)
@@ -135,6 +144,7 @@ class AppConfig:
     pageviews: PageviewsConfig
     wiki: WikiConfig
     project: ProjectConfig
+    db: DbConfig
 
     @property
     def user_agent(self) -> str:
@@ -188,9 +198,7 @@ def load_wikis_config(
     """Load the wikis configuration from config/wikis.yaml."""
     logger.debug("Loading wikis config from %s", paths.wikis_config_file)
 
-    data = yaml.safe_load(
-        paths.wikis_config_file.read_text(encoding="utf-8")
-    )
+    data = yaml.safe_load(paths.wikis_config_file.read_text(encoding="utf-8"))
 
     logger.info("Loaded wikis config: %d wiki(s)", len(data))
     return data
@@ -202,6 +210,7 @@ config = AppConfig(
     pageviews=PageviewsConfig(),
     wiki=WikiConfig(),
     project=ProjectConfig(),
+    db=DbConfig.load(),
 )
 
 

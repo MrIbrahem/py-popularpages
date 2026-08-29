@@ -8,27 +8,28 @@ validate_project_config, and the assessment resolver.
 """
 
 import dataclasses
-
-import src.popularpages.config as cfg
-import src.popularpages.report_updater as ru_module
-from src.popularpages.i18n import I18n
-from src.popularpages.mapping import WikiProjectConfig
-from src.popularpages.wiki_repository import WikiRepository
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+import src.popularpages.config as cfg
+import src.popularpages.report_updater.updater as ru_module
+from src.generate_report import ReportUpdater
+from src.popularpages.i18n import I18n
+from src.popularpages.mapping import WikiProjectConfig
+from src.popularpages.wiki_repository import WikiRepository
 
 
 @pytest.fixture
 def updater(tmp_path, monkeypatch):
     """Create a configured `ReportUpdater` and mocked wiki repository for tests.
-    
+
     Parameters:
-    	tmp_path: Temporary directory used for the pageviews cache.
-    	monkeypatch: Pytest fixture used to replace repository and configuration dependencies.
-    
+        tmp_path: Temporary directory used for the pageviews cache.
+        monkeypatch: Pytest fixture used to replace repository and configuration dependencies.
+
     Returns:
-    	A tuple containing the configured `ReportUpdater` and its mocked repository.
+        A tuple containing the configured `ReportUpdater` and its mocked repository.
     """
     repo = MagicMock()
     repo.i18n = I18n("en")
@@ -66,7 +67,7 @@ def updater(tmp_path, monkeypatch):
         cfg.config,
         paths=dataclasses.replace(cfg.config.paths, views_data_dir=tmp_path),
     )
-    monkeypatch.setattr("src.popularpages.pageviews_cache.config", new_cfg)
+    monkeypatch.setattr("src.popularpages.pageviews.pageviews_cache.config", new_cfg)
     monkeypatch.setattr(ru_module, "config", new_cfg)
 
     return u, repo
@@ -113,7 +114,7 @@ def test_validate_project_config_incomplete(updater):
         project_main_page="Wikipedia:WikiProject Foo",
         Report="Wikipedia:WikiProject Foo/Popular pages",
         report_without_ns="Wikipedia:WikiProject_Foo/Popular_pages",
-        Limit="10",
+        Limit="10",  # pyright: ignore[reportArgumentType]
         Name="",
     )
     assert u.validate_project_config("Wikipedia:WikiProject Foo", incomplete) is False
@@ -228,7 +229,7 @@ async def test_process_project_accepts_dict_config(updater):
 # update_reports (full pipeline)
 # ---------------------------------------------------------------
 @pytest.mark.asyncio
-async def test_update_reports_runs_pipeline(updater):
+async def test_update_reports_runs_pipeline(updater: tuple[ReportUpdater, MagicMock]):
     u, repo = updater
     page_rows = [
         {
@@ -240,7 +241,14 @@ async def test_update_reports_runs_pipeline(updater):
     ]
     repo.get_project_pages.return_value = page_rows
     repo.get_monthly_pageviews_and_assessments.return_value = ({}, 0)
-    repo.get_json_config.return_value = {}  # keep update_index lightweight
+    repo.get_json_config.return_value = {
+        "Wikipedia:WikiProject Foo": {
+            "Report": "Wikipedia:WikiProject Foo/Popular pages",
+            "Limit": "10",
+            "Name": "Foo",
+        }
+    }
+    repo.get_projects_with_last_bot_timestamp.return_value = []
     repo.set_text.return_value = None
 
     await u.update_reports([_project()])
@@ -254,7 +262,14 @@ async def test_update_reports_runs_pipeline(updater):
 async def test_update_reports_skips_invalid_project(updater):
     u, repo = updater
     repo.does_title_exist.return_value = False
-    repo.get_json_config.return_value = {}
+    repo.get_json_config.return_value = {
+        "Wikipedia:WikiProject Foo": {
+            "Report": "Wikipedia:WikiProject Foo/Popular pages",
+            "Limit": "10",
+            "Name": "Foo",
+        }
+    }
+    repo.get_projects_with_last_bot_timestamp.return_value = []
     await u.update_reports([_project()])
     # Invalid project -> no report written, but index still attempted.
     repo.set_text.assert_called_once()  # index page only
@@ -279,9 +294,7 @@ def test_update_index_renders(updater):
     }
     u.update_index()
     repo.set_text.assert_called_once()
-    assert repo.set_text.call_args.kwargs["page_title"] == (
-        "Wikipedia:WikiProject/Popular pages/Index"
-    )
+    assert repo.set_text.call_args.kwargs["page_title"] == ("Wikipedia:WikiProject/Popular pages/Index")
 
 
 def test_update_index_no_projects(updater):
@@ -290,4 +303,5 @@ def test_update_index_no_projects(updater):
     repo.get_projects_with_last_bot_timestamp.return_value = []
     repo.get_wiki_config.return_value = {"config": "X", "index": "Y"}
     u.update_index()
-    repo.set_text.assert_called_once()
+    # No projects -> update_index returns early and writes nothing.
+    repo.set_text.assert_not_called()

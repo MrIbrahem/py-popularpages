@@ -22,13 +22,13 @@ import mwclient
 import mwclient.errors
 import wikitextparser as wtp
 
-from .config import config, load_credentials, load_wikis_config
-from .i18n import I18n
-from .logger import log_to_file
-from .mapping import WikiProjectConfig
-from .pageviews_repository import PageviewsRepository
-from .utils import first_of_this_month_timestamp, mediawiki_timestamp_to_epoch
-from .wiki_database_repository import WikiDatabaseRepository
+from ..config import config, load_credentials, load_wikis_config
+from ..i18n import I18n
+from ..logger import log_to_file
+from ..mapping import WikiProjectConfig
+from ..pageviews.pageviews_repository import PageviewsRepository
+from ..utils import first_of_this_month_timestamp, mediawiki_timestamp_to_epoch
+from ..wiki_database_repository import WikiDatabaseRepository
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +63,7 @@ class WikiRepository:
         self.pageviews_repo = PageviewsRepository(wiki)
 
         self._assessment_config: dict | None = None
-        self._http_client = httpx.Client(
-            timeout=10.0, follow_redirects=True, headers={"User-Agent": config.user_agent}
-        )
+        self._http_client = httpx.Client(timeout=10.0, follow_redirects=True, headers={"User-Agent": config.user_agent})
 
         self.host = f"{wiki}.org"
         self.username = self.creds.botuser.split("@")[0]
@@ -76,9 +74,7 @@ class WikiRepository:
             dry_run,
         )
         logger.debug("Loaded wiki config: %s", self.wiki_config)
-        self.site: mwclient.Site = mwclient.Site(
-            self.host, path="/w/", clients_useragent=config.user_agent
-        )
+        self.site: mwclient.Site = mwclient.Site(self.host, path="/w/", clients_useragent=config.user_agent)
         self.login()
 
         self.db = WikiDatabaseRepository(
@@ -128,8 +124,8 @@ class WikiRepository:
         """
         Log in to the wiki using bot password credentials."""
         if not self.dry_run:
-            logger.info("Logging in as '%s'", self.creds["botuser"])
-            self.site.login(self.creds["botuser"], self.creds["botpass"])
+            logger.info("Logging in as '%s'", self.creds.botuser)
+            self.site.login(self.creds.botuser, self.creds.botpass)
             logger.info("Logged in to %s", self.host)
         else:
             logger.info("dry_run=True; skipping login")
@@ -331,7 +327,7 @@ class WikiRepository:
         return total_pageviews
 
     @staticmethod
-    def _sort_and_truncate_pages_list(out: dict, limit: int) -> dict:
+    def _sort_and_truncate_pages_list(out: dict[str, dict], limit: int) -> dict[str, dict]:
         """
         Sort by pageviews descending and truncate to the configured limit."""
 
@@ -374,7 +370,6 @@ class WikiRepository:
             logger.info(
                 {
                     "title": page_title,
-                    "text": text,
                     "summary": summary,
                     "section": section_number,
                     "bot": True,
@@ -421,8 +416,12 @@ class WikiRepository:
         """
         config.paths.log_dir.mkdir(parents=True, exist_ok=True)
         safe_title = re.sub(r"[^\w.\-]+", "_", page_title)
+
         out_path = config.paths.log_dir / f"dryrun-{self.wiki}-{safe_title}.wikitext"
-        out_path.write_text(text, encoding="utf-8")
+
+        text_with_header = f"Title: [[{page_title}]]\n\n{text}"
+        out_path.write_text(text_with_header, encoding="utf-8")
+
         logger.info("dry-run: wrote wikitext for '%s' to %s", page_title, out_path)
 
     def get_bot_last_edit_date(self, title: str) -> str:

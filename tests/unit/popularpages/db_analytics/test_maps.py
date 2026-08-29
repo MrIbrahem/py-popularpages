@@ -19,9 +19,7 @@ SAMPLE_ROW = {"lang": "en", "dbname": "enwiki", "url": "en.wikipedia.org", "slic
 @pytest.fixture
 def no_db(monkeypatch):
     """Stub out the live DB loader so construction never hits the network."""
-    monkeypatch.setattr(
-        WikiReplicaMaps, "_load_new_maps", lambda self: {"enwiki": dict(SAMPLE_ROW)}
-    )
+    monkeypatch.setattr(WikiReplicaMaps, "_load_new_maps", lambda self: {"enwiki": dict(SAMPLE_ROW)})
     yield
 
 
@@ -35,9 +33,9 @@ def reset_singleton():
 def _write_fresh_map(path):
     """
     Write a fresh test cache file containing a timestamp and sample English wiki mapping.
-    
+
     Parameters:
-    	path (Path): Destination path for the JSON cache file
+        path (Path): Destination path for the JSON cache file
     """
     path.write_text(
         json.dumps({"last_cache_update": time.time(), "data": {"enwiki": dict(SAMPLE_ROW)}}),

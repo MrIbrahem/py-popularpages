@@ -13,6 +13,7 @@ def _config_with_env() -> cfg.AppConfig:
         pageviews=cfg.config.pageviews,
         wiki=cfg.config.wiki,
         project=cfg.config.project,
+        db=cfg.config.db,
     )
 
 

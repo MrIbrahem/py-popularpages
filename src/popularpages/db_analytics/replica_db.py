@@ -50,20 +50,20 @@ class WikiReplicaBaseDB:
         self,
         dbname: str,
         host: str,
-        user: str | None = None,
-        password: str | None = None,
+        user: str,
+        password: str,
         port: int = 3306,
     ) -> None:
         self.dbname = dbname
         self.host = host
-        self.user = user or os.getenv("TOOL_REPLICA_USER")
-        self.password = password or os.getenv("TOOL_REPLICA_PASSWORD")
+        self.user = user
+        self.password = password
         self.port = port
         self.connection: pymysql.connections.Connection | None = None
 
     def _ensure_connection(self) -> None:
         if not self.user or not self.password:
-            logger.warning("No credentials provided, using anonymous connection.")
+            logger.exception("No credentials provided")
             raise pymysql.err.OperationalError("No credentials provided")
 
         args = {
@@ -91,6 +91,29 @@ class WikiReplicaBaseDB:
 
             logger.debug("Connection to %s/%s established", self.host, self.dbname)
 
+    def _select(
+        self,
+        query: str,
+        params: Sequence[Any] | dict[str, Any] | None = None,
+    ):
+        """
+        Executes query and returns all results as a list of dictionaries.
+        """
+        self._ensure_connection()
+
+        assert self.connection is not None
+
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+        except pymysql.Error as e:
+            logger.error(f"Query failed: {e}")
+            logger.info(query)
+            raise
+
+        return rows
+
     def select(
         self,
         query: str,
@@ -99,20 +122,13 @@ class WikiReplicaBaseDB:
         """
         Executes query and returns all results as a list of dictionaries.
         """
-        self._ensure_connection()
-        assert self.connection is not None
         logger.debug("Executing query on %s/%s: %s", self.host, self.dbname, query)
-        try:
-            with self.connection.cursor() as cursor:
-                cursor.execute(query, params)
-                rows = cursor.fetchall()
-                result = resolve_bytes(rows)
-                logger.debug("Query returned %d row(s)", len(result))
-                return result
-        except pymysql.Error as e:
-            logger.error(f"Query failed: {e}")
-            logger.info(query)
-            raise
+
+        rows = self._select(query, params)
+        result = resolve_bytes(rows)
+
+        logger.debug("Query returned %d row(s)", len(result))
+        return result
 
     def select_one(
         self,
@@ -134,6 +150,15 @@ class WikiReplicaBaseDB:
         """ """
         results: list[dict[str, Any]] = []
         try:
+            self._ensure_connection()
+        except pymysql.err.OperationalError as e:
+            logger.error(f"Failed to connect to {self.host}/{self.dbname}: {e}")
+            return results
+        except pymysql.Error as e:
+            logger.error(f"Failed to connect to {self.host}/{self.dbname}: {e}")
+            return results
+
+        try:
             results = self.select(query, params)
         except pymysql.ProgrammingError:
             logger.exception("Query failed", exc_info=True)
@@ -141,6 +166,7 @@ class WikiReplicaBaseDB:
         except pymysql.Error as e:
             logger.exception("Query failed", exc_info=True)
             logger.info(query)
+
         logger.debug("select_safe returned %d row(s)", len(results))
         return results
 

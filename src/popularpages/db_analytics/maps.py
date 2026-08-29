@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..config import config
 from .replica_db import WikiReplicaBaseDB
 
 logger = logging.getLogger(__name__)
@@ -31,12 +32,16 @@ class WikiReplicaMaps:
     def __init__(
         self,
         file_name: str = "wikimap.json",
-        cache_ttl: int = 86400,
+        cache_ttl: int | None = None,
         save_new_data: bool = True,
     ) -> None:
         self.save_new_data = save_new_data
         self.file_name = file_name
-        self.CACHE_TTL = cache_ttl
+
+        if cache_ttl is None:
+            cache_ttl = config.db.cache_ttl
+
+        self.cache_ttl = cache_ttl
         self._wiki_map: dict[str, dict[str, str]] = {}
         self._load_wiki_map()
 
@@ -44,7 +49,7 @@ class WikiReplicaMaps:
         maps = self.load_local_wikimap()
 
         now = time.time()
-        if maps.data and (now - maps.last_cache_update < self.CACHE_TTL):
+        if maps.data and self.is_cache_valid(maps.last_cache_update, now):
             logger.debug("Using cached wiki map (%d entries)", len(maps.data))
             self._wiki_map = maps.data
             return
@@ -57,6 +62,13 @@ class WikiReplicaMaps:
 
         self.save_wikimap(now)
 
+    def is_cache_valid(self, last_cache_update: float, now: float) -> bool:
+        # 0 means never expire
+        if self.cache_ttl == 0:
+            return True
+
+        return now - last_cache_update < self.cache_ttl
+
     def _load_new_maps(self) -> dict[str, dict[str, str]]:
         # Note: meta_p table contains info about all wikis
         query = """
@@ -66,11 +78,19 @@ class WikiReplicaMaps:
             AND url like "%.wikipedia.org"
         """
         new_map = {}
+
+        if not config.db.has_db_data():
+            logger.warning("No credentials for DB, skipping wiki map load")
+            return new_map
+
         try:
             with WikiReplicaBaseDB(
                 dbname="meta_p",
                 host="s7.analytics.db.svc.wikimedia.cloud",
+                user=config.db.user,
+                password=config.db.password,
             ) as meta_db:
+
                 results = meta_db.select(query)
                 for row in results:
                     # We can index by dbname and lang (if family is wikipedia)

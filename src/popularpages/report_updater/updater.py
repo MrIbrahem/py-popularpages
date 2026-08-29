@@ -10,15 +10,16 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+import pymysql
 from jinja2 import Environment, FileSystemLoader
 
-from .config import config
-from .config import config as app_config  # AppConfig singleton (unshadowed by method params)
-from .logger import log_to_file
-from .mapping import WikiProjectConfig
-from .pageviews_cache import PageviewsCache
-from .utils import format_date, previous_month_range, uc_first
-from .wiki_repository import WikiRepository
+from ..config import config  # AppConfig singleton (unshadowed by method params)
+from ..config import config as app_config
+from ..logger import log_to_file
+from ..mapping import WikiProjectConfig
+from ..pageviews.pageviews_cache import PageviewsCache
+from ..utils import format_date, previous_month_range, uc_first
+from ..wiki_repository import WikiRepository
 
 logger = logging.getLogger(__name__)
 
@@ -68,25 +69,30 @@ class ReportUpdater:
         Pure function over an already-fetched assessment config dict; performs
         no I/O so it is safe to call from the render path.
         """
-        dataset = config[type_]
+        default_result = {"name": "Unknown", "color": "gray", "category": "unknown"}
         if not config:
-           return {"name": "Unknown", "color": "gray", "category": "unknown"}
+            return default_result
+
         dataset = config.get(type_)
+
         if not dataset:
-            return {"name": "Unknown", "color": "gray", "category": "unknown"}
+            return default_result
+
         value = value or ""
+
         for key, values in dataset.items():
             if value.lower() == key.lower():
-                   return values
-        return dataset.get("Unknown", {"name": "Unknown", "color": "gray", "category": "unknown"})
-        
+                return values
+
+        return dataset.get("Unknown", default_result)
+
     # ---------------------------------------------------
     # Execution
     # ---------------------------------------------------
     async def update_reports(self, config: list[WikiProjectConfig]) -> None:
         """
         Generate and save popular-page reports for the configured WikiProjects, then update the index.
-        
+
         Parameters:
             config (list[WikiProjectConfig]): WikiProject configurations to process. An empty list aborts the update.
         """
@@ -134,8 +140,8 @@ class ReportUpdater:
             for project in valid_projects:
                 logger.info("Processing project '%s'", project.Name)
                 await self.process_project(
-                    project.project_main_page,
-                    project,
+                    project=project.project_main_page,
+                    config=project,
                     cache=cache,
                     page_rows=project_pages[project.project_main_page],
                 )
@@ -147,9 +153,7 @@ class ReportUpdater:
             # Release the per-run Pageviews HTTP client (async context).
             await self.wiki_repository.pageviews_repo.aclose()
 
-    async def _build_views_cache(
-        self, projects: list[WikiProjectConfig], all_titles: set[str]
-    ) -> PageviewsCache:
+    async def _build_views_cache(self, projects: list[WikiProjectConfig], all_titles: set[str]) -> PageviewsCache:
         """
         Build a :class:`PageviewsCache` for this wiki's reporting month and fetch
         every unique title across ``projects`` exactly once.
@@ -182,7 +186,7 @@ class ReportUpdater:
     ) -> None:
         """
         Process a WikiProject and update its monthly popular-pages report.
-        
+
         Parameters:
             project (str): WikiProject key or title.
             config (dict | WikiProjectConfig): WikiProject report configuration.
@@ -195,6 +199,7 @@ class ReportUpdater:
         logger.info("Process project '%s' (config report='%s')", config.Name, config.Report)
         if page_rows is None:
             page_rows = self.wiki_repository.get_project_pages(config.Name)
+
         logger.debug("Fetched %d page(s) for project '%s'", len(page_rows), config.Name)
 
         if not page_rows:
@@ -207,9 +212,7 @@ class ReportUpdater:
             return
 
         if cache is not None:
-            data, total_views = await self._views_for_project_from_cache(
-                page_rows, config.Limit, cache
-            )
+            data, total_views = await self._views_for_project_from_cache(page_rows, config.Limit, cache)
         else:
             start_date = self.start.strftime("%Y%m%d00")
             end_date = self.end.strftime("%Y%m%d00")
@@ -225,22 +228,7 @@ class ReportUpdater:
         days_in_month = (self.end - self.start).days + 1
 
         # Add in averages.
-        for datum in data.values():
-            datum["avgPageviews"] = datum["pageviews"] // days_in_month
-
-        # Resolve assessment colors/categories here, in the data-fetch phase, so
-        # the template performs no network I/O (issue #4: Jinja templates must
-        # not make network requests). `get_assessment_config()` is fetched once
-        # and cached on the WikiRepository, so this is a single network call per
-        # run, reused across every page and project.
-        assessment_cfg = self.wiki_repository.get_assessment_config()
-        for datum in data.values():
-            datum["class_assessment"] = self._resolve_assessment(
-                assessment_cfg, "class", datum["class"]
-            )
-            datum["importance_assessment"] = self._resolve_assessment(
-                assessment_cfg, "importance", datum["importance"]
-            )
+        self.populate_assessment_categories(data, days_in_month)
 
         has_lead_section = self.wiki_repository.has_lead_section(config.Report)
         logger.debug("Report has lead section: %s", has_lead_section)
@@ -267,9 +255,29 @@ class ReportUpdater:
             section_number=section_number,
         )
 
+    def populate_assessment_categories(self, data: dict[str, dict], days_in_month) -> dict[str, dict]:
+        for datum in data.values():
+            datum["avgPageviews"] = datum["pageviews"] // days_in_month
+
+        # Resolve assessment colors/categories here, in the data-fetch phase, so
+        # the template performs no network I/O (issue #4: Jinja templates must
+        # not make network requests). `get_assessment_config()` is fetched once
+        # and cached on the WikiRepository, so this is a single network call per
+        # run, reused across every page and project.
+        assessment_cfg = self.wiki_repository.get_assessment_config()
+
+        for datum in data.values():
+            datum["class_assessment"] = self._resolve_assessment(assessment_cfg, "class", datum["class"])
+            datum["importance_assessment"] = self._resolve_assessment(assessment_cfg, "importance", datum["importance"])
+
+        return data
+
     async def _views_for_project_from_cache(
-        self, page_rows: list[dict], limit: int, cache: PageviewsCache
-    ) -> tuple[dict, int]:
+        self,
+        page_rows: list[dict],
+        limit: int,
+        cache: PageviewsCache,
+    ) -> tuple[dict[str, dict], int]:
         """
         Compute per-project pageviews from the shared :class:`PageviewsCache`.
 
@@ -308,7 +316,9 @@ class ReportUpdater:
             out[target]["pageviews"] = count
             total_pageviews += count
 
-        return self.wiki_repository._sort_and_truncate_pages_list(out, limit), total_pageviews
+        out = self.wiki_repository._sort_and_truncate_pages_list(out, limit)
+
+        return out, total_pageviews
 
     def update_index(self) -> None:
         """
@@ -318,6 +328,10 @@ class ReportUpdater:
         log_to_file("Updating index page", self.wiki)
 
         list_config_obj = self.retrieve_project_updates()
+
+        if not list_config_obj:
+            logger.error("No project updates retrieved")
+            return
 
         wiki_config = self.wiki_repository.get_wiki_config()
         # Generate and return wikitext.
@@ -351,8 +365,20 @@ class ReportUpdater:
         list_config_obj = WikiProjectConfig.from_json_list(projects_config)
         logger.debug("Retrieved %d project config(s)", len(list_config_obj))
 
-        last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
+        try:
+            last_edits = self.wiki_repository.get_projects_with_last_bot_timestamp()
+        except pymysql.err.OperationalError as e:
+            logger.error("Error retrieving last bot edit timestamps: %s", e)
+            return []
+        except pymysql.Error as e:
+            logger.error("Error retrieving last bot edit timestamps: %s", e)
+            return []
+
         logger.debug("Retrieved %d last-edit timestamp(s)", len(last_edits))
+
+        if not last_edits:
+            log_to_file("Error: No last-edit timestamps found!", self.wiki)
+            return list_config_obj
 
         # Add the last updated date to the config.
         last_edits_times = {
