@@ -26,6 +26,7 @@ def patched(monkeypatch):
 
 
 class TestMain:
+    """Tests for the generate_index.py main() entry point."""
 
     def test_main_updates_index(self, patched, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["idx", "--wiki", "en.wikipedia"])

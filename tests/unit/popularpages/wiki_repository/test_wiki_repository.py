@@ -38,33 +38,32 @@ def repository() -> WikiRepository:
         pytest.skip("requires valid live wiki credentials (.env present but login failed)")
 
 
-@requires_creds
-@pytest.mark.network
-def test_does_title_exist(repository: WikiRepository):
-    assert repository.does_title_exist("Barack Obama")
-    assert repository.does_title_exist("Mickey Mouse")
-    assert not repository.does_title_exist("DumDeeDooDum")
-    assert not repository.does_title_exist("Invalid title")
+class TestLiveWikiIntegration:
+    """Live English Wikipedia integration tests (require credentials; skipped in CI)."""
 
+    @requires_creds
+    @pytest.mark.network
+    def test_does_title_exist(self, repository: WikiRepository):
+        assert repository.does_title_exist("Barack Obama")
+        assert repository.does_title_exist("Mickey Mouse")
+        assert not repository.does_title_exist("DumDeeDooDum")
+        assert not repository.does_title_exist("Invalid title")
 
-@requires_creds
-@pytest.mark.network
-def test_has_lead_section(repository):
-    assert repository.has_lead_section("Wikipedia:WikiProject Medicine/Popular pages")
-    assert not repository.has_lead_section("User:Community Tech bot/Popular pages config.json")
+    @requires_creds
+    @pytest.mark.network
+    def test_has_lead_section(self, repository):
+        assert repository.has_lead_section("Wikipedia:WikiProject Medicine/Popular pages")
+        assert not repository.has_lead_section("User:Community Tech bot/Popular pages config.json")
 
-
-@requires_creds
-@pytest.mark.network
-def test_set_text(repository):
-    result = repository.set_text("User:NKohli (WMF)/sandbox", "Hi there! This is a test")
-    assert result["edit"]["result"] == "Success"
+    @requires_creds
+    @pytest.mark.network
+    def test_set_text(self, repository):
+        result = repository.set_text("User:NKohli (WMF)/sandbox", "Hi there! This is a test")
+        assert result["edit"]["result"] == "Success"
 
 
 class TestGetBotLastEditDate:
-    """
-    tests for get_bot_last_edit_date
-    """
+    """Tests for `get_bot_last_edit_date`."""
 
     @pytest.mark.network
     def test_basic(self):
@@ -74,12 +73,7 @@ class TestGetBotLastEditDate:
 
 
 class TestWriteDryRunText:
-    """
-    _write_dry_run_text persists the rendered wikitext to the logs folder.
-    Exercises the method directly (bypassing WikiRepository.__init__, which
-    needs live credentials) by using __new__ and a monkeypatched config whose
-    log_dir points at a temp path.
-    """
+    """Tests for `_write_dry_run_text` dry-run persistence."""
 
     def test_writes_file_with_sanitized_title(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
@@ -119,10 +113,7 @@ class TestWriteDryRunText:
 
 
 class TestWikiRepositoryPureMethods:
-    """
-    Unit tests for parse-only methods that don't need the network/DB.
-    Objects are built with __new__ to skip WikiRepository.__init__.
-    """
+    """Unit tests for parse-only WikiRepository methods that need no network/DB."""
 
     JSON = {"P": {"Report": "P/r", "Limit": "5", "Name": "N"}}
 
@@ -196,6 +187,7 @@ class TestWikiRepositoryPureMethods:
 
 
 class TestWikiRepositoryPureMethodsSkipped:
+    """Live-network tests for WikiRepository methods (skipped without credentials)."""
 
     # @pytest.mark.skip(
     #     reason="Disabled upstream in the PHP version too (was 'ertestGetProjectPages', never actually run by PHPUnit)."

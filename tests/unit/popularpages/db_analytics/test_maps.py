@@ -43,65 +43,78 @@ def _write_fresh_map(path):
     )
 
 
-def test_load_local_wikimap_present(tmp_path, no_db, reset_singleton):
-    f = tmp_path / "wikimap.json"
-    _write_fresh_map(f)
+# ---------------------------------------------------------------
+# 1. Tests for loading the file-backed wikimap cache
+# ---------------------------------------------------------------
+class TestLoadLocalWikimap:
+    """Loading the file-backed wikimap cache (present, missing, corrupt)."""
 
-    maps = WikiReplicaMaps(file_name=str(f))
-    assert maps._wiki_map == {"enwiki": dict(SAMPLE_ROW)}
-    assert "enwiki" in maps._wiki_map
+    def test_load_local_wikimap_present(self, tmp_path, no_db, reset_singleton):
+        f = tmp_path / "wikimap.json"
+        _write_fresh_map(f)
 
+        maps = WikiReplicaMaps(file_name=str(f))
+        assert maps._wiki_map == {"enwiki": dict(SAMPLE_ROW)}
+        assert "enwiki" in maps._wiki_map
 
-def test_load_local_wikimap_missing(tmp_path, no_db, reset_singleton):
-    f = tmp_path / "wikimap.json"  # never created
-    maps = WikiReplicaMaps(file_name=str(tmp_path / "present.json"))  # safe constructor
-    maps.file_name = str(f)
-    assert maps.load_local_wikimap().data == {}
+    def test_load_local_wikimap_missing(self, tmp_path, no_db, reset_singleton):
+        f = tmp_path / "wikimap.json"  # never created
+        maps = WikiReplicaMaps(file_name=str(tmp_path / "present.json"))  # safe constructor
+        maps.file_name = str(f)
+        assert maps.load_local_wikimap().data == {}
 
-
-def test_load_local_wikimap_corrupt(tmp_path, no_db, reset_singleton):
-    f = tmp_path / "wikimap.json"
-    f.write_text("not json{", encoding="utf-8")
-    maps = WikiReplicaMaps(file_name=str(tmp_path / "present.json"))  # safe constructor
-    maps.file_name = str(f)
-    assert maps.load_local_wikimap().data == {}
-
-
-def test_resolve_wiki_direct(tmp_path, no_db, reset_singleton):
-    f = tmp_path / "wikimap.json"
-    _write_fresh_map(f)
-    maps = WikiReplicaMaps(file_name=str(f))
-    assert maps.resolve_wiki("enwiki")["dbname"] == "enwiki"
+    def test_load_local_wikimap_corrupt(self, tmp_path, no_db, reset_singleton):
+        f = tmp_path / "wikimap.json"
+        f.write_text("not json{", encoding="utf-8")
+        maps = WikiReplicaMaps(file_name=str(tmp_path / "present.json"))  # safe constructor
+        maps.file_name = str(f)
+        assert maps.load_local_wikimap().data == {}
 
 
-def test_resolve_wiki_with_wiki_suffix(tmp_path, no_db, reset_singleton):
-    f = tmp_path / "wikimap.json"
-    _write_fresh_map(f)
-    maps = WikiReplicaMaps(file_name=str(f))
-    # "en" matches "enwiki".
-    assert maps.resolve_wiki("en")["dbname"] == "enwiki"
+# ---------------------------------------------------------------
+# 2. Tests for resolving wiki identifiers to replica metadata
+# ---------------------------------------------------------------
+class TestResolveWiki:
+    """Resolving wiki identifiers to replica metadata."""
+
+    def test_resolve_wiki_direct(self, tmp_path, no_db, reset_singleton):
+        f = tmp_path / "wikimap.json"
+        _write_fresh_map(f)
+        maps = WikiReplicaMaps(file_name=str(f))
+        assert maps.resolve_wiki("enwiki")["dbname"] == "enwiki"
+
+    def test_resolve_wiki_with_wiki_suffix(self, tmp_path, no_db, reset_singleton):
+        f = tmp_path / "wikimap.json"
+        _write_fresh_map(f)
+        maps = WikiReplicaMaps(file_name=str(f))
+        # "en" matches "enwiki".
+        assert maps.resolve_wiki("en")["dbname"] == "enwiki"
+
+    def test_resolve_wiki_no_match(self, tmp_path, no_db, reset_singleton):
+        f = tmp_path / "wikimap.json"
+        _write_fresh_map(f)
+        maps = WikiReplicaMaps(file_name=str(f))
+        assert maps.resolve_wiki("zzwiki") is None
 
 
-def test_resolve_wiki_no_match(tmp_path, no_db, reset_singleton):
-    f = tmp_path / "wikimap.json"
-    _write_fresh_map(f)
-    maps = WikiReplicaMaps(file_name=str(f))
-    assert maps.resolve_wiki("zzwiki") is None
+# ---------------------------------------------------------------
+# 3. Tests for persisting the wikimap cache to disk
+# ---------------------------------------------------------------
+class TestSaveWikimap:
+    """Persisting the wikimap cache to disk."""
 
+    def test_save_wikimap_writes_file(self, tmp_path, no_db, reset_singleton):
+        f = tmp_path / "wikimap.json"
+        maps = WikiReplicaMaps(file_name=str(f))
+        maps._wiki_map = {"enwiki": dict(SAMPLE_ROW)}
+        maps.save_wikimap(time.time())
 
-def test_save_wikimap_writes_file(tmp_path, no_db, reset_singleton):
-    f = tmp_path / "wikimap.json"
-    maps = WikiReplicaMaps(file_name=str(f))
-    maps._wiki_map = {"enwiki": dict(SAMPLE_ROW)}
-    maps.save_wikimap(time.time())
+        loaded = json.loads(f.read_text(encoding="utf-8"))
+        assert loaded["data"] == {"enwiki": dict(SAMPLE_ROW)}
 
-    loaded = json.loads(f.read_text(encoding="utf-8"))
-    assert loaded["data"] == {"enwiki": dict(SAMPLE_ROW)}
-
-
-def test_save_wikimap_skipped_when_disabled(tmp_path, no_db, reset_singleton):
-    f = tmp_path / "wikimap.json"
-    maps = WikiReplicaMaps(file_name=str(f), save_new_data=False)
-    maps._wiki_map = {"enwiki": dict(SAMPLE_ROW)}
-    maps.save_wikimap(time.time())
-    assert not f.exists()
+    def test_save_wikimap_skipped_when_disabled(self, tmp_path, no_db, reset_singleton):
+        f = tmp_path / "wikimap.json"
+        maps = WikiReplicaMaps(file_name=str(f), save_new_data=False)
+        maps._wiki_map = {"enwiki": dict(SAMPLE_ROW)}
+        maps.save_wikimap(time.time())
+        assert not f.exists()

@@ -3,9 +3,9 @@
 from src.popularpages.mapping import WikiProjectConfig
 
 
-class TestProjectRreportTitles:
+class TestProjectReportTitles:
     """
-    tests for staticmethods _project_report_titles
+    Tests for the staticmethod that maps project report titles.
     """
 
     def test_project_report_titles(self):
@@ -41,6 +41,10 @@ class TestProjectRreportTitles:
 
 
 class TestWikiProjectConfigParsing:
+    """
+    Tests for parsing WikiProjectConfig from JSON and related helpers.
+    """
+
     DATA = {"Report": "Foo/Popular pages", "Limit": "10", "Name": "Foo"}
 
     def test_from_json_returns_config(self):

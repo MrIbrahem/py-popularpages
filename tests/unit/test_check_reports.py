@@ -29,6 +29,7 @@ def patched(monkeypatch):
 
 
 class TestMain:
+    """Tests for the check_reports.py main() entry point."""
     def test_main_runs_for_explicit_wiki(self, patched, monkeypatch):
         # load_wikis_config reads the real config/wikis.yaml; en.wikipedia exists.
         """Verify that report checks run once for an explicitly selected wiki."""
