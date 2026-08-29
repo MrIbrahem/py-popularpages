@@ -17,6 +17,8 @@ import src.popularpages.config as cfg
 import src.popularpages.pageviews.pageviews_cache as cache_module
 from src.popularpages.pageviews.pageviews_cache import PageviewsCache
 
+pytestmark = pytest.mark.asyncio
+
 
 class FakeRepo:
     """Stand-in for PageviewsRepository.get_title_views."""
@@ -41,7 +43,7 @@ def cache_config(tmp_path, monkeypatch):
     return new_cfg
 
 
-@pytest.mark.asyncio
+
 async def test_ensure_fetches_all_titles_once_and_persists(cache_config):
     repo = FakeRepo({"A": 10, "B": 20, "C": 30})
     cache = PageviewsCache("en.wikipedia", "2024-01", repo)
@@ -59,7 +61,7 @@ async def test_ensure_fetches_all_titles_once_and_persists(cache_config):
     assert {"title": "C", "views": 30} in lines
 
 
-@pytest.mark.asyncio
+
 async def test_get_sums_target_and_redirects(cache_config):
     repo = FakeRepo({"A": 10, "A redir": 5})
     cache = PageviewsCache("en.wikipedia", "2024-01", repo)
@@ -69,7 +71,7 @@ async def test_get_sums_target_and_redirects(cache_config):
     assert cache.get("Unknown", []) == 0
 
 
-@pytest.mark.asyncio
+
 async def test_load_reuses_previous_run_and_only_fetches_missing(cache_config):
     repo1 = FakeRepo({"A": 10, "B": 20})
     cache1 = PageviewsCache("en.wikipedia", "2024-01", repo1)
@@ -89,7 +91,7 @@ async def test_load_reuses_previous_run_and_only_fetches_missing(cache_config):
     assert cache2.get("C", []) == 999
 
 
-@pytest.mark.asyncio
+
 async def test_written_file_is_valid_jsonl_readable_by_jsonlines(cache_config):
     """The on-disk cache must be valid JSONL that jsonlines can read back."""
     repo = FakeRepo({"A": 10, "B": 20, "C": 30})
@@ -107,7 +109,7 @@ async def test_written_file_is_valid_jsonl_readable_by_jsonlines(cache_config):
     assert cache.get("A", []) == 10
 
 
-@pytest.mark.asyncio
+
 async def test_non_ascii_title_round_trips(cache_config):
     """Non-ASCII titles are written as UTF-8 and read back identically."""
     title = "Café_İstanbul"
@@ -125,7 +127,7 @@ async def test_non_ascii_title_round_trips(cache_config):
     assert cache.get(title, []) == 7
 
 
-@pytest.mark.asyncio
+
 async def test_malformed_lines_are_skipped_on_load(cache_config):
     """Invalid JSON and malformed-but-valid objects are skipped, not fatal."""
     repo1 = FakeRepo({"A": 10, "B": 20})
@@ -147,7 +149,7 @@ async def test_malformed_lines_are_skipped_on_load(cache_config):
     assert cache2.get("Z", []) == 0  # malformed object skipped
 
 
-@pytest.mark.asyncio
+
 async def test_missing_file_loads_empty(cache_config):
     """A wiki/month with no cache file loads an empty cache, no fetch."""
     repo = FakeRepo({"A": 10})
@@ -159,7 +161,7 @@ async def test_missing_file_loads_empty(cache_config):
     assert not path.exists()
 
 
-@pytest.mark.asyncio
+
 async def test_empty_file_loads_empty(cache_config):
     """An existing but empty cache file loads an empty cache, no crash."""
     path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-05.jsonl"
@@ -171,7 +173,7 @@ async def test_empty_file_loads_empty(cache_config):
     assert cache.get("A", []) == 0
 
 
-@pytest.mark.asyncio
+
 async def test_incremental_appends_do_not_truncate(cache_config):
     """Two ensures append to the same JSONL file rather than overwriting."""
     repo = FakeRepo({"A": 1, "B": 2, "C": 3})
@@ -189,7 +191,7 @@ async def test_incremental_appends_do_not_truncate(cache_config):
     assert [sorted(c) for c in repo.calls] == [["A", "B"], ["C"]]
 
 
-@pytest.mark.asyncio
+
 async def test_flush_threshold_writes_incrementally(tmp_path, monkeypatch):
     small_flush = dataclasses.replace(
         cfg.config,
@@ -210,7 +212,7 @@ async def test_flush_threshold_writes_incrementally(tmp_path, monkeypatch):
     assert sorted(lines, key=lambda d: d["title"]) == sorted(expected, key=lambda d: d["title"])
 
 
-@pytest.mark.asyncio
+
 async def test_load_oserror_is_swallowed(cache_config, monkeypatch):
     """A read error while loading is logged and treated as an empty cache."""
     repo = FakeRepo({"A": 10})

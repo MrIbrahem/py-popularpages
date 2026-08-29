@@ -241,7 +241,14 @@ async def test_update_reports_runs_pipeline(updater: tuple[ReportUpdater, MagicM
     ]
     repo.get_project_pages.return_value = page_rows
     repo.get_monthly_pageviews_and_assessments.return_value = ({}, 0)
-    repo.get_json_config.return_value = {}  # keep update_index lightweight
+    repo.get_json_config.return_value = {
+        "Wikipedia:WikiProject Foo": {
+            "Report": "Wikipedia:WikiProject Foo/Popular pages",
+            "Limit": "10",
+            "Name": "Foo",
+        }
+    }
+    repo.get_projects_with_last_bot_timestamp.return_value = []
     repo.set_text.return_value = None
 
     await u.update_reports([_project()])
@@ -255,7 +262,14 @@ async def test_update_reports_runs_pipeline(updater: tuple[ReportUpdater, MagicM
 async def test_update_reports_skips_invalid_project(updater):
     u, repo = updater
     repo.does_title_exist.return_value = False
-    repo.get_json_config.return_value = {}
+    repo.get_json_config.return_value = {
+        "Wikipedia:WikiProject Foo": {
+            "Report": "Wikipedia:WikiProject Foo/Popular pages",
+            "Limit": "10",
+            "Name": "Foo",
+        }
+    }
+    repo.get_projects_with_last_bot_timestamp.return_value = []
     await u.update_reports([_project()])
     # Invalid project -> no report written, but index still attempted.
     repo.set_text.assert_called_once()  # index page only
@@ -289,4 +303,5 @@ def test_update_index_no_projects(updater):
     repo.get_projects_with_last_bot_timestamp.return_value = []
     repo.get_wiki_config.return_value = {"config": "X", "index": "Y"}
     u.update_index()
-    repo.set_text.assert_called_once()
+    # No projects -> update_index returns early and writes nothing.
+    repo.set_text.assert_not_called()

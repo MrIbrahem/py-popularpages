@@ -59,7 +59,7 @@ def test_get_project_pages_decodes_binary_columns(monkeypatch):
 def test_get_projects_with_last_bot_timestamp_decodes_binary(monkeypatch):
     repo = _make_repo(monkeypatch)
     rows = [{"page_title": b"Popular_pages", "rev_timestamp": b"20230115000000"}]
-    monkeypatch.setattr(repo.db, "select_safe", lambda *args, **kwargs: rows)
+    monkeypatch.setattr(repo.db, "_select", lambda *args, **kwargs: rows)
 
     projects = {"Popular_pages": "MyProject"}
     result = repo.get_projects_timestamps(["Popular_pages"])
@@ -73,7 +73,7 @@ def test_get_stale_project_names_parses_str_timestamp(monkeypatch):
     repo = _make_repo(monkeypatch)
     # A timestamp far in the future means "already updated this cycle".
     rows = [{"page_title": b"Popular_pages", "rev_timestamp": b"20990101000000"}]
-    monkeypatch.setattr(repo.db, "select_safe", lambda *args, **kwargs: rows)
+    monkeypatch.setattr(repo.db, "_select", lambda *args, **kwargs: rows)
 
     updated = repo.get_projects_timestamps(["Popular_pages"])
 

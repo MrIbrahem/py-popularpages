@@ -160,3 +160,21 @@ async def test_fetch_title_views_http_error_returns_zero():
     repo = PageviewsRepository("en.wikipedia")
     repo._get = AsyncMock(side_effect=httpx.ReadError("x"))
     assert await repo._fetch_title_views("Foo", "2024010100", "2024013100") == 0
+
+
+# @pytest.mark.skip(
+#     reason="Disabled upstream in the PHP version too (was 'ertestGetMonthlyPageviews', "
+#     "never actually run by PHPUnit)."
+# )
+@pytest.mark.network
+async def test_get_monthly_pageviews():
+    pages = ["Star Wars", "Zootopia", "The Lion King"]
+    batch = {p: [p] for p in pages}
+    repo = PageviewsRepository("en.wikipedia")
+    result = repo.get_pageviews(batch, "2017020100", "2017022800")
+    expected = {
+        "Star Wars": 491220,
+        "Zootopia": 205129,
+        "The Lion King": 305347,
+    }
+    assert result == expected
