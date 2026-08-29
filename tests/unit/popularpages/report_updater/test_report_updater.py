@@ -102,35 +102,38 @@ def test_resolve_assessment_falls_back_to_unknown():
 # ---------------------------------------------------------------
 # validate_project_config
 # ---------------------------------------------------------------
-def test_validate_project_config_valid(updater):
-    u, repo = updater
-    repo.does_title_exist.return_value = True
-    assert u.validate_project_config("Wikipedia:WikiProject Foo", _project()) is True
+
+class TestValidateProjectConfig:
+    """Tests for the `validate_project_config` method of the `ReportUpdater` class."""
+    def test_validate_project_config_valid(self, updater):
+        u, repo = updater
+        repo.does_title_exist.return_value = True
+        assert u.validate_project_config("Wikipedia:WikiProject Foo", _project()) is True
 
 
-def test_validate_project_config_incomplete(updater):
-    u, repo = updater
-    incomplete = WikiProjectConfig(
-        project_main_page="Wikipedia:WikiProject Foo",
-        Report="Wikipedia:WikiProject Foo/Popular pages",
-        report_without_ns="Wikipedia:WikiProject_Foo/Popular_pages",
-        Limit="10",  # pyright: ignore[reportArgumentType]
-        Name="",
-    )
-    assert u.validate_project_config("Wikipedia:WikiProject Foo", incomplete) is False
+    def test_validate_project_config_incomplete(self, updater):
+        u, repo = updater
+        incomplete = WikiProjectConfig(
+            project_main_page="Wikipedia:WikiProject Foo",
+            Report="Wikipedia:WikiProject Foo/Popular pages",
+            report_without_ns="Wikipedia:WikiProject_Foo/Popular_pages",
+            Limit="10",  # pyright: ignore[reportArgumentType]
+            Name="",
+        )
+        assert u.validate_project_config("Wikipedia:WikiProject Foo", incomplete) is False
 
 
-def test_validate_project_config_rejects_mainspace_report(updater):
-    u, repo = updater
-    repo.does_title_exist.return_value = True
-    mainspace = _project(report="Mainspace report")
-    assert u.validate_project_config("Wikipedia:WikiProject Foo", mainspace) is False
+    def test_validate_project_config_rejects_mainspace_report(self, updater):
+        u, repo = updater
+        repo.does_title_exist.return_value = True
+        mainspace = _project(report="Mainspace report")
+        assert u.validate_project_config("Wikipedia:WikiProject Foo", mainspace) is False
 
 
-def test_validate_project_config_rejects_missing_project_page(updater):
-    u, repo = updater
-    repo.does_title_exist.return_value = False
-    assert u.validate_project_config("Wikipedia:WikiProject Foo", _project()) is False
+    def test_validate_project_config_rejects_missing_project_page(self, updater):
+        u, repo = updater
+        repo.does_title_exist.return_value = False
+        assert u.validate_project_config("Wikipedia:WikiProject Foo", _project()) is False
 
 
 # ---------------------------------------------------------------
