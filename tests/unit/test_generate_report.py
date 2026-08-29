@@ -20,6 +20,7 @@ def patched(monkeypatch):
 
 class TestMain:
     """Tests for the generate_report.py main() entry point."""
+
     def test_main_generates_report_for_valid_project(self, patched, monkeypatch):
         enable_socket()
         monkeypatch.setattr(sys, "argv", ["gen", "--wiki", "en.wikipedia", "--project", "Dinosaurs"])

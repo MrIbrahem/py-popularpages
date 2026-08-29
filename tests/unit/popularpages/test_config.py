@@ -21,6 +21,7 @@ def _config_with_env() -> cfg.AppConfig:
 # 1. Tests for User-Agent
 # ---------------------------------------------------------------
 
+
 class TestUserAgent:
     """Tests for the configured User-Agent string."""
 
@@ -44,6 +45,7 @@ class TestUserAgent:
 # ---------------------------------------------------------------
 # 2. Tests for loading wiki config and credentials
 # ---------------------------------------------------------------
+
 
 class TestConfigLoading:
     """Tests for loading wiki config and credentials."""
