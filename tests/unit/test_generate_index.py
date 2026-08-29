@@ -32,7 +32,6 @@ class TestMain:
         gi_module.main()
         patched.update_index.assert_called_once()
 
-
     def test_main_invalid_wiki_returns_early(self, patched, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["idx", "--wiki", "bogus"])
         gi_module.main()

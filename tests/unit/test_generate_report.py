@@ -8,6 +8,7 @@ from pytest_socket import enable_socket
 
 import src.generate_report as gr_module
 
+
 @pytest.fixture
 def patched(monkeypatch):
     updater = MagicMock()
@@ -24,13 +25,10 @@ class TestMain:
         gr_module.main()
         patched.update_reports.assert_awaited_once()
 
-
     def test_main_invalid_wiki_format_returns_early(self, patched, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["gen", "--wiki", "bogus", "--project", "X"])
         gr_module.main()
         patched.update_reports.assert_not_awaited()
-
-
 
     def test_main_exits_when_project_not_found(self, patched, monkeypatch):
         patched.wiki_repository.get_project.return_value = None

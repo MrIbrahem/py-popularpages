@@ -53,6 +53,7 @@ def test_has_lead_section(repository):
     assert repository.has_lead_section("Wikipedia:WikiProject Medicine/Popular pages")
     assert not repository.has_lead_section("User:Community Tech bot/Popular pages config.json")
 
+
 @requires_creds
 @pytest.mark.network
 def test_set_text(repository):

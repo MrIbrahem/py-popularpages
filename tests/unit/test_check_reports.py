@@ -28,7 +28,6 @@ def patched(monkeypatch):
     return updater
 
 
-
 class TestMain:
     def test_main_runs_for_explicit_wiki(self, patched, monkeypatch):
         # load_wikis_config reads the real config/wikis.yaml; en.wikipedia exists.
@@ -37,12 +36,10 @@ class TestMain:
         cr_module.main()
         patched.update_reports.assert_awaited_once_with([])
 
-
     def test_main_unknown_wiki_returns_early(self, patched, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["check", "--wiki", "zz.wikipedia"])
         cr_module.main()
         patched.update_reports.assert_not_awaited()
-
 
     def test_main_processes_all_wikis_when_none_specified(self, patched, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["check"])

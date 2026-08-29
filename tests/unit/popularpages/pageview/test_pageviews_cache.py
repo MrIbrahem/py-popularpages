@@ -43,7 +43,6 @@ def cache_config(tmp_path, monkeypatch):
     return new_cfg
 
 
-
 async def test_ensure_fetches_all_titles_once_and_persists(cache_config):
     repo = FakeRepo({"A": 10, "B": 20, "C": 30})
     cache = PageviewsCache("en.wikipedia", "2024-01", repo)
@@ -61,7 +60,6 @@ async def test_ensure_fetches_all_titles_once_and_persists(cache_config):
     assert {"title": "C", "views": 30} in lines
 
 
-
 async def test_get_sums_target_and_redirects(cache_config):
     repo = FakeRepo({"A": 10, "A redir": 5})
     cache = PageviewsCache("en.wikipedia", "2024-01", repo)
@@ -69,7 +67,6 @@ async def test_get_sums_target_and_redirects(cache_config):
     assert cache.get("A", ["A redir"]) == 15
     assert cache.get("A", []) == 10
     assert cache.get("Unknown", []) == 0
-
 
 
 async def test_load_reuses_previous_run_and_only_fetches_missing(cache_config):
@@ -91,7 +88,6 @@ async def test_load_reuses_previous_run_and_only_fetches_missing(cache_config):
     assert cache2.get("C", []) == 999
 
 
-
 async def test_written_file_is_valid_jsonl_readable_by_jsonlines(cache_config):
     """The on-disk cache must be valid JSONL that jsonlines can read back."""
     repo = FakeRepo({"A": 10, "B": 20, "C": 30})
@@ -109,7 +105,6 @@ async def test_written_file_is_valid_jsonl_readable_by_jsonlines(cache_config):
     assert cache.get("A", []) == 10
 
 
-
 async def test_non_ascii_title_round_trips(cache_config):
     """Non-ASCII titles are written as UTF-8 and read back identically."""
     title = "Café_İstanbul"
@@ -125,7 +120,6 @@ async def test_non_ascii_title_round_trips(cache_config):
     raw = path.read_text(encoding="utf-8")
     assert "Café_İstanbul" in raw
     assert cache.get(title, []) == 7
-
 
 
 async def test_malformed_lines_are_skipped_on_load(cache_config):
@@ -149,7 +143,6 @@ async def test_malformed_lines_are_skipped_on_load(cache_config):
     assert cache2.get("Z", []) == 0  # malformed object skipped
 
 
-
 async def test_missing_file_loads_empty(cache_config):
     """A wiki/month with no cache file loads an empty cache, no fetch."""
     repo = FakeRepo({"A": 10})
@@ -161,7 +154,6 @@ async def test_missing_file_loads_empty(cache_config):
     assert not path.exists()
 
 
-
 async def test_empty_file_loads_empty(cache_config):
     """An existing but empty cache file loads an empty cache, no crash."""
     path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-05.jsonl"
@@ -171,7 +163,6 @@ async def test_empty_file_loads_empty(cache_config):
     repo = FakeRepo({"A": 10})
     cache = PageviewsCache("en.wikipedia", "2024-05", repo)
     assert cache.get("A", []) == 0
-
 
 
 async def test_incremental_appends_do_not_truncate(cache_config):
@@ -189,7 +180,6 @@ async def test_incremental_appends_do_not_truncate(cache_config):
     assert titles == {"A", "B", "C"}
     # A and B were already cached on the second ensure, so only C was fetched.
     assert [sorted(c) for c in repo.calls] == [["A", "B"], ["C"]]
-
 
 
 async def test_flush_threshold_writes_incrementally(tmp_path, monkeypatch):
@@ -210,7 +200,6 @@ async def test_flush_threshold_writes_incrementally(tmp_path, monkeypatch):
     assert len(lines) == 10
     expected = [{"title": f"T{i}", "views": i} for i in range(10)]
     assert sorted(lines, key=lambda d: d["title"]) == sorted(expected, key=lambda d: d["title"])
-
 
 
 async def test_load_oserror_is_swallowed(cache_config, monkeypatch):
