@@ -136,6 +136,8 @@ def _wire(
 
 
 class TestCompareStaleProjects:
+    """Comparison tests for `get_stale_projects`, verifying it returns projects not yet updated this cycle."""
+
     def test_empty_config_returns_empty_value(self, repo, monkeypatch):
         _wire(repo, [], {}, [], monkeypatch)
 

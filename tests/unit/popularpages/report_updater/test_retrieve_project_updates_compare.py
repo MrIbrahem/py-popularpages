@@ -84,6 +84,8 @@ def _make_updater(json_config: dict[str, dict], db_rows: list[dict]) -> ReportUp
 
 
 class TestRetrieveProjectUpdatesNew:
+    """Tests for `ReportUpdater.retrieve_project_updates`, documenting current behaviour of the timestamp→Updated mapping."""
+
     def test_empty_config_returns_empty(self) -> None:
         updater = _make_updater({}, [])
         assert updater.retrieve_project_updates() == []

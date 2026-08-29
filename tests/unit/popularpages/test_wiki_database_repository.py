@@ -35,46 +35,61 @@ def _make_repo(monkeypatch) -> WikiDatabaseRepository:
     )
 
 
-def test_get_project_pages_decodes_binary_columns(monkeypatch):
-    repo = _make_repo(monkeypatch)
-    rows = [
-        {
-            "page_title": b"Foo_Bar",
-            "pa_class": b"",
-            "pa_importance": b"FA",
-            "redir_title": b"Foo",
-        }
-    ]
-    monkeypatch.setattr(repo.db, "_ensure_connection", MagicMock(return_value=True))
-    monkeypatch.setattr(repo.db, "_select", lambda *args, **kwargs: rows)
-
-    result = repo.get_project_pages("X")
-
-    assert result[0]["page_title"] == "Foo_Bar"
-    assert result[0]["redir_title"] == "Foo"
-    assert result[0]["pa_class"] == ""
-    assert result[0]["pa_importance"] == "FA"
+# ---------------------------------------------------------------
+# 1. Tests for get_project_pages binary decoding
+# ---------------------------------------------------------------
 
 
-def test_get_projects_with_last_bot_timestamp_decodes_binary(monkeypatch):
-    repo = _make_repo(monkeypatch)
-    rows = [{"page_title": b"Popular_pages", "rev_timestamp": b"20230115000000"}]
-    monkeypatch.setattr(repo.db, "_select", lambda *args, **kwargs: rows)
+class TestGetProjectPagesDecoding:
+    """Tests that binary/VARBINARY columns are decoded to str in get_project_pages."""
 
-    projects = {"Popular_pages": "MyProject"}
-    result = repo.get_projects_timestamps(["Popular_pages"])
+    def test_get_project_pages_decodes_binary_columns(self, monkeypatch):
+        repo = _make_repo(monkeypatch)
+        rows = [
+            {
+                "page_title": b"Foo_Bar",
+                "pa_class": b"",
+                "pa_importance": b"FA",
+                "redir_title": b"Foo",
+            }
+        ]
+        monkeypatch.setattr(repo.db, "_ensure_connection", MagicMock(return_value=True))
+        monkeypatch.setattr(repo.db, "_select", lambda *args, **kwargs: rows)
 
-    assert result[0]["page_title"] == "Popular_pages"
-    assert result[0]["rev_timestamp"] == "20230115000000"
-    # assert result[0]["name"] == "MyProject"
+        result = repo.get_project_pages("X")
+
+        assert result[0]["page_title"] == "Foo_Bar"
+        assert result[0]["redir_title"] == "Foo"
+        assert result[0]["pa_class"] == ""
+        assert result[0]["pa_importance"] == "FA"
 
 
-def test_get_stale_project_names_parses_str_timestamp(monkeypatch):
-    repo = _make_repo(monkeypatch)
-    # A timestamp far in the future means "already updated this cycle".
-    rows = [{"page_title": b"Popular_pages", "rev_timestamp": b"20990101000000"}]
-    monkeypatch.setattr(repo.db, "_select", lambda *args, **kwargs: rows)
+# ---------------------------------------------------------------
+# 2. Tests for get_projects_timestamps binary decoding
+# ---------------------------------------------------------------
 
-    updated = repo.get_projects_timestamps(["Popular_pages"])
 
-    assert updated == [{"page_title": "Popular_pages", "rev_timestamp": "20990101000000"}]
+class TestGetProjectsTimestampsDecoding:
+    """Tests that binary columns are decoded in get_projects_timestamps / get_projects_timestamps."""
+
+    def test_get_projects_with_last_bot_timestamp_decodes_binary(self, monkeypatch):
+        repo = _make_repo(monkeypatch)
+        rows = [{"page_title": b"Popular_pages", "rev_timestamp": b"20230115000000"}]
+        monkeypatch.setattr(repo.db, "_select", lambda *args, **kwargs: rows)
+
+        projects = {"Popular_pages": "MyProject"}
+        result = repo.get_projects_timestamps(["Popular_pages"])
+
+        assert result[0]["page_title"] == "Popular_pages"
+        assert result[0]["rev_timestamp"] == "20230115000000"
+        # assert result[0]["name"] == "MyProject"
+
+    def test_get_stale_project_names_parses_str_timestamp(self, monkeypatch):
+        repo = _make_repo(monkeypatch)
+        # A timestamp far in the future means "already updated this cycle".
+        rows = [{"page_title": b"Popular_pages", "rev_timestamp": b"20990101000000"}]
+        monkeypatch.setattr(repo.db, "_select", lambda *args, **kwargs: rows)
+
+        updated = repo.get_projects_timestamps(["Popular_pages"])
+
+        assert updated == [{"page_title": "Popular_pages", "rev_timestamp": "20990101000000"}]

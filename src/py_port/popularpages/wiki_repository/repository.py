@@ -16,13 +16,14 @@ import json
 import logging
 import re
 import time
+from pathlib import Path
 
 import httpx
 import mwclient
 import mwclient.errors
 import wikitextparser as wtp
 
-from ..config import config, load_credentials, load_wikis_config
+from ..config import config
 from ..i18n import I18n
 from ..logger import log_to_file
 from ..mapping import WikiProjectConfig
@@ -41,47 +42,74 @@ class WikiRepository:
     delegated to WikiDatabaseRepository (self.db).
     """
 
-    def __init__(self, wiki: str = "en.wikipedia", dry_run: bool = False):
+    def __init__(
+        self,
+        wiki: str = "en.wikipedia",
+        dry_run: bool = False,
+        log_dir: Path | None = None,
+    ) -> None:
         """
         :param wiki: Wiki in the form lang.project, e.g. 'en.wikipedia'.
         :param dry_run: If True, `set_text()` prints instead of saving to the wiki.
         """
         self.wiki = wiki
         self.dry_run = dry_run
-        self.creds = load_credentials()
+        self.log_dir: Path = log_dir or config.data_paths.log_dir
+        self.i18n = I18n(wiki.split(".")[0])
+        self.creds = config.credentials
+        self.username = self.creds.botuser.split("@")[0]
+        self.host = f"{wiki}.org"
 
-        _config: dict = load_wikis_config(config.paths)
+        _config: dict = config.paths.load_wikis_config()
         self.wiki_config: dict = _config.get(wiki) or {}
-
         if not self.wiki_config:
             raise ValueError(f"Wiki {wiki} not found in config")
+        logger.debug("Loaded wiki config: %s", self.wiki_config)
 
         self.wiki_config_page: str = self.wiki_config["config"]
 
-        lang = wiki.split(".")[0]
-        self.i18n = I18n(lang)
         self.pageviews_repo = PageviewsRepository(wiki)
 
+        # lazy loading objects will be initialized on first use
         self._assessment_config: dict | None = None
-        self._http_client = httpx.Client(timeout=10.0, follow_redirects=True, headers={"User-Agent": config.user_agent})
-
-        self.host = f"{wiki}.org"
-        self.username = self.creds.botuser.split("@")[0]
-        logger.info(
-            "WikiRepository initialized for wiki '%s' (user='%s', dry_run=%s)",
-            wiki,
-            self.username,
-            dry_run,
-        )
-        logger.debug("Loaded wiki config: %s", self.wiki_config)
-        self.site: mwclient.Site = mwclient.Site(self.host, path="/w/", clients_useragent=config.user_agent)
-        self.login()
+        self._site: mwclient.Site | None = None
 
         self.db = WikiDatabaseRepository(
             wiki=self.wiki,
             wiki_config=self.wiki_config,
             username=self.username,
         )
+
+        self._http_client = httpx.Client(
+            timeout=10.0,
+            follow_redirects=True,
+                headers={"User-Agent": config.other.user_agent},
+        )
+
+        logger.info(
+            "WikiRepository initialized for wiki '%s' (user='%s', dry_run=%s)",
+            wiki,
+            self.username,
+            dry_run,
+        )
+
+    # ----------------------------------------------------
+    # Lazy Properties
+    # ----------------------------------------------------
+
+    @property
+    def site(self) -> mwclient.Site:
+        """
+        Create the mwclient connection and log in on first use.
+        """
+        if self._site is None:
+            self._site = mwclient.Site(
+                self.host,
+                path="/w/",
+                clients_useragent=config.other.user_agent,
+            )
+            self.login()
+        return self._site
 
     def get_config(self, title: str | None = None) -> list[WikiProjectConfig]:
         """
@@ -414,10 +442,9 @@ class WikiRepository:
         The page title is sanitized so it is safe as a filename (colons and
         slashes in wiki titles are common).
         """
-        config.paths.log_dir.mkdir(parents=True, exist_ok=True)
         safe_title = re.sub(r"[^\w.\-]+", "_", page_title)
 
-        out_path = config.paths.log_dir / f"dryrun-{self.wiki}-{safe_title}.wikitext"
+        out_path = self.log_dir / f"dryrun-{self.wiki}-{safe_title}.wikitext"
 
         text_with_header = f"Title: [[{page_title}]]\n\n{text}"
         out_path.write_text(text_with_header, encoding="utf-8")

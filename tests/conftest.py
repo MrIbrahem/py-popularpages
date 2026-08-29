@@ -5,13 +5,23 @@ Shared pytest fixtures.
 from __future__ import annotations
 
 import os
+import sys
+import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 from pytest_socket import disable_socket
 
-os.environ.setdefault("TOOL_REPLICA_USER", "user")
-os.environ.setdefault("TOOL_REPLICA_PASSWORD", "pass")
+if sys:
+    # tempfile.gettempdir() returns the path to the system's directory for temporary files
+    system_temp_dir = Path(tempfile.gettempdir())
+
+    # Now correctly combine it with "test" and set the environment variable
+    os.environ["POPULAR_PAGES_MAIN_DIR"] = str(system_temp_dir / "test")
+
+    os.environ.setdefault("TOOL_REPLICA_USER", "user")
+    os.environ.setdefault("TOOL_REPLICA_PASSWORD", "pass")
 
 
 @pytest.fixture(autouse=True)

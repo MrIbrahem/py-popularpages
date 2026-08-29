@@ -88,7 +88,7 @@ class PageviewsRepository:
                 config.pageviews.request_timeout_seconds,
                 connect=config.pageviews.connect_timeout_seconds,
             ),
-            headers={"User-Agent": config.user_agent},
+            headers={"User-Agent": config.other.user_agent},
         )
 
     async def aclose(self) -> None:

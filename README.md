@@ -16,7 +16,7 @@ cp .env.example .env
 #    then edit .env with your bot username/password (from Special:BotPasswords)
 
 # 2. Run a full update cycle
-python3 src/check_reports.py --wiki en.wikipedia
+python3 src/py_port/check_reports.py --wiki en.wikipedia
 ```
 
 ## Usage
@@ -31,13 +31,13 @@ this month and regenerates their reports. This is what the monthly cron job call
 
 ```sh
 # All wikis
-python3 src/check_reports.py
+python3 src/py_port/check_reports.py
 
 # One wiki
-python3 src/check_reports.py --wiki en.wikipedia
+python3 src/py_port/check_reports.py --wiki en.wikipedia
 
 # Preview only, no wiki edits
-python3 src/check_reports.py --wiki en.wikipedia --dry-run
+python3 src/py_port/check_reports.py --wiki en.wikipedia --dry-run
 ```
 
 ### Regenerate one project (`generate_report`)
@@ -46,8 +46,8 @@ Manually rebuild the report for a single WikiProject (e.g. to re-run a failed
 project or for testing).
 
 ```sh
-python3 src/generate_report.py --wiki en.wikipedia --project Dinosaurs
-python3 src/generate_report.py --wiki en.wikipedia --project Dinosaurs --dry-run
+python3 src/py_port/generate_report.py --wiki en.wikipedia --project Dinosaurs
+python3 src/py_port/generate_report.py --wiki en.wikipedia --project Dinosaurs --dry-run
 ```
 
 ### Regenerate the index page (`generate_index`)
@@ -55,8 +55,8 @@ python3 src/generate_report.py --wiki en.wikipedia --project Dinosaurs --dry-run
 Rebuild only the wiki's index page that lists all its WikiProject reports.
 
 ```sh
-python3 src/generate_index.py --wiki en.wikipedia
-python3 src/generate_index.py --wiki en.wikipedia --dry-run
+python3 src/py_port/generate_index.py --wiki en.wikipedia
+python3 src/py_port/generate_index.py --wiki en.wikipedia --dry-run
 ```
 
 ## How it works
@@ -71,7 +71,7 @@ python3 src/generate_index.py --wiki en.wikipedia --dry-run
 Typically you run it once a month via cron, e.g.:
 
 ```cron
-0 0 1 * * python3 src/check_reports.py --wiki en.wikipedia
+0 0 1 * * python3 src/py_port/check_reports.py --wiki en.wikipedia
 ```
 
 ## Pageviews cache
@@ -101,15 +101,15 @@ this file and only requests the remainder. See
     WikiProjects config and index pages live.
 -   Add your WikiProjects configuration on the corresponding on-wiki JSON page.
 -   Add a cron job for the wiki, e.g.
-    `0 0 1 * * python3 src/check_reports.py --wiki en.wikipedia`.
+    `0 0 1 * * python3 src/py_port/check_reports.py --wiki en.wikipedia`.
 
 ## Project layout
 
 -   CLI scripts:
 
-    -   `src/check_reports.py` — Entry point for a full bot run.
-    -   `src/generate_report.py` — Manually regenerate one project.
-    -   `src/generate_index.py` — Generate the index page.
+    -   `src/py_port/check_reports.py` — Entry point for a full bot run.
+    -   `src/py_port/generate_report.py` — Manually regenerate one project.
+    -   `src/py_port/generate_index.py` — Generate the index page.
 
 -   Core modules:
     -   `src/popularpages/report_updater.py` — The module that updates projects.

@@ -26,7 +26,29 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+def resolve_path(_path: str | Path) -> Path:
+    """Expand environment variables and user home directory in paths."""
+    _path = os.path.expandvars(str(_path))
+    path = Path(_path).expanduser()
+    return path
+
+
+@dataclass(frozen=True)
+class OtherConfig:
+    """configs not in specific sections"""
+
+    user_agent: str
+
+    @classmethod
+    def load(cls) -> OtherConfig:
+        user_agent = os.getenv(
+            "USER_AGENT",
+            "Popular Pages/0.1.0 (https://popular_pages.toolforge.org; tools.popular_pages@toolforge.org)",
+        )
+        return cls(
+            user_agent=user_agent,
+        )
 
 
 @dataclass(frozen=True)
@@ -48,39 +70,76 @@ class DbConfig:
 
 
 @dataclass(frozen=True)
-class PathsConfig:
+class ProjectPathsConfig:
     """Application filesystem paths."""
 
     base_dir: Path
     views_dir: Path
-    data_dir: Path
-    views_data_dir: Path
     messages_dir: Path
-    log_dir: Path
     wikis_config_file: Path
 
     @classmethod
-    def from_base_dir(cls, base_dir: Path) -> PathsConfig:
+    def load(cls) -> ProjectPathsConfig:
         """
         Create a paths configuration rooted at the specified base directory.
 
-        Parameters:
-            base_dir (Path): Root directory used to derive application paths.
-
         Returns:
-            PathsConfig: Configuration containing paths derived from the base directory.
+            ProjectPathsConfig: Configuration containing paths derived from the base directory.
         """
-        data_dir = base_dir / "data"
-
+        base_dir = Path(__file__).parent.parent.parent
         return cls(
             base_dir=base_dir,
             views_dir=base_dir / "views",
-            data_dir=data_dir,
-            views_data_dir=data_dir / "views",
             messages_dir=base_dir / "messages",
-            log_dir=base_dir / "logs",
             wikis_config_file=base_dir / "config" / "wikis.yaml",
         )
+
+    def load_wikis_config(self) -> dict:
+        """Load the wikis configuration from config/wikis.yaml."""
+        logger.debug("Loading wikis config from %s", self.wikis_config_file)
+
+        data = yaml.safe_load(self.wikis_config_file.read_text(encoding="utf-8"))
+
+        logger.info("Loaded wikis config: %d wiki(s)", len(data))
+        return data
+
+
+@dataclass(frozen=True)
+class DataPathsConfig:
+    """
+    Application filesystem paths.
+    """
+
+    popular_pages_dir: Path
+    data_dir: Path
+    views_data_dir: Path
+    log_dir: Path
+
+    @classmethod
+    def load(cls) -> DataPathsConfig:
+        """
+        Create a paths configuration rooted at the specified base directory.
+
+        Returns:
+            DataPathsConfig: Configuration containing paths derived from the base directory.
+        """
+        base_dir = os.getenv("POPULAR_PAGES_MAIN_DIR")
+
+        popular_pages_dir = Path(resolve_path(base_dir)) if base_dir else Path().resolve() / "popular_pages_dir"
+
+        data_dir = popular_pages_dir / "data"
+
+        data = cls(
+            popular_pages_dir=popular_pages_dir,
+            data_dir=data_dir,
+            views_data_dir=data_dir / "views",
+            log_dir=popular_pages_dir / "logs",
+        )
+
+        data.log_dir.mkdir(parents=True, exist_ok=True)
+        data.views_data_dir.mkdir(parents=True, exist_ok=True)
+
+        return data
 
 
 @dataclass(frozen=True)
@@ -89,6 +148,30 @@ class CredentialsConfig:
 
     botuser: str = ""
     botpass: str = ""
+
+    @classmethod
+    def load(cls) -> CredentialsConfig:
+        """
+        Load Wikipedia bot credentials from environment variables.
+
+        Environment variables take precedence over values loaded from ``.env``.
+        """
+        credentials = cls(
+            botuser=os.environ.get("WIKIPEDIA_BOT_USERNAME", ""),
+            botpass=os.environ.get("WIKIPEDIA_BOT_PASSWORD", ""),
+        )
+
+        logger.debug(
+            "Loaded credentials: botuser='%s' (botpass set: %s)",
+            credentials.botuser,
+            bool(credentials.botpass),
+        )
+
+        return credentials
+
+    def has_credentials(self) -> bool:
+        """Return True when the minimum bot credentials are available."""
+        return bool(self.botuser and self.botpass)
 
 
 @dataclass(frozen=True)
@@ -111,6 +194,10 @@ class PageviewsConfig:
     max_retry_attempts: int = 5
     retry_status_codes: frozenset = frozenset({429, 500, 502, 503, 504})
 
+    @classmethod
+    def load(cls) -> PageviewsConfig:
+        return cls()
+
 
 @dataclass(frozen=True)
 class WikiConfig:
@@ -120,110 +207,47 @@ class WikiConfig:
     max_project_size: int = 1_000_000
     assessment_config_url: str = "https://xtools.wmcloud.org/api/project/assessments"
 
-
-@dataclass(frozen=True)
-class ProjectConfig:
-    """Project identity configuration."""
-
-    name: str = "py-popularpages"
-    url: str = "https://github.com/MrIbrahem/py-popularpages"
+    @classmethod
+    def load(cls) -> WikiConfig:
+        return cls()
 
 
 @dataclass(frozen=True)
 class AppConfig:
-    """Application configuration.
-
-    A single frozen object that aggregates every sub-config. The HTTP
-    User-Agent is computed on demand via the :py:attr:`user_agent` property
-    (it depends on the resolved credentials), so it is intentionally *not* a
-    stored field.
+    """
+    Application configuration.
     """
 
-    paths: PathsConfig
+    paths: ProjectPathsConfig
+    data_paths: DataPathsConfig
     credentials: CredentialsConfig
     pageviews: PageviewsConfig
     wiki: WikiConfig
-    project: ProjectConfig
     db: DbConfig
+    other: OtherConfig
 
-    @property
-    def user_agent(self) -> str:
-        return user_agent(self.project, self.credentials)
-
-
-def load_credentials() -> CredentialsConfig:
-    """
-    Load Wikipedia bot credentials from environment variables.
-
-    Environment variables take precedence over values loaded from ``.env``.
-    """
-    credentials = CredentialsConfig(
-        botuser=os.environ.get("WIKIPEDIA_BOT_USERNAME", ""),
-        botpass=os.environ.get("WIKIPEDIA_BOT_PASSWORD", ""),
-    )
-
-    logger.debug(
-        "Loaded credentials: botuser='%s' (botpass set: %s)",
-        credentials.botuser,
-        bool(credentials.botpass),
-    )
-
-    return credentials
+    @classmethod
+    def load(cls) -> AppConfig:
+        return cls(
+            paths=ProjectPathsConfig.load(),
+            data_paths=DataPathsConfig.load(),
+            credentials=CredentialsConfig.load(),
+            pageviews=PageviewsConfig(),
+            wiki=WikiConfig(),
+            db=DbConfig.load(),
+            other=OtherConfig.load(),
+        )
 
 
-def has_credentials(credentials: CredentialsConfig) -> bool:
-    """Return True when the minimum bot credentials are available."""
-    has = bool(credentials.botuser and credentials.botpass)
-    logger.debug("has_credentials=%s", has)
-    return has
-
-
-def user_agent(
-    project: ProjectConfig,
-    credentials: CredentialsConfig,
-) -> str:
-    """
-    Build an HTTP User-Agent compliant with Wikimedia's UA policy.
-
-    Falls back to the generic 'tool' contact when no bot username is
-    configured.
-    """
-    contact = credentials.botuser or "tool"
-    return f"{project.name} (contact: {contact}; +{project.url})"
-
-
-def load_wikis_config(
-    paths: PathsConfig,
-) -> dict:
-    """Load the wikis configuration from config/wikis.yaml."""
-    logger.debug("Loading wikis config from %s", paths.wikis_config_file)
-
-    data = yaml.safe_load(paths.wikis_config_file.read_text(encoding="utf-8"))
-
-    logger.info("Loaded wikis config: %d wiki(s)", len(data))
-    return data
-
-
-config = AppConfig(
-    paths=PathsConfig.from_base_dir(BASE_DIR),
-    credentials=load_credentials(),
-    pageviews=PageviewsConfig(),
-    wiki=WikiConfig(),
-    project=ProjectConfig(),
-    db=DbConfig.load(),
-)
-
+config = AppConfig.load()
 
 __all__ = [
     "AppConfig",
     "CredentialsConfig",
     "PageviewsConfig",
-    "PathsConfig",
-    "ProjectConfig",
+    "ProjectPathsConfig",
+    "DataPathsConfig",
     "WikiConfig",
+    "OtherConfig",
     "config",
-    "has_credentials",
-    "load_credentials",
-    "load_wikis_config",
-    "user_agent",
 ]

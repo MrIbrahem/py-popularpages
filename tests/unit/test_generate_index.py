@@ -1,4 +1,4 @@
-"""Tests for src/generate_index.py (index page entry point)."""
+"""Tests for src/py_port/generate_index.py (index page entry point)."""
 
 import sys
 from unittest.mock import MagicMock
@@ -26,6 +26,7 @@ def patched(monkeypatch):
 
 
 class TestMain:
+    """Tests for the generate_index.py main() entry point."""
 
     def test_main_updates_index(self, patched, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["idx", "--wiki", "en.wikipedia"])

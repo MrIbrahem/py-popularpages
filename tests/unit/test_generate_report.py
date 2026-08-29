@@ -1,4 +1,4 @@
-"""Tests for src/generate_report.py (single-project report entry point)."""
+"""Tests for src/py_port/generate_report.py (single-project report entry point)."""
 
 import sys
 from unittest.mock import AsyncMock, MagicMock
@@ -19,6 +19,8 @@ def patched(monkeypatch):
 
 
 class TestMain:
+    """Tests for the generate_report.py main() entry point."""
+
     def test_main_generates_report_for_valid_project(self, patched, monkeypatch):
         enable_socket()
         monkeypatch.setattr(sys, "argv", ["gen", "--wiki", "en.wikipedia", "--project", "Dinosaurs"])
