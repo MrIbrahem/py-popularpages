@@ -8,7 +8,6 @@ matching the original PHP suite's approach -- they require valid credentials
 
 """
 
-import dataclasses
 import json
 from datetime import datetime
 from unittest.mock import MagicMock
@@ -17,7 +16,6 @@ import mwclient.errors
 import pytest
 
 import src.py_port.popularpages.config as cfg
-from src.py_port.popularpages.config import has_credentials
 from src.py_port.popularpages.mapping import WikiProjectConfig
 from src.py_port.popularpages.wiki_repository.repository import WikiRepository
 
@@ -25,7 +23,7 @@ from src.py_port.popularpages.wiki_repository.repository import WikiRepository
 # live in .env (gitignored). Skip them when absent so the suite stays green in
 # CI.
 requires_creds = pytest.mark.skipif(
-    not has_credentials(cfg.config.credentials),
+    not cfg.config.credentials.has_credentials(),
     reason="requires credentials in .env with live credentials",
 )
 
@@ -38,33 +36,32 @@ def repository() -> WikiRepository:
         pytest.skip("requires valid live wiki credentials (.env present but login failed)")
 
 
-@requires_creds
-@pytest.mark.network
-def test_does_title_exist(repository: WikiRepository):
-    assert repository.does_title_exist("Barack Obama")
-    assert repository.does_title_exist("Mickey Mouse")
-    assert not repository.does_title_exist("DumDeeDooDum")
-    assert not repository.does_title_exist("Invalid title")
+class TestLiveWikiIntegration:
+    """Live English Wikipedia integration tests (require credentials; skipped in CI)."""
 
+    @requires_creds
+    @pytest.mark.network
+    def test_does_title_exist(self, repository: WikiRepository):
+        assert repository.does_title_exist("Barack Obama")
+        assert repository.does_title_exist("Mickey Mouse")
+        assert not repository.does_title_exist("DumDeeDooDum")
+        assert not repository.does_title_exist("Invalid title")
 
-@requires_creds
-@pytest.mark.network
-def test_has_lead_section(repository):
-    assert repository.has_lead_section("Wikipedia:WikiProject Medicine/Popular pages")
-    assert not repository.has_lead_section("User:Community Tech bot/Popular pages config.json")
+    @requires_creds
+    @pytest.mark.network
+    def test_has_lead_section(self, repository):
+        assert repository.has_lead_section("Wikipedia:WikiProject Medicine/Popular pages")
+        assert not repository.has_lead_section("User:Community Tech bot/Popular pages config.json")
 
-
-@requires_creds
-@pytest.mark.network
-def test_set_text(repository):
-    result = repository.set_text("User:NKohli (WMF)/sandbox", "Hi there! This is a test")
-    assert result["edit"]["result"] == "Success"
+    @requires_creds
+    @pytest.mark.network
+    def test_set_text(self, repository):
+        result = repository.set_text("User:NKohli (WMF)/sandbox", "Hi there! This is a test")
+        assert result["edit"]["result"] == "Success"
 
 
 class TestGetBotLastEditDate:
-    """
-    tests for get_bot_last_edit_date
-    """
+    """Tests for `get_bot_last_edit_date`."""
 
     @pytest.mark.network
     def test_basic(self):
@@ -74,23 +71,13 @@ class TestGetBotLastEditDate:
 
 
 class TestWriteDryRunText:
-    """
-    _write_dry_run_text persists the rendered wikitext to the logs folder.
-    Exercises the method directly (bypassing WikiRepository.__init__, which
-    needs live credentials) by using __new__ and a monkeypatched config whose
-    log_dir points at a temp path.
-    """
+    """Tests for `_write_dry_run_text` dry-run persistence."""
 
     def test_writes_file_with_sanitized_title(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "src.py_port.popularpages.wiki_repository.repository.config",
-            dataclasses.replace(
-                cfg.config,
-                paths=dataclasses.replace(cfg.config.paths, log_dir=tmp_path),
-            ),
-        )
         repo = WikiRepository.__new__(WikiRepository)
+        repo.log_dir = tmp_path
         repo.wiki = "en.wikipedia"
+        repo.log_dir = tmp_path
 
         title = "Wikipedia:WikiProject Medicine/Popular pages"
         text = "== List ==\n| A | B\n"
@@ -98,6 +85,7 @@ class TestWriteDryRunText:
 
         files = list(tmp_path.glob("*.wikitext"))
         assert len(files) == 1
+
         # Colons and slashes in the title must be sanitized out of the filename.
         assert ":" not in files[0].name and "/" not in files[0].name
         # The dry-run writer prepends a 'Title:' header referencing the page.
@@ -105,24 +93,16 @@ class TestWriteDryRunText:
         assert files[0].read_text(encoding="utf-8") == expected
 
     def test_filename_includes_wiki(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "src.py_port.popularpages.wiki_repository.repository.config",
-            dataclasses.replace(
-                cfg.config,
-                paths=dataclasses.replace(cfg.config.paths, log_dir=tmp_path),
-            ),
-        )
+
         repo = WikiRepository.__new__(WikiRepository)
+        repo.log_dir = tmp_path
         repo.wiki = "ar.wikipedia"
         repo._write_dry_run_text("User:Foo/Bar", "x")
         assert any("ar.wikipedia" in f.name for f in tmp_path.glob("*.wikitext"))
 
 
 class TestWikiRepositoryPureMethods:
-    """
-    Unit tests for parse-only methods that don't need the network/DB.
-    Objects are built with __new__ to skip WikiRepository.__init__.
-    """
+    """Unit tests for parse-only WikiRepository methods that need no network/DB."""
 
     JSON = {"P": {"Report": "P/r", "Limit": "5", "Name": "N"}}
 
@@ -143,7 +123,7 @@ class TestWikiRepositoryPureMethods:
     def test_get_project_by_name(self):
         repo = WikiRepository.__new__(WikiRepository)
         repo.get_json_config = lambda *a, **k: self.JSON
-        assert repo.get_project("N").Name == "N"
+        assert repo.get_project("N").Name == "N"  # pyright: ignore[reportOptionalMemberAccess]
         assert repo.get_project("Nope") is None
 
     def test_get_wiki_config_returns_stored(self):
@@ -172,12 +152,12 @@ class TestWikiRepositoryPureMethods:
     def test_get_json_config_strips_description(self):
         repo = WikiRepository.__new__(WikiRepository)
         repo.wiki_config_page = "Wikipedia:WikiProject/Popular pages config.json"
-        repo.site = MagicMock()
+        repo._site = MagicMock()
         payload = {
             "P": {"Report": "P/r", "Limit": "5", "Name": "N"},
             "description": "Please do not modify manually.",
         }
-        repo.site.pages[repo.wiki_config_page].text.return_value = json.dumps(payload)
+        repo._site.pages[repo.wiki_config_page].text.return_value = json.dumps(payload)
         data = repo.get_json_config()
         assert "description" not in data
         assert data["P"]["Name"] == "N"
@@ -196,6 +176,7 @@ class TestWikiRepositoryPureMethods:
 
 
 class TestWikiRepositoryPureMethodsSkipped:
+    """Live-network tests for WikiRepository methods (skipped without credentials)."""
 
     # @pytest.mark.skip(
     #     reason="Disabled upstream in the PHP version too (was 'ertestGetProjectPages', never actually run by PHPUnit)."
