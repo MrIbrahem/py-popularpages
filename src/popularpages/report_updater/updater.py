@@ -273,7 +273,10 @@ class ReportUpdater:
         return data
 
     async def _views_for_project_from_cache(
-        self, page_rows: list[dict], limit: int, cache: PageviewsCache,
+        self,
+        page_rows: list[dict],
+        limit: int,
+        cache: PageviewsCache,
     ) -> tuple[dict[str, dict], int]:
         """
         Compute per-project pageviews from the shared :class:`PageviewsCache`.

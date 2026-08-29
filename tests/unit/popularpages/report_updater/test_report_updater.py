@@ -12,9 +12,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.generate_report import ReportUpdater
 import src.popularpages.config as cfg
 import src.popularpages.report_updater.updater as ru_module
+from src.generate_report import ReportUpdater
 from src.popularpages.i18n import I18n
 from src.popularpages.mapping import WikiProjectConfig
 from src.popularpages.wiki_repository import WikiRepository
@@ -114,7 +114,7 @@ def test_validate_project_config_incomplete(updater):
         project_main_page="Wikipedia:WikiProject Foo",
         Report="Wikipedia:WikiProject Foo/Popular pages",
         report_without_ns="Wikipedia:WikiProject_Foo/Popular_pages",
-        Limit="10", # pyright: ignore[reportArgumentType]
+        Limit="10",  # pyright: ignore[reportArgumentType]
         Name="",
     )
     assert u.validate_project_config("Wikipedia:WikiProject Foo", incomplete) is False
