@@ -27,9 +27,9 @@ else
     fi
 
     # Install development requirements if the file exists
-    if [ -f "dev-requirements.txt" ]; then
-        echo "Installing dev-requirements.txt..."
-        pip install -r dev-requirements.txt
+    if [ -f "requirements-dev.txt" ]; then
+        echo "Installing requirements-dev.txt..."
+        pip install -r requirements-dev.txt
     fi
 
     echo "Setup and installation completed successfully!"
