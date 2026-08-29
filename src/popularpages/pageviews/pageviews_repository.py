@@ -159,8 +159,11 @@ class PageviewsRepository:
             end,
         )
 
+        # gather returns a list of tuples: [(title, views_count), (title, views_count), ...]
         results = await asyncio.gather(*(self._fetch_title_views(t, start, end) for t in all_titles))
-        views_by_title = dict(zip(all_titles, results, strict=True))
+
+        # Convert list of tuples to a dict.
+        views_by_title = dict(results)
 
         for title, count in views_by_title.items():
             for target in target_titles:
@@ -186,14 +189,20 @@ class PageviewsRepository:
             missing / errored).
         """
         logger.info("Fetching pageviews for %d title(s) (start=%s, end=%s)", len(titles), start, end)
-        results = await asyncio.gather(*(self._fetch_title_views(t, start, end) for t in titles))
-        return dict(zip(titles, results, strict=True))
 
-    async def _fetch_title_views(self, title: str, start: str, end: str) -> int:
+        # gather returns a list of tuples: [(title, views_count), (title, views_count), ...]
+        results = await asyncio.gather(*(self._fetch_title_views(t, start, end) for t in titles))
+
+        # Convert list of tuples to a dict.
+        return dict(results)
+
+    async def _fetch_title_views(self, title: str, start: str, end: str) -> tuple[str, int]:
         """
         Fetch the total monthly pageviews for a single title.
 
-        Returns 0 when the title has no data (404) or when a transport/network
+        Returns (title, views_count).
+
+        Returns (title, 0) when the title has no data (404) or when a transport/network
         error occurs; only 429/5xx-style retryable failures are retried by the
         tenacity wrapper on :meth:`_get`.
         """
@@ -203,17 +212,17 @@ class PageviewsRepository:
             response = await self._get(article, start, end)
             page, count = self._process_response(response.json())
             if page is None or count is None:
-                return 0
-            return int(count)
+                return title, 0
+            return title, int(count)
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code == 404:
                 # No data available; okay to treat as 0 views.
-                return 0
+                return title, 0
             log_to_file(f"Exception during pageviews request: {exc}", self.domain)
-            return 0
+            return title, 0
         except httpx.HTTPError as exc:
             log_to_file(f"Exception during pageviews request: {exc}", self.domain)
-            return 0
+            return title, 0
 
     @staticmethod
     def _process_response(response: dict) -> tuple[Any | None, int | None]:

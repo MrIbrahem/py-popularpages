@@ -21,3 +21,4 @@ config.ini
 src/logs/*.txt
 src/logs/*.wikitext
 wikimap.json
+*.ps1
