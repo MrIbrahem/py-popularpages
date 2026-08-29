@@ -7,12 +7,10 @@ process_project (with and without a cache), update_reports, update_index,
 validate_project_config, and the assessment resolver.
 """
 
-import dataclasses
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import src.py_port.popularpages.config as cfg
 import src.py_port.popularpages.report_updater.updater as ru_module
 from src.py_port.generate_report import ReportUpdater
 from src.py_port.popularpages.i18n import I18n
@@ -61,14 +59,6 @@ def updater(tmp_path, monkeypatch):
     monkeypatch.setattr(ru_module, "WikiRepository", lambda *a, **k: repo)
 
     u = ru_module.ReportUpdater("en.wikipedia", dry_run=True)
-
-    # Redirect the persisted views cache to a temp dir.
-    new_cfg = dataclasses.replace(
-        cfg.config,
-        data_paths=dataclasses.replace(cfg.config.data_paths, views_data_dir=tmp_path),
-    )
-    monkeypatch.setattr("src.py_port.popularpages.pageviews.pageviews_cache.config", new_cfg)
-    monkeypatch.setattr(ru_module, "config", new_cfg)
 
     return u, repo
 

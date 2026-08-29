@@ -35,10 +35,10 @@ class FakeRepo:
 @pytest.fixture
 def cache_config(tmp_path, monkeypatch):
     """Redirect the persisted cache directory to a temp path."""
-    new_cfg = dataclasses.replace(
-        cfg.config,
-        data_paths=dataclasses.replace(cfg.config.data_paths, views_data_dir=tmp_path),
-    )
+    monkeypatch.setenv("POPULAR_PAGES_MAIN_DIR", str(tmp_path))
+    new_cfg = cfg.config.load()
+
+    monkeypatch.setattr("src.py_port.popularpages.pageviews.pageviews_cache.config", new_cfg)
     monkeypatch.setattr(cache_module, "config", new_cfg)
     return new_cfg
 

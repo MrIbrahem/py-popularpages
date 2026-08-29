@@ -24,7 +24,6 @@ def log_to_file(message: str, wiki: str) -> None:
     :param wiki: Wiki key (e.g. 'en.wikipedia'), used to select the log file.
     Mirrors the behaviour of the PHP ``wfLogToFile()`` helper used on Toolforge.
     """
-    config.data_paths.log_dir.mkdir(parents=True, exist_ok=True)
     log_path = config.data_paths.log_dir / f"log-{wiki}.txt"
 
     # match php time: date( 'Y-m-d H:i:s' )

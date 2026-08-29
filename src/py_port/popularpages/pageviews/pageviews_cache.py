@@ -80,10 +80,13 @@ class PageviewsCache:
         """Append buffered title/view pairs to the JSONL file."""
         if not self._pending:
             return
+
         self.path.parent.mkdir(parents=True, exist_ok=True)
+
         with jsonlines.open(self.path, mode="a") as writer:
             for title, views in self._pending:
                 writer.write({"title": title, "views": views})
+
         logger.debug("Flushed %d title(s) to %s", len(self._pending), self.path)
         self._pending = []
 

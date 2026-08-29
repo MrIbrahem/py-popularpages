@@ -7,7 +7,7 @@ import pytest
 from pytest_socket import enable_socket
 
 import src.py_port.check_reports as cr_module
-from src.py_port.popularpages.config import config, load_wikis_config
+from src.py_port.popularpages.config import config
 
 
 @pytest.fixture
@@ -45,6 +45,6 @@ class TestMain:
 
     def test_main_processes_all_wikis_when_none_specified(self, patched, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["check"])
-        wikis = load_wikis_config(config.paths)
+        wikis = config.paths.load_wikis_config()
         cr_module.main()
         assert patched.update_reports.await_count == len(wikis)

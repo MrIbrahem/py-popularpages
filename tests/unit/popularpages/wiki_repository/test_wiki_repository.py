@@ -8,7 +8,6 @@ matching the original PHP suite's approach -- they require valid credentials
 
 """
 
-import dataclasses
 import json
 from datetime import datetime
 from unittest.mock import MagicMock
@@ -17,7 +16,6 @@ import mwclient.errors
 import pytest
 
 import src.py_port.popularpages.config as cfg
-from src.py_port.popularpages.config import has_credentials
 from src.py_port.popularpages.mapping import WikiProjectConfig
 from src.py_port.popularpages.wiki_repository.repository import WikiRepository
 
@@ -25,7 +23,7 @@ from src.py_port.popularpages.wiki_repository.repository import WikiRepository
 # live in .env (gitignored). Skip them when absent so the suite stays green in
 # CI.
 requires_creds = pytest.mark.skipif(
-    not has_credentials(cfg.config.credentials),
+    not cfg.config.credentials.has_credentials(),
     reason="requires credentials in .env with live credentials",
 )
 
@@ -76,13 +74,7 @@ class TestWriteDryRunText:
     """Tests for `_write_dry_run_text` dry-run persistence."""
 
     def test_writes_file_with_sanitized_title(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "src.py_port.popularpages.wiki_repository.repository.config",
-            dataclasses.replace(
-                cfg.config,
-                paths=dataclasses.replace(cfg.config.paths, log_dir=tmp_path),
-            ),
-        )
+
         repo = WikiRepository.__new__(WikiRepository)
         repo.wiki = "en.wikipedia"
 
@@ -99,13 +91,7 @@ class TestWriteDryRunText:
         assert files[0].read_text(encoding="utf-8") == expected
 
     def test_filename_includes_wiki(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "src.py_port.popularpages.wiki_repository.repository.config",
-            dataclasses.replace(
-                cfg.config,
-                paths=dataclasses.replace(cfg.config.paths, log_dir=tmp_path),
-            ),
-        )
+
         repo = WikiRepository.__new__(WikiRepository)
         repo.wiki = "ar.wikipedia"
         repo._write_dry_run_text("User:Foo/Bar", "x")
@@ -134,7 +120,7 @@ class TestWikiRepositoryPureMethods:
     def test_get_project_by_name(self):
         repo = WikiRepository.__new__(WikiRepository)
         repo.get_json_config = lambda *a, **k: self.JSON
-        assert repo.get_project("N").Name == "N"
+        assert repo.get_project("N").Name == "N"  # pyright: ignore[reportOptionalMemberAccess]
         assert repo.get_project("Nope") is None
 
     def test_get_wiki_config_returns_stored(self):

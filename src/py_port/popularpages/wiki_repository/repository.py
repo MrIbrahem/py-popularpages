@@ -22,7 +22,7 @@ import mwclient
 import mwclient.errors
 import wikitextparser as wtp
 
-from ..config import config, load_credentials, load_wikis_config
+from ..config import config
 from ..i18n import I18n
 from ..logger import log_to_file
 from ..mapping import WikiProjectConfig
@@ -48,9 +48,10 @@ class WikiRepository:
         """
         self.wiki = wiki
         self.dry_run = dry_run
-        self.creds = load_credentials()
+        self.creds = config.credentials
 
-        _config: dict = load_wikis_config(config.paths)
+        _config: dict = config.paths.load_wikis_config()
+
         self.wiki_config: dict = _config.get(wiki) or {}
 
         if not self.wiki_config:
@@ -63,7 +64,13 @@ class WikiRepository:
         self.pageviews_repo = PageviewsRepository(wiki)
 
         self._assessment_config: dict | None = None
-        self._http_client = httpx.Client(timeout=10.0, follow_redirects=True, headers={"User-Agent": config.user_agent})
+        self._http_client = httpx.Client(
+            timeout=10.0,
+            follow_redirects=True,
+            headers={
+                "User-Agent": config.other.user_agent,
+            },
+        )
 
         self.host = f"{wiki}.org"
         self.username = self.creds.botuser.split("@")[0]
@@ -74,7 +81,11 @@ class WikiRepository:
             dry_run,
         )
         logger.debug("Loaded wiki config: %s", self.wiki_config)
-        self.site: mwclient.Site = mwclient.Site(self.host, path="/w/", clients_useragent=config.user_agent)
+        self.site: mwclient.Site = mwclient.Site(
+            self.host,
+            path="/w/",
+            clients_useragent=config.other.user_agent,
+        )
         self.login()
 
         self.db = WikiDatabaseRepository(
@@ -414,7 +425,6 @@ class WikiRepository:
         The page title is sanitized so it is safe as a filename (colons and
         slashes in wiki titles are common).
         """
-        config.data_paths.log_dir.mkdir(parents=True, exist_ok=True)
         safe_title = re.sub(r"[^\w.\-]+", "_", page_title)
 
         out_path = config.data_paths.log_dir / f"dryrun-{self.wiki}-{safe_title}.wikitext"

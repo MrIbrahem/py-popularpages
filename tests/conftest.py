@@ -4,10 +4,10 @@ Shared pytest fixtures.
 
 from __future__ import annotations
 
-from pathlib import Path
-import sys
 import os
+import sys
 import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
