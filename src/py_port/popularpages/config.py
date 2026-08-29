@@ -69,7 +69,7 @@ class ProjectPathsConfig:
         Returns:
             ProjectPathsConfig: Configuration containing paths derived from the base directory.
         """
-        base_dir = Path(__file__).parent.parent
+        base_dir = Path(__file__).parent.parent.parent
         return cls(
             base_dir=base_dir,
             views_dir=base_dir / "views",
