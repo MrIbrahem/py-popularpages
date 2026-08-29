@@ -83,7 +83,7 @@ class WikiRepository:
         self._http_client = httpx.Client(
             timeout=10.0,
             follow_redirects=True,
-                headers={"User-Agent": config.other.user_agent},
+            headers={"User-Agent": config.other.user_agent},
         )
 
         logger.info(

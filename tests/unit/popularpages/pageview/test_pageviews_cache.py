@@ -93,7 +93,7 @@ class TestCacheEnsureAndFetch:
         cache = PageviewsCache(
             "en.wikipedia",
             "2024-02",
-            repo, # pyright: ignore[reportArgumentType]
+            repo,  # pyright: ignore[reportArgumentType]
             path_dir=tmp_path,
         )  # pyright: ignore[reportArgumentType]
         await cache.ensure(set(mapping), "2024020100", "2024022900")
