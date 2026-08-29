@@ -135,7 +135,9 @@ class PageviewsCache:
             len(self._cache),
         )
 
-        for i in tqdm(range(0, len(missing), config.pageviews.fetch_batch)):
+        batches = range(0, len(missing), config.pageviews.fetch_batch)
+
+        for i in tqdm(batches, desc=f"Fetching pageviews for {len(missing):,} titles"):
             chunk = missing[i : i + config.pageviews.fetch_batch]
             # logger.info(
             #     "Fetching pageviews for %d title(s)/%d (start=%s, end=%s)", len(chunk), len(missing), start, end
