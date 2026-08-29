@@ -53,26 +53,22 @@ class WikiRepository:
         :param dry_run: If True, `set_text()` prints instead of saving to the wiki.
         """
         self.wiki = wiki
-        self.i18n = I18n(wiki.split(".")[0])
-
         self.dry_run = dry_run
-        self.creds = config.credentials
-
         self.log_dir: Path = log_dir or config.data_paths.log_dir
-
-        self.pageviews_repo = PageviewsRepository(wiki)
+        self.i18n = I18n(wiki.split(".")[0])
+        self.creds = config.credentials
+        self.username = self.creds.botuser.split("@")[0]
+        self.host = f"{wiki}.org"
 
         _config: dict = config.paths.load_wikis_config()
-
         self.wiki_config: dict = _config.get(wiki) or {}
-
         if not self.wiki_config:
             raise ValueError(f"Wiki {wiki} not found in config")
 
         self.wiki_config_page: str = self.wiki_config["config"]
 
-        self.host = f"{wiki}.org"
-        self.username = self.creds.botuser.split("@")[0]
+        self.pageviews_repo = PageviewsRepository(wiki)
+
         logger.info(
             "WikiRepository initialized for wiki '%s' (user='%s', dry_run=%s)",
             wiki,
@@ -97,9 +93,7 @@ class WikiRepository:
         self._http_client = httpx.Client(
             timeout=10.0,
             follow_redirects=True,
-            headers={
-                "User-Agent": config.other.user_agent,
-            },
+                headers={"User-Agent": config.other.user_agent},
         )
 
     def get_config(self, title: str | None = None) -> list[WikiProjectConfig]:
