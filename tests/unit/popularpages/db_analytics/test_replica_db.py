@@ -67,7 +67,10 @@ def test_ensure_connection_raises_without_credentials(monkeypatch):
     monkeypatch.delenv("TOOL_REPLICA_USER", raising=False)
     monkeypatch.delenv("TOOL_REPLICA_PASSWORD", raising=False)
     db = WikiReplicaBaseDB(
-        dbname="enwiki", host="localhost", user=None, password=None
-    )  # pyright: ignore[reportArgumentType]
+        dbname="enwiki",
+        host="localhost",
+        user=None,  # pyright: ignore[reportArgumentType]
+        password=None,  # pyright: ignore[reportArgumentType]
+    )
     with pytest.raises(pymysql.err.OperationalError):
         db._ensure_connection()
