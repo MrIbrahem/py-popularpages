@@ -145,6 +145,7 @@ def test_retry_wait_falls_back_to_backoff():
     val = _retry_wait(state)
     assert 1.0 <= val <= 30.0
 
+
 class TestFetchTitleViews:
     @pytest.mark.asyncio
     async def test_fetch_title_views_404_returns_zero(self):
@@ -153,7 +154,6 @@ class TestFetchTitleViews:
             side_effect=httpx.HTTPStatusError("x", request=MagicMock(), response=MagicMock(status_code=404))
         )
         assert await repo._fetch_title_views("Foo", "2024010100", "2024013100") == ("Foo", 0)
-
 
     @pytest.mark.asyncio
     async def test_fetch_title_views_http_error_returns_zero(self):
