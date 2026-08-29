@@ -16,6 +16,7 @@ import json
 import logging
 import re
 import time
+from pathlib import Path
 
 import httpx
 import mwclient
@@ -41,14 +42,25 @@ class WikiRepository:
     delegated to WikiDatabaseRepository (self.db).
     """
 
-    def __init__(self, wiki: str = "en.wikipedia", dry_run: bool = False):
+    def __init__(
+        self,
+        wiki: str = "en.wikipedia",
+        dry_run: bool = False,
+        log_dir: Path | None = None,
+    ) -> None:
         """
         :param wiki: Wiki in the form lang.project, e.g. 'en.wikipedia'.
         :param dry_run: If True, `set_text()` prints instead of saving to the wiki.
         """
         self.wiki = wiki
+        self.i18n = I18n(wiki.split(".")[0])
+
         self.dry_run = dry_run
         self.creds = config.credentials
+
+        self.log_dir: Path = log_dir or config.data_paths.log_dir
+
+        self.pageviews_repo = PageviewsRepository(wiki)
 
         _config: dict = config.paths.load_wikis_config()
 
@@ -58,19 +70,6 @@ class WikiRepository:
             raise ValueError(f"Wiki {wiki} not found in config")
 
         self.wiki_config_page: str = self.wiki_config["config"]
-
-        lang = wiki.split(".")[0]
-        self.i18n = I18n(lang)
-        self.pageviews_repo = PageviewsRepository(wiki)
-
-        self._assessment_config: dict | None = None
-        self._http_client = httpx.Client(
-            timeout=10.0,
-            follow_redirects=True,
-            headers={
-                "User-Agent": config.other.user_agent,
-            },
-        )
 
         self.host = f"{wiki}.org"
         self.username = self.creds.botuser.split("@")[0]
@@ -92,6 +91,15 @@ class WikiRepository:
             wiki=self.wiki,
             wiki_config=self.wiki_config,
             username=self.username,
+        )
+
+        self._assessment_config: dict | None = None
+        self._http_client = httpx.Client(
+            timeout=10.0,
+            follow_redirects=True,
+            headers={
+                "User-Agent": config.other.user_agent,
+            },
         )
 
     def get_config(self, title: str | None = None) -> list[WikiProjectConfig]:
@@ -427,7 +435,7 @@ class WikiRepository:
         """
         safe_title = re.sub(r"[^\w.\-]+", "_", page_title)
 
-        out_path = config.data_paths.log_dir / f"dryrun-{self.wiki}-{safe_title}.wikitext"
+        out_path = self.log_dir / f"dryrun-{self.wiki}-{safe_title}.wikitext"
 
         text_with_header = f"Title: [[{page_title}]]\n\n{text}"
         out_path.write_text(text_with_header, encoding="utf-8")

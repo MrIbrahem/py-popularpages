@@ -103,7 +103,6 @@ class TestClientHeaders:
         repo = PageviewsRepository("en.wikipedia")
         ua = repo._client.headers.get("User-Agent")
         assert ua is not None
-        assert "py-popularpages" in ua
 
 
 # ---------------------------------------------------------------

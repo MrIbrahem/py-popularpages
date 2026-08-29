@@ -22,6 +22,7 @@ from pathlib import Path
 import jsonlines
 
 from ..config import config
+from .pageviews_repository import PageviewsRepository
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,13 @@ class PageviewsCache:
     reused) and appended to as new titles are fetched.
     """
 
-    def __init__(self, wiki: str, year_month: str, pageviews_repo):
+    def __init__(
+        self,
+        wiki: str,
+        year_month: str,
+        pageviews_repo: PageviewsRepository,
+        path_dir: Path | None = None,
+    ) -> None:
         """
         :param wiki: Wiki domain, e.g. 'en.wikipedia'.
         :param year_month: Month key, e.g. '2024-01'.
@@ -45,7 +52,9 @@ class PageviewsCache:
         self.wiki = wiki
         self.year_month = year_month
         self.repo = pageviews_repo
-        self.path: Path = config.data_paths.views_data_dir / wiki / f"{year_month}.jsonl"
+
+        _path_dir: Path = path_dir or config.data_paths.views_data_dir
+        self.path: Path = _path_dir / wiki / f"{year_month}.jsonl"
 
         self._cache: dict[str, int] = {}
         self._pending: list[tuple[str, int]] = []

@@ -84,13 +84,15 @@ class TestCacheEnsureAndFetch:
     async def test_flush_threshold_writes_incrementally(self, tmp_path, monkeypatch):
         small_flush = dataclasses.replace(
             cfg.config,
-            paths=dataclasses.replace(cfg.config.paths, views_data_dir=tmp_path),
             pageviews=dataclasses.replace(cfg.config.pageviews, flush_titles=3),
         )
         monkeypatch.setattr(cache_module, "config", small_flush)
+
         mapping = {f"T{i}": i for i in range(10)}
         repo = FakeRepo(mapping)
-        cache = PageviewsCache("en.wikipedia", "2024-02", repo)
+        cache = PageviewsCache(
+            "en.wikipedia", "2024-02", repo, path_dir=tmp_path
+        )  # pyright: ignore[reportArgumentType]
         await cache.ensure(set(mapping), "2024020100", "2024022900")
 
         path = tmp_path / "en.wikipedia" / "2024-02.jsonl"

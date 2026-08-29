@@ -74,9 +74,9 @@ class TestWriteDryRunText:
     """Tests for `_write_dry_run_text` dry-run persistence."""
 
     def test_writes_file_with_sanitized_title(self, tmp_path, monkeypatch):
-
         repo = WikiRepository.__new__(WikiRepository)
         repo.wiki = "en.wikipedia"
+        repo.log_dir = tmp_path
 
         title = "Wikipedia:WikiProject Medicine/Popular pages"
         text = "== List ==\n| A | B\n"
@@ -84,6 +84,7 @@ class TestWriteDryRunText:
 
         files = list(tmp_path.glob("*.wikitext"))
         assert len(files) == 1
+
         # Colons and slashes in the title must be sanitized out of the filename.
         assert ":" not in files[0].name and "/" not in files[0].name
         # The dry-run writer prepends a 'Title:' header referencing the page.
