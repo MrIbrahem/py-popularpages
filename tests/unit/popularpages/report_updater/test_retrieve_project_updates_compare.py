@@ -73,6 +73,7 @@ def _db_rows(timestamps: dict[str, str]) -> list[dict]:
 def _make_updater(json_config: dict[str, dict], db_rows: list[dict]) -> ReportUpdater:
     """Build a ``ReportUpdater`` without running its (network/DB) ``__init__``."""
     updater = object.__new__(ReportUpdater)
+    updater.wiki = "en.wikipedia"
     updater.wiki_repository = MagicMock(name="wiki_repository")
     updater.wiki_repository.get_json_config.return_value = json_config
     updater.wiki_repository.get_projects_with_last_bot_timestamp.return_value = db_rows
