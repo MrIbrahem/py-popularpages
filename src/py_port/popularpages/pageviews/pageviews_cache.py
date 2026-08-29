@@ -17,6 +17,7 @@ See docs/pageviews-persistence-and-dedup-plan.md.
 from __future__ import annotations
 
 import logging
+from tqdm import tqdm
 from pathlib import Path
 
 import jsonlines
@@ -134,12 +135,11 @@ class PageviewsCache:
             len(self._cache),
         )
 
-        for i in range(0, len(missing), config.pageviews.fetch_batch):
+        for i in tqdm(range(0, len(missing), config.pageviews.fetch_batch)):
             chunk = missing[i : i + config.pageviews.fetch_batch]
-
-            logger.info(
-                "Fetching pageviews for %d title(s)/%d (start=%s, end=%s)", len(chunk), len(missing), start, end
-            )
+            # logger.info(
+            #     "Fetching pageviews for %d title(s)/%d (start=%s, end=%s)", len(chunk), len(missing), start, end
+            # )
             views = await self.repo.get_title_views(chunk, start, end)
 
             for title in chunk:
