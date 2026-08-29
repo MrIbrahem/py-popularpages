@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pytest_socket import enable_socket
 
-import src.generate_report as gr_module
+import src.py_port.generate_report as gr_module
 
 
 @pytest.fixture
