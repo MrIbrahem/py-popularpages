@@ -114,6 +114,7 @@ class WikiDatabaseRepository:
         rows = self._get_projects_timestamps(titles)
         logger.debug("Retrieved timestamps for %d project(s)", len(rows))
 
+        # PyMySQL returns BINARY/VARBINARY columns (page_title, rev_timestamp) but db.select already resolve_bytes
         return rows
 
     def get_project_pages(self, project: str) -> list[dict[str, Any]]:
