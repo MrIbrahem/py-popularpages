@@ -12,7 +12,7 @@ import argparse
 import logging
 import re
 
-from src.py_port.popularpages.report_updater import ReportUpdater
+from popularpages.report_updater import ReportUpdater
 
 logger = logging.getLogger(__name__)
 

@@ -15,9 +15,9 @@ import argparse
 import asyncio
 import logging
 
-from src.py_port.popularpages.config import config
-from src.py_port.popularpages.logger import log_to_file
-from src.py_port.popularpages.report_updater import ReportUpdater
+from popularpages.config import config
+from popularpages.logger import log_to_file
+from popularpages.report_updater import ReportUpdater
 
 logger = logging.getLogger(__name__)
 

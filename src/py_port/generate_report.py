@@ -15,7 +15,7 @@ import logging
 import re
 import sys
 
-from src.py_port.popularpages.report_updater import ReportUpdater
+from popularpages.report_updater import ReportUpdater
 
 logger = logging.getLogger(__name__)
 
