@@ -1,4 +1,4 @@
-"""Tests for src/py_port/check_reports.py (all-wikis run entry point)."""
+"""Tests for src/check_reports.py (all-wikis run entry point)."""
 
 import sys
 from unittest.mock import AsyncMock, MagicMock
@@ -7,7 +7,7 @@ import pytest
 from pytest_socket import enable_socket
 
 import src.py_port.check_reports as cr_module
-from src.py_port.popularpages.config import config
+from src.py_port.popularpages.config import config, load_wikis_config
 
 
 @pytest.fixture
@@ -29,8 +29,6 @@ def patched(monkeypatch):
 
 
 class TestMain:
-    """Tests for the check_reports.py main() entry point."""
-
     def test_main_runs_for_explicit_wiki(self, patched, monkeypatch):
         # load_wikis_config reads the real config/wikis.yaml; en.wikipedia exists.
         """Verify that report checks run once for an explicitly selected wiki."""
@@ -45,6 +43,6 @@ class TestMain:
 
     def test_main_processes_all_wikis_when_none_specified(self, patched, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["check"])
-        wikis = config.paths.load_wikis_config()
+        wikis = load_wikis_config(config.paths)
         cr_module.main()
         assert patched.update_reports.await_count == len(wikis)

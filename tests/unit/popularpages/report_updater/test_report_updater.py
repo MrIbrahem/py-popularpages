@@ -7,10 +7,12 @@ process_project (with and without a cache), update_reports, update_index,
 validate_project_config, and the assessment resolver.
 """
 
+import dataclasses
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+import src.py_port.popularpages.config as cfg
 import src.py_port.popularpages.report_updater.updater as ru_module
 from src.py_port.generate_report import ReportUpdater
 from src.py_port.popularpages.i18n import I18n
@@ -60,6 +62,14 @@ def updater(tmp_path, monkeypatch):
 
     u = ru_module.ReportUpdater("en.wikipedia", dry_run=True)
 
+    # Redirect the persisted views cache to a temp dir.
+    new_cfg = dataclasses.replace(
+        cfg.config,
+        paths=dataclasses.replace(cfg.config.paths, views_data_dir=tmp_path),
+    )
+    monkeypatch.setattr("src.py_port.popularpages.pageviews.pageviews_cache.config", new_cfg)
+    monkeypatch.setattr(ru_module, "config", new_cfg)
+
     return u, repo
 
 
@@ -74,230 +84,224 @@ def _project(report="Wikipedia:WikiProject Foo/Popular pages", name="Foo", limit
 # ---------------------------------------------------------------
 # _resolve_assessment
 # ---------------------------------------------------------------
-class TestResolveAssessment:
-    """Tests for the `_resolve_assessment` method of the `ReportUpdater` class."""
+def test_resolve_assessment_found():
+    assessment = {"class": {"FA": {"color": "#fa", "category": "C-FA"}}, "importance": {}}
+    resolved = ru_module.ReportUpdater._resolve_assessment(assessment, "class", "FA")
+    assert resolved["category"] == "C-FA"
 
-    def test_resolve_assessment_found(self):
-        assessment = {"class": {"FA": {"color": "#fa", "category": "C-FA"}}, "importance": {}}
-        resolved = ru_module.ReportUpdater._resolve_assessment(assessment, "class", "FA")
-        assert resolved["category"] == "C-FA"
 
-    def test_resolve_assessment_falls_back_to_unknown(self):
-        assessment = {
-            "class": {"FA": {"color": "#fa", "category": "C-FA"}, "Unknown": {"color": "#u", "category": "C-Unknown"}},
-            "importance": {},
-        }
-        resolved = ru_module.ReportUpdater._resolve_assessment(assessment, "class", "Nope")
-        assert resolved["category"] == "C-Unknown"
+def test_resolve_assessment_falls_back_to_unknown():
+    assessment = {
+        "class": {"FA": {"color": "#fa", "category": "C-FA"}, "Unknown": {"color": "#u", "category": "C-Unknown"}},
+        "importance": {},
+    }
+    resolved = ru_module.ReportUpdater._resolve_assessment(assessment, "class", "Nope")
+    assert resolved["category"] == "C-Unknown"
 
 
 # ---------------------------------------------------------------
 # validate_project_config
 # ---------------------------------------------------------------
-class TestValidateProjectConfig:
-    """Tests for the `validate_project_config` method of the `ReportUpdater` class."""
+def test_validate_project_config_valid(updater):
+    u, repo = updater
+    repo.does_title_exist.return_value = True
+    assert u.validate_project_config("Wikipedia:WikiProject Foo", _project()) is True
 
-    def test_validate_project_config_valid(self, updater):
-        u, repo = updater
-        repo.does_title_exist.return_value = True
-        assert u.validate_project_config("Wikipedia:WikiProject Foo", _project()) is True
 
-    def test_validate_project_config_incomplete(self, updater):
-        u, repo = updater
-        incomplete = WikiProjectConfig(
-            project_main_page="Wikipedia:WikiProject Foo",
-            Report="Wikipedia:WikiProject Foo/Popular pages",
-            report_without_ns="Wikipedia:WikiProject_Foo/Popular_pages",
-            Limit="10",  # pyright: ignore[reportArgumentType]
-            Name="",
-        )
-        assert u.validate_project_config("Wikipedia:WikiProject Foo", incomplete) is False
+def test_validate_project_config_incomplete(updater):
+    u, repo = updater
+    incomplete = WikiProjectConfig(
+        project_main_page="Wikipedia:WikiProject Foo",
+        Report="Wikipedia:WikiProject Foo/Popular pages",
+        report_without_ns="Wikipedia:WikiProject_Foo/Popular_pages",
+        Limit="10",  # pyright: ignore[reportArgumentType]
+        Name="",
+    )
+    assert u.validate_project_config("Wikipedia:WikiProject Foo", incomplete) is False
 
-    def test_validate_project_config_rejects_mainspace_report(self, updater):
-        u, repo = updater
-        repo.does_title_exist.return_value = True
-        mainspace = _project(report="Mainspace report")
-        assert u.validate_project_config("Wikipedia:WikiProject Foo", mainspace) is False
 
-    def test_validate_project_config_rejects_missing_project_page(self, updater):
-        u, repo = updater
-        repo.does_title_exist.return_value = False
-        assert u.validate_project_config("Wikipedia:WikiProject Foo", _project()) is False
+def test_validate_project_config_rejects_mainspace_report(updater):
+    u, repo = updater
+    repo.does_title_exist.return_value = True
+    mainspace = _project(report="Mainspace report")
+    assert u.validate_project_config("Wikipedia:WikiProject Foo", mainspace) is False
+
+
+def test_validate_project_config_rejects_missing_project_page(updater):
+    u, repo = updater
+    repo.does_title_exist.return_value = False
+    assert u.validate_project_config("Wikipedia:WikiProject Foo", _project()) is False
 
 
 # ---------------------------------------------------------------
 # process_project
 # ---------------------------------------------------------------
-class TestProcessProject:
-    """Tests for the `process_project` method of the `ReportUpdater` class."""
+@pytest.mark.asyncio
+async def test_process_project_renders_report_from_cache(updater):
+    u, repo = updater
+    cache = MagicMock()
+    cache.get.return_value = 42
+    page_rows = [
+        {
+            "page_title": "Foo_bar",
+            "redir_title": "",
+            "pa_class": "Unknown",
+            "pa_importance": "Unknown",
+        }
+    ]
+    await u.process_project(
+        "Wikipedia:WikiProject Foo",
+        _project(),
+        cache=cache,
+        page_rows=page_rows,
+    )
+    repo.set_text.assert_called_once()
+    written_page, written_text = repo.set_text.call_args.args[0], repo.set_text.call_args.args[1]
+    assert written_page == "Wikipedia:WikiProject Foo/Popular pages"
+    assert "Foo bar" in written_text
+    assert "42" in written_text
 
-    @pytest.mark.asyncio
-    async def test_process_project_renders_report_from_cache(self, updater):
-        u, repo = updater
-        cache = MagicMock()
-        cache.get.return_value = 42
-        page_rows = [
-            {
-                "page_title": "Foo_bar",
-                "redir_title": "",
-                "pa_class": "Unknown",
-                "pa_importance": "Unknown",
-            }
-        ]
-        await u.process_project(
-            "Wikipedia:WikiProject Foo",
-            _project(),
-            cache=cache,
-            page_rows=page_rows,
-        )
-        repo.set_text.assert_called_once()
-        written_page, written_text = repo.set_text.call_args.args[0], repo.set_text.call_args.args[1]
-        assert written_page == "Wikipedia:WikiProject Foo/Popular pages"
-        assert "Foo bar" in written_text
-        assert "42" in written_text
 
-    @pytest.mark.asyncio
-    async def test_process_project_empty_rows_returns_early(self, updater):
-        u, repo = updater
-        cache = MagicMock()
-        await u.process_project(
-            "Wikipedia:WikiProject Foo",
-            _project(),
-            cache=cache,
-            page_rows=[],
-        )
-        repo.set_text.assert_not_called()
-        cache.get.assert_not_called()
+@pytest.mark.asyncio
+async def test_process_project_empty_rows_returns_early(updater):
+    u, repo = updater
+    cache = MagicMock()
+    await u.process_project(
+        "Wikipedia:WikiProject Foo",
+        _project(),
+        cache=cache,
+        page_rows=[],
+    )
+    repo.set_text.assert_not_called()
+    cache.get.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_process_project_without_cache_fetches_pageviews(self, updater):
-        u, repo = updater
-        repo.get_monthly_pageviews_and_assessments = AsyncMock(
-            return_value=(
-                {"Foo bar": {"pageviews": 7, "class": "Unknown", "importance": "Unknown"}},
-                7,
-            )
-        )
-        page_rows = [
-            {
-                "page_title": "Foo_bar",
-                "redir_title": "",
-                "pa_class": "Unknown",
-                "pa_importance": "Unknown",
-            }
-        ]
-        await u.process_project(
-            "Wikipedia:WikiProject Foo",
-            _project(),
-            page_rows=page_rows,
-        )
-        repo.get_monthly_pageviews_and_assessments.assert_awaited_once()
-        repo.set_text.assert_called_once()
-        assert "Foo bar" in repo.set_text.call_args.args[1]
 
-    @pytest.mark.asyncio
-    async def test_process_project_accepts_dict_config(self, updater):
-        u, repo = updater
-        cache = MagicMock()
-        cache.get.return_value = 0
-        page_rows = [
-            {
-                "page_title": "Foo_bar",
-                "redir_title": "",
-                "pa_class": "",
-                "pa_importance": "",
-            }
-        ]
-        await u.process_project(
-            "Wikipedia:WikiProject Foo",
-            {"Report": "Wikipedia:WikiProject Foo/Popular pages", "Limit": "10", "Name": "Foo"},
-            cache=cache,
-            page_rows=page_rows,
+@pytest.mark.asyncio
+async def test_process_project_without_cache_fetches_pageviews(updater):
+    u, repo = updater
+    repo.get_monthly_pageviews_and_assessments = AsyncMock(
+        return_value=(
+            {"Foo bar": {"pageviews": 7, "class": "Unknown", "importance": "Unknown"}},
+            7,
         )
-        repo.set_text.assert_called_once()
+    )
+    page_rows = [
+        {
+            "page_title": "Foo_bar",
+            "redir_title": "",
+            "pa_class": "Unknown",
+            "pa_importance": "Unknown",
+        }
+    ]
+    await u.process_project(
+        "Wikipedia:WikiProject Foo",
+        _project(),
+        page_rows=page_rows,
+    )
+    repo.get_monthly_pageviews_and_assessments.assert_awaited_once()
+    repo.set_text.assert_called_once()
+    assert "Foo bar" in repo.set_text.call_args.args[1]
+
+
+@pytest.mark.asyncio
+async def test_process_project_accepts_dict_config(updater):
+    u, repo = updater
+    cache = MagicMock()
+    cache.get.return_value = 0
+    page_rows = [
+        {
+            "page_title": "Foo_bar",
+            "redir_title": "",
+            "pa_class": "",
+            "pa_importance": "",
+        }
+    ]
+    await u.process_project(
+        "Wikipedia:WikiProject Foo",
+        {"Report": "Wikipedia:WikiProject Foo/Popular pages", "Limit": "10", "Name": "Foo"},
+        cache=cache,
+        page_rows=page_rows,
+    )
+    repo.set_text.assert_called_once()
 
 
 # ---------------------------------------------------------------
 # update_reports (full pipeline)
 # ---------------------------------------------------------------
-class TestUpdateReports:
-    """Tests for the `update_reports` method of the `ReportUpdater` class."""
-
-    @pytest.mark.asyncio
-    async def test_update_reports_runs_pipeline(self, updater: tuple[ReportUpdater, MagicMock]):
-        u, repo = updater
-        page_rows = [
-            {
-                "page_title": "Foo_bar",
-                "redir_title": "",
-                "pa_class": "Unknown",
-                "pa_importance": "Unknown",
-            }
-        ]
-        repo.get_project_pages.return_value = page_rows
-        repo.get_monthly_pageviews_and_assessments.return_value = ({}, 0)
-        repo.get_json_config.return_value = {
-            "Wikipedia:WikiProject Foo": {
-                "Report": "Wikipedia:WikiProject Foo/Popular pages",
-                "Limit": "10",
-                "Name": "Foo",
-            }
+@pytest.mark.asyncio
+async def test_update_reports_runs_pipeline(updater: tuple[ReportUpdater, MagicMock]):
+    u, repo = updater
+    page_rows = [
+        {
+            "page_title": "Foo_bar",
+            "redir_title": "",
+            "pa_class": "Unknown",
+            "pa_importance": "Unknown",
         }
-        repo.get_projects_with_last_bot_timestamp.return_value = []
-        repo.set_text.return_value = None
-
-        await u.update_reports([_project()])
-
-        # One set_text for the report, one for the index page.
-        assert repo.set_text.call_count == 2
-        repo.pageviews_repo.aclose.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_update_reports_skips_invalid_project(self, updater):
-        u, repo = updater
-        repo.does_title_exist.return_value = False
-        repo.get_json_config.return_value = {
-            "Wikipedia:WikiProject Foo": {
-                "Report": "Wikipedia:WikiProject Foo/Popular pages",
-                "Limit": "10",
-                "Name": "Foo",
-            }
+    ]
+    repo.get_project_pages.return_value = page_rows
+    repo.get_monthly_pageviews_and_assessments.return_value = ({}, 0)
+    repo.get_json_config.return_value = {
+        "Wikipedia:WikiProject Foo": {
+            "Report": "Wikipedia:WikiProject Foo/Popular pages",
+            "Limit": "10",
+            "Name": "Foo",
         }
-        repo.get_projects_with_last_bot_timestamp.return_value = []
-        await u.update_reports([_project()])
-        # Invalid project -> no report written, but index still attempted.
-        repo.set_text.assert_called_once()  # index page only
+    }
+    repo.get_projects_with_last_bot_timestamp.return_value = []
+    repo.set_text.return_value = None
+
+    await u.update_reports([_project()])
+
+    # One set_text for the report, one for the index page.
+    assert repo.set_text.call_count == 2
+    repo.pageviews_repo.aclose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_reports_skips_invalid_project(updater):
+    u, repo = updater
+    repo.does_title_exist.return_value = False
+    repo.get_json_config.return_value = {
+        "Wikipedia:WikiProject Foo": {
+            "Report": "Wikipedia:WikiProject Foo/Popular pages",
+            "Limit": "10",
+            "Name": "Foo",
+        }
+    }
+    repo.get_projects_with_last_bot_timestamp.return_value = []
+    await u.update_reports([_project()])
+    # Invalid project -> no report written, but index still attempted.
+    repo.set_text.assert_called_once()  # index page only
 
 
 # ---------------------------------------------------------------
 # update_index
 # ---------------------------------------------------------------
-class TestUpdateIndex:
-    """Tests for the `update_index` method of the `ReportUpdater` class."""
-
-    def test_update_index_renders(self, updater):
-        u, repo = updater
-        repo.get_json_config.return_value = {
-            "Wikipedia:WikiProject Foo": {
-                "Report": "Wikipedia:WikiProject Foo/Popular pages",
-                "Limit": "10",
-                "Name": "Foo",
-            }
+def test_update_index_renders(updater):
+    u, repo = updater
+    repo.get_json_config.return_value = {
+        "Wikipedia:WikiProject Foo": {
+            "Report": "Wikipedia:WikiProject Foo/Popular pages",
+            "Limit": "10",
+            "Name": "Foo",
         }
-        repo.get_projects_with_last_bot_timestamp.return_value = []
-        repo.get_wiki_config.return_value = {
-            "config": "Wikipedia:WikiProject/Popular pages",
-            "index": "Wikipedia:WikiProject/Popular pages/Index",
-        }
-        u.update_index()
-        repo.set_text.assert_called_once()
-        assert repo.set_text.call_args.kwargs["page_title"] == ("Wikipedia:WikiProject/Popular pages/Index")
+    }
+    repo.get_projects_with_last_bot_timestamp.return_value = []
+    repo.get_wiki_config.return_value = {
+        "config": "Wikipedia:WikiProject/Popular pages",
+        "index": "Wikipedia:WikiProject/Popular pages/Index",
+    }
+    u.update_index()
+    repo.set_text.assert_called_once()
+    assert repo.set_text.call_args.kwargs["page_title"] == ("Wikipedia:WikiProject/Popular pages/Index")
 
-    def test_update_index_no_projects(self, updater):
-        u, repo = updater
-        repo.get_json_config.return_value = {}
-        repo.get_projects_with_last_bot_timestamp.return_value = []
-        repo.get_wiki_config.return_value = {"config": "X", "index": "Y"}
-        u.update_index()
-        # No projects -> update_index returns early and writes nothing.
-        repo.set_text.assert_not_called()
+
+def test_update_index_no_projects(updater):
+    u, repo = updater
+    repo.get_json_config.return_value = {}
+    repo.get_projects_with_last_bot_timestamp.return_value = []
+    repo.get_wiki_config.return_value = {"config": "X", "index": "Y"}
+    u.update_index()
+    # No projects -> update_index returns early and writes nothing.
+    repo.set_text.assert_not_called()
