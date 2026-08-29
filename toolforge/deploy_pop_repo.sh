@@ -5,7 +5,7 @@ set -euo pipefail
 # Full path to the uploaded repository passed from GitHub Actions
 FULL_PATH=$1
 
-TOOL_NAME="himo"
+TOOL_NAME="mdw"
 
 if [ -z "$FULL_PATH" ]; then
     echo "Error: Missing full repository path argument." >&2
