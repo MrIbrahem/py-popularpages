@@ -327,7 +327,7 @@ class WikiRepository:
         return total_pageviews
 
     @staticmethod
-    def _sort_and_truncate_pages_list(out: dict, limit: int) -> dict:
+    def _sort_and_truncate_pages_list(out: dict[str, dict], limit: int) -> dict[str, dict]:
         """
         Sort by pageviews descending and truncate to the configured limit."""
 
