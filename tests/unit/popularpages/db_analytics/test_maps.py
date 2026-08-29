@@ -1,5 +1,5 @@
 """
-Tests for src.popularpages.db_analytics.maps.WikiReplicaMaps.
+Tests for src.py_port.popularpages.db_analytics.maps.WikiReplicaMaps.
 
 The meta_p query path requires a live replica, so these tests exercise the
 file-backed cache: loading a local wikimap, resolving identifiers, and saving.
@@ -11,7 +11,7 @@ import time
 
 import pytest
 
-from src.popularpages.db_analytics.maps import WikiReplicaMaps
+from src.py_port.popularpages.db_analytics.maps import WikiReplicaMaps
 
 SAMPLE_ROW = {"lang": "en", "dbname": "enwiki", "url": "en.wikipedia.org", "slice": "s1"}
 

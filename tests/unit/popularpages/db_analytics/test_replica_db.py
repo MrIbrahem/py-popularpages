@@ -1,5 +1,5 @@
 """
-Tests for src.popularpages.db_analytics.replica_db.
+Tests for src.py_port.popularpages.db_analytics.replica_db.
 
 The DB connection paths require a live replica, so we only exercise the
 pure helpers (decode_value / resolve_bytes / get_sql) and the
@@ -11,7 +11,7 @@ import sys
 import pymysql
 import pytest
 
-from src.popularpages.db_analytics.replica_db import (
+from src.py_port.popularpages.db_analytics.replica_db import (
     WikiReplicaBaseDB,
     decode_value,
     get_sql,

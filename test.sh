@@ -10,4 +10,4 @@ source venv.sh
 
 pip install -r requirements.txt
 
-python3 src/generate_report.py --wiki en.wikipedia --project Dinosaurs --dry-run
+python3 src/py_port/generate_report.py --wiki en.wikipedia --project Dinosaurs --dry-run

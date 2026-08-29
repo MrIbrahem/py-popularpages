@@ -1,4 +1,4 @@
-"""Tests for src/check_reports.py (all-wikis run entry point)."""
+"""Tests for src/py_port/check_reports.py (all-wikis run entry point)."""
 
 import sys
 from unittest.mock import AsyncMock, MagicMock
@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pytest_socket import enable_socket
 
-import src.check_reports as cr_module
-from src.popularpages.config import config, load_wikis_config
+import src.py_port.check_reports as cr_module
+from src.py_port.popularpages.config import config, load_wikis_config
 
 
 @pytest.fixture

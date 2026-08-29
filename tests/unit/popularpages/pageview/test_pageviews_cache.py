@@ -1,5 +1,5 @@
 """
-Tests for src.popularpages.pageviews.pageviews_cache.PageviewsCache.
+Tests for src.py_port.popularpages.pageviews.pageviews_cache.PageviewsCache.
 
 The PageviewsRepository is replaced with a lightweight async fake so no network
 calls are made; we only assert on de-duplication, persistence, and flush
@@ -13,9 +13,9 @@ from unittest.mock import MagicMock
 import jsonlines
 import pytest
 
-import src.popularpages.config as cfg
-import src.popularpages.pageviews.pageviews_cache as cache_module
-from src.popularpages.pageviews.pageviews_cache import PageviewsCache
+import src.py_port.popularpages.config as cfg
+import src.py_port.popularpages.pageviews.pageviews_cache as cache_module
+from src.py_port.popularpages.pageviews.pageviews_cache import PageviewsCache
 
 pytestmark = pytest.mark.asyncio
 
@@ -37,7 +37,7 @@ def cache_config(tmp_path, monkeypatch):
     """Redirect the persisted cache directory to a temp path."""
     new_cfg = dataclasses.replace(
         cfg.config,
-        paths=dataclasses.replace(cfg.config.paths, views_data_dir=tmp_path),
+        data_paths=dataclasses.replace(cfg.config.data_paths, views_data_dir=tmp_path),
     )
     monkeypatch.setattr(cache_module, "config", new_cfg)
     return new_cfg
@@ -58,7 +58,7 @@ class TestCacheEnsureAndFetch:
         assert len(repo.calls) == 1
         assert set(repo.calls[0]) == {"A", "B", "C"}
 
-        path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
+        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
         assert path.exists()
         lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
         assert {"title": "A", "views": 10} in lines
@@ -72,7 +72,7 @@ class TestCacheEnsureAndFetch:
         await cache.ensure({"A", "B"}, "2024060100", "2024063000")
         await cache.ensure({"C"}, "2024060100", "2024063000")
 
-        path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-06.jsonl"
+        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-06.jsonl"
         with jsonlines.open(path, mode="r") as reader:
             lines = list(reader)
         assert len(lines) == 3
@@ -147,12 +147,12 @@ class TestCacheLoadReuse:
         # _load() ran at construction and found nothing.
         assert cache.get("A", []) == 0
         # No on-disk file is created until something is flushed.
-        path = cache_config.paths.views_data_dir / "en.wikipedia" / "2099-12.jsonl"
+        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2099-12.jsonl"
         assert not path.exists()
 
     async def test_empty_file_loads_empty(self, cache_config):
         """An existing but empty cache file loads an empty cache, no crash."""
-        path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-05.jsonl"
+        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-05.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("", encoding="utf-8")
 
@@ -185,7 +185,7 @@ class TestCacheJsonlFormat:
         cache = PageviewsCache("en.wikipedia", "2024-01", repo)
         await cache.ensure({"A", "B", "C"}, "2024010100", "2024013100")
 
-        path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
+        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
         # Read the file back with jsonlines itself (not json.loads line-by-line).
         with jsonlines.open(path, mode="r") as reader:
             lines = list(reader)
@@ -202,7 +202,7 @@ class TestCacheJsonlFormat:
         cache = PageviewsCache("en.wikipedia", "2024-03", repo)
         await cache.ensure({title}, "2024030100", "2024033100")
 
-        path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-03.jsonl"
+        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-03.jsonl"
         with jsonlines.open(path, mode="r") as reader:
             lines = list(reader)
         assert lines == [{"title": title, "views": 7}]
@@ -217,7 +217,7 @@ class TestCacheJsonlFormat:
         cache1 = PageviewsCache("en.wikipedia", "2024-01", repo1)
         await cache1.ensure({"A", "B"}, "2024010100", "2024013100")
 
-        path = cache_config.paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
+        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
         # Append a line that is not valid JSON and a dict missing 'views'.
         with path.open("a", encoding="utf-8") as f:
             f.write("this is not json\n")

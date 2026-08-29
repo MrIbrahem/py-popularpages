@@ -1,6 +1,6 @@
 """ """
 
-from src.popularpages.mapping import WikiProjectConfig
+from src.py_port.popularpages.mapping import WikiProjectConfig
 
 
 class TestProjectReportTitles:

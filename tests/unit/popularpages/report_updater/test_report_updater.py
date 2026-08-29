@@ -1,5 +1,5 @@
 """
-Tests for src.popularpages.report_updater.ReportUpdater.
+Tests for src.py_port.popularpages.report_updater.ReportUpdater.
 
 The real WikiRepository performs network/DB I/O, so it is replaced with a
 MagicMock via monkeypatch. We exercise the orchestration and rendering paths:
@@ -12,12 +12,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import src.popularpages.config as cfg
-import src.popularpages.report_updater.updater as ru_module
-from src.generate_report import ReportUpdater
-from src.popularpages.i18n import I18n
-from src.popularpages.mapping import WikiProjectConfig
-from src.popularpages.wiki_repository import WikiRepository
+import src.py_port.popularpages.config as cfg
+import src.py_port.popularpages.report_updater.updater as ru_module
+from src.py_port.generate_report import ReportUpdater
+from src.py_port.popularpages.i18n import I18n
+from src.py_port.popularpages.mapping import WikiProjectConfig
+from src.py_port.popularpages.wiki_repository import WikiRepository
 
 
 @pytest.fixture
@@ -65,9 +65,9 @@ def updater(tmp_path, monkeypatch):
     # Redirect the persisted views cache to a temp dir.
     new_cfg = dataclasses.replace(
         cfg.config,
-        paths=dataclasses.replace(cfg.config.paths, views_data_dir=tmp_path),
+        data_paths=dataclasses.replace(cfg.config.data_paths, views_data_dir=tmp_path),
     )
-    monkeypatch.setattr("src.popularpages.pageviews.pageviews_cache.config", new_cfg)
+    monkeypatch.setattr("src.py_port.popularpages.pageviews.pageviews_cache.config", new_cfg)
     monkeypatch.setattr(ru_module, "config", new_cfg)
 
     return u, repo
