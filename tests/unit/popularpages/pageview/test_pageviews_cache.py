@@ -51,7 +51,7 @@ class TestCacheEnsureAndFetch:
 
     async def test_ensure_fetches_all_titles_once_and_persists(self, cache_config):
         repo = FakeRepo({"A": 10, "B": 20, "C": 30})
-        cache = PageviewsCache("en.wikipedia", "2024-01", repo)
+        cache = PageviewsCache("en.wikipedia", "2024-01", repo)  # pyright: ignore[reportArgumentType]
         await cache.ensure({"A", "B", "C"}, "2024010100", "2024013100")
 
         # All three titles fetched in a single batch call (order is unspecified).
@@ -68,7 +68,7 @@ class TestCacheEnsureAndFetch:
     async def test_incremental_appends_do_not_truncate(self, cache_config):
         """Two ensures append to the same JSONL file rather than overwriting."""
         repo = FakeRepo({"A": 1, "B": 2, "C": 3})
-        cache = PageviewsCache("en.wikipedia", "2024-06", repo)
+        cache = PageviewsCache("en.wikipedia", "2024-06", repo)  # pyright: ignore[reportArgumentType]
         await cache.ensure({"A", "B"}, "2024060100", "2024063000")
         await cache.ensure({"C"}, "2024060100", "2024063000")
 
@@ -91,7 +91,10 @@ class TestCacheEnsureAndFetch:
         mapping = {f"T{i}": i for i in range(10)}
         repo = FakeRepo(mapping)
         cache = PageviewsCache(
-            "en.wikipedia", "2024-02", repo, path_dir=tmp_path
+            "en.wikipedia",
+            "2024-02",
+            repo, # pyright: ignore[reportArgumentType]
+            path_dir=tmp_path,
         )  # pyright: ignore[reportArgumentType]
         await cache.ensure(set(mapping), "2024020100", "2024022900")
 
@@ -111,7 +114,7 @@ class TestCacheGet:
 
     async def test_get_sums_target_and_redirects(self, cache_config):
         repo = FakeRepo({"A": 10, "A redir": 5})
-        cache = PageviewsCache("en.wikipedia", "2024-01", repo)
+        cache = PageviewsCache("en.wikipedia", "2024-01", repo)  # pyright: ignore[reportArgumentType]
         await cache.ensure({"A", "A redir"}, "2024010100", "2024013100")
         assert cache.get("A", ["A redir"]) == 15
         assert cache.get("A", []) == 10
@@ -126,13 +129,13 @@ class TestCacheLoadReuse:
 
     async def test_load_reuses_previous_run_and_only_fetches_missing(self, cache_config):
         repo1 = FakeRepo({"A": 10, "B": 20})
-        cache1 = PageviewsCache("en.wikipedia", "2024-01", repo1)
+        cache1 = PageviewsCache("en.wikipedia", "2024-01", repo1)  # pyright: ignore[reportArgumentType]
         await cache1.ensure({"A", "B"}, "2024010100", "2024013100")
         assert repo1.calls  # fetched on first run
 
         # New cache for the same wiki/month should not re-fetch existing titles.
         repo2 = FakeRepo({"A": 999, "B": 999, "C": 999})
-        cache2 = PageviewsCache("en.wikipedia", "2024-01", repo2)
+        cache2 = PageviewsCache("en.wikipedia", "2024-01", repo2)  # pyright: ignore[reportArgumentType]
         assert repo2.calls == []  # nothing fetched at construction
 
         await cache2.ensure({"A", "B", "C"}, "2024010100", "2024013100")
@@ -145,7 +148,7 @@ class TestCacheLoadReuse:
     async def test_missing_file_loads_empty(self, cache_config):
         """A wiki/month with no cache file loads an empty cache, no fetch."""
         repo = FakeRepo({"A": 10})
-        cache = PageviewsCache("en.wikipedia", "2099-12", repo)
+        cache = PageviewsCache("en.wikipedia", "2099-12", repo)  # pyright: ignore[reportArgumentType]
         # _load() ran at construction and found nothing.
         assert cache.get("A", []) == 0
         # No on-disk file is created until something is flushed.
@@ -159,13 +162,13 @@ class TestCacheLoadReuse:
         path.write_text("", encoding="utf-8")
 
         repo = FakeRepo({"A": 10})
-        cache = PageviewsCache("en.wikipedia", "2024-05", repo)
+        cache = PageviewsCache("en.wikipedia", "2024-05", repo)  # pyright: ignore[reportArgumentType]
         assert cache.get("A", []) == 0
 
     async def test_load_oserror_is_swallowed(self, cache_config, monkeypatch):
         """A read error while loading is logged and treated as an empty cache."""
         repo = FakeRepo({"A": 10})
-        cache = PageviewsCache("en.wikipedia", "2024-07", repo)
+        cache = PageviewsCache("en.wikipedia", "2024-07", repo)  # pyright: ignore[reportArgumentType]
         # Make path.report exist (so we reach the read) but have read_text raise.
         fake = MagicMock()
         fake.exists.return_value = True
@@ -184,7 +187,7 @@ class TestCacheJsonlFormat:
     async def test_written_file_is_valid_jsonl_readable_by_jsonlines(self, cache_config):
         """The on-disk cache must be valid JSONL that jsonlines can read back."""
         repo = FakeRepo({"A": 10, "B": 20, "C": 30})
-        cache = PageviewsCache("en.wikipedia", "2024-01", repo)
+        cache = PageviewsCache("en.wikipedia", "2024-01", repo)  # pyright: ignore[reportArgumentType]
         await cache.ensure({"A", "B", "C"}, "2024010100", "2024013100")
 
         path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
@@ -201,7 +204,7 @@ class TestCacheJsonlFormat:
         """Non-ASCII titles are written as UTF-8 and read back identically."""
         title = "Café_İstanbul"
         repo = FakeRepo({title: 7})
-        cache = PageviewsCache("en.wikipedia", "2024-03", repo)
+        cache = PageviewsCache("en.wikipedia", "2024-03", repo)  # pyright: ignore[reportArgumentType]
         await cache.ensure({title}, "2024030100", "2024033100")
 
         path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-03.jsonl"
@@ -216,7 +219,7 @@ class TestCacheJsonlFormat:
     async def test_malformed_lines_are_skipped_on_load(self, cache_config):
         """Invalid JSON and malformed-but-valid objects are skipped, not fatal."""
         repo1 = FakeRepo({"A": 10, "B": 20})
-        cache1 = PageviewsCache("en.wikipedia", "2024-01", repo1)
+        cache1 = PageviewsCache("en.wikipedia", "2024-01", repo1)  # pyright: ignore[reportArgumentType]
         await cache1.ensure({"A", "B"}, "2024010100", "2024013100")
 
         path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
@@ -227,7 +230,7 @@ class TestCacheJsonlFormat:
 
         # A fresh cache must load only the two valid entries and not crash.
         repo2 = FakeRepo({"A": 999, "B": 999})
-        cache2 = PageviewsCache("en.wikipedia", "2024-01", repo2)
+        cache2 = PageviewsCache("en.wikipedia", "2024-01", repo2)  # pyright: ignore[reportArgumentType]
         assert repo2.calls == []  # nothing fetched -- both entries were on disk
         assert cache2.get("A", []) == 10
         assert cache2.get("B", []) == 20

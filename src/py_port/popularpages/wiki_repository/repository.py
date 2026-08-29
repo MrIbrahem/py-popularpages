@@ -64,24 +64,15 @@ class WikiRepository:
         self.wiki_config: dict = _config.get(wiki) or {}
         if not self.wiki_config:
             raise ValueError(f"Wiki {wiki} not found in config")
+        logger.debug("Loaded wiki config: %s", self.wiki_config)
 
         self.wiki_config_page: str = self.wiki_config["config"]
 
         self.pageviews_repo = PageviewsRepository(wiki)
 
-        logger.info(
-            "WikiRepository initialized for wiki '%s' (user='%s', dry_run=%s)",
-            wiki,
-            self.username,
-            dry_run,
-        )
-        logger.debug("Loaded wiki config: %s", self.wiki_config)
-        self.site: mwclient.Site = mwclient.Site(
-            self.host,
-            path="/w/",
-            clients_useragent=config.other.user_agent,
-        )
-        self.login()
+        # lazy loading objects will be initialized on first use
+        self._assessment_config: dict | None = None
+        self._site: mwclient.Site | None = None
 
         self.db = WikiDatabaseRepository(
             wiki=self.wiki,
@@ -89,12 +80,36 @@ class WikiRepository:
             username=self.username,
         )
 
-        self._assessment_config: dict | None = None
         self._http_client = httpx.Client(
             timeout=10.0,
             follow_redirects=True,
                 headers={"User-Agent": config.other.user_agent},
         )
+
+        logger.info(
+            "WikiRepository initialized for wiki '%s' (user='%s', dry_run=%s)",
+            wiki,
+            self.username,
+            dry_run,
+        )
+
+    # ----------------------------------------------------
+    # Lazy Properties
+    # ----------------------------------------------------
+
+    @property
+    def site(self) -> mwclient.Site:
+        """
+        Create the mwclient connection and log in on first use.
+        """
+        if self._site is None:
+            self._site = mwclient.Site(
+                self.host,
+                path="/w/",
+                clients_useragent=config.other.user_agent,
+            )
+            self.login()
+        return self._site
 
     def get_config(self, title: str | None = None) -> list[WikiProjectConfig]:
         """

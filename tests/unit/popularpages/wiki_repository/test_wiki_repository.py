@@ -152,12 +152,12 @@ class TestWikiRepositoryPureMethods:
     def test_get_json_config_strips_description(self):
         repo = WikiRepository.__new__(WikiRepository)
         repo.wiki_config_page = "Wikipedia:WikiProject/Popular pages config.json"
-        repo.site = MagicMock()
+        repo._site = MagicMock()
         payload = {
             "P": {"Report": "P/r", "Limit": "5", "Name": "N"},
             "description": "Please do not modify manually.",
         }
-        repo.site.pages[repo.wiki_config_page].text.return_value = json.dumps(payload)
+        repo._site.pages[repo.wiki_config_page].text.return_value = json.dumps(payload)
         data = repo.get_json_config()
         assert "description" not in data
         assert data["P"]["Name"] == "N"
