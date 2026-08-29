@@ -24,3 +24,4 @@ wikimap.json
 /_works_files/**
 !_works_files/test_tree.md
 !_works_files/tree.md
+/popular_pages_dir
