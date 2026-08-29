@@ -130,3 +130,8 @@ class WikiDatabaseRepository:
         logger.debug("Retrieved %d page(s) for project '%s'", len(rows), project)
 
         return rows
+
+
+__all__ = [
+    "WikiDatabaseRepository",
+]
