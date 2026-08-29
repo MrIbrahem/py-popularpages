@@ -12,10 +12,10 @@ if [ -z "$FULL_PATH" ]; then
     exit 1
 fi
 
-echo ">>> Stage 1: Updating 'himo' tool core repository..."
+echo ">>> Stage 1: Updating '$TOOL_NAME' tool core repository..."
 echo ">>> FULL_PATH: $FULL_PATH"
 
-# Run deployment steps inside himo's toolforge context
-become himo sh -c "cp -rf \"$FULL_PATH/toolforge/deploy_scripts\" /data/project/himo -v;chmod +x /data/project/himo/deploy_scripts/*.sh -v;/data/project/himo/deploy_scripts/update_pop_local.sh \"$FULL_PATH\""
+# Run deployment steps inside toolforge context
+become "$TOOL_NAME" sh -c "cp -rf \"$FULL_PATH/toolforge/deploy_scripts\" /data/project/$TOOL_NAME -v;chmod +x /data/project/$TOOL_NAME/deploy_scripts/*.sh -v;/data/project/$TOOL_NAME/deploy_scripts/update_pop_local.sh \"$FULL_PATH\""
 
-echo ">>> 'himo' repository update completed successfully."
+echo ">>> '$TOOL_NAME' repository update completed successfully."
