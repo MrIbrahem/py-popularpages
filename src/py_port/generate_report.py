@@ -4,7 +4,7 @@ Manually regenerate a report for a single WikiProject.
 Ported from bin/generateReport.php.
 
 Example:
-    - python3 src/generate_report.py --wiki en.wikipedia --project Dinosaurs
+    - python3 src/py_port/generate_report.py --wiki en.wikipedia --project Dinosaurs
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import logging
 import re
 import sys
 
-from popularpages.report_updater import ReportUpdater
+from src.py_port.popularpages.report_updater import ReportUpdater
 
 logger = logging.getLogger(__name__)
 

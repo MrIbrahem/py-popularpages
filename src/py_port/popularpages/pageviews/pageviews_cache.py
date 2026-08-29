@@ -45,7 +45,7 @@ class PageviewsCache:
         self.wiki = wiki
         self.year_month = year_month
         self.repo = pageviews_repo
-        self.path: Path = config.paths.views_data_dir / wiki / f"{year_month}.jsonl"
+        self.path: Path = config.data_paths.views_data_dir / wiki / f"{year_month}.jsonl"
 
         self._cache: dict[str, int] = {}
         self._pending: list[tuple[str, int]] = []

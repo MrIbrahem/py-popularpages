@@ -26,7 +26,12 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+def resolve_path(_path: str) -> Path:
+    """Expand environment variables and user home directory in paths."""
+    _path = os.path.expandvars(str(_path))
+    path = Path(_path).expanduser()
+    return path
 
 
 @dataclass(frozen=True)
@@ -48,38 +53,61 @@ class DbConfig:
 
 
 @dataclass(frozen=True)
-class PathsConfig:
+class ProjectPathsConfig:
     """Application filesystem paths."""
 
     base_dir: Path
     views_dir: Path
-    data_dir: Path
-    views_data_dir: Path
     messages_dir: Path
-    log_dir: Path
     wikis_config_file: Path
 
     @classmethod
-    def from_base_dir(cls, base_dir: Path) -> PathsConfig:
+    def load(cls) -> ProjectPathsConfig:
         """
         Create a paths configuration rooted at the specified base directory.
 
-        Parameters:
-            base_dir (Path): Root directory used to derive application paths.
-
         Returns:
-            PathsConfig: Configuration containing paths derived from the base directory.
+            ProjectPathsConfig: Configuration containing paths derived from the base directory.
         """
-        data_dir = base_dir / "data"
-
+        base_dir = Path(__file__).parent.parent
         return cls(
             base_dir=base_dir,
             views_dir=base_dir / "views",
+            messages_dir=base_dir / "messages",
+            wikis_config_file=base_dir / "config" / "wikis.yaml",
+        )
+
+
+@dataclass(frozen=True)
+class DataPathsConfig:
+    """
+    Application filesystem paths.
+    """
+
+    popular_pages_dir: Path
+    data_dir: Path
+    views_data_dir: Path
+    log_dir: Path
+
+    @classmethod
+    def load(cls) -> DataPathsConfig:
+        """
+        Create a paths configuration rooted at the specified base directory.
+
+        Returns:
+            DataPathsConfig: Configuration containing paths derived from the base directory.
+        """
+        base_dir = os.getenv("POPULAR_PAGES_MAIN_DIR")
+
+        popular_pages_dir = Path(resolve_path(base_dir)) if base_dir else Path().resolve() / "popular_pages_dir"
+
+        data_dir = popular_pages_dir / "data"
+
+        return cls(
+            popular_pages_dir=popular_pages_dir,
             data_dir=data_dir,
             views_data_dir=data_dir / "views",
-            messages_dir=base_dir / "messages",
-            log_dir=base_dir / "logs",
-            wikis_config_file=base_dir / "config" / "wikis.yaml",
+            log_dir=popular_pages_dir / "logs",
         )
 
 
@@ -139,7 +167,8 @@ class AppConfig:
     stored field.
     """
 
-    paths: PathsConfig
+    paths: ProjectPathsConfig
+    data_paths: DataPathsConfig
     credentials: CredentialsConfig
     pageviews: PageviewsConfig
     wiki: WikiConfig
@@ -193,7 +222,7 @@ def user_agent(
 
 
 def load_wikis_config(
-    paths: PathsConfig,
+    paths: ProjectPathsConfig,
 ) -> dict:
     """Load the wikis configuration from config/wikis.yaml."""
     logger.debug("Loading wikis config from %s", paths.wikis_config_file)
@@ -205,7 +234,8 @@ def load_wikis_config(
 
 
 config = AppConfig(
-    paths=PathsConfig.from_base_dir(BASE_DIR),
+    paths=ProjectPathsConfig.load(),
+    data_paths=DataPathsConfig.load(),
     credentials=load_credentials(),
     pageviews=PageviewsConfig(),
     wiki=WikiConfig(),
@@ -218,7 +248,8 @@ __all__ = [
     "AppConfig",
     "CredentialsConfig",
     "PageviewsConfig",
-    "PathsConfig",
+    "ProjectPathsConfig",
+    "DataPathsConfig",
     "ProjectConfig",
     "WikiConfig",
     "config",

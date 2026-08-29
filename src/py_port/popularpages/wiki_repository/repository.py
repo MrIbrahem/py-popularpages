@@ -414,10 +414,10 @@ class WikiRepository:
         The page title is sanitized so it is safe as a filename (colons and
         slashes in wiki titles are common).
         """
-        config.paths.log_dir.mkdir(parents=True, exist_ok=True)
+        config.data_paths.log_dir.mkdir(parents=True, exist_ok=True)
         safe_title = re.sub(r"[^\w.\-]+", "_", page_title)
 
-        out_path = config.paths.log_dir / f"dryrun-{self.wiki}-{safe_title}.wikitext"
+        out_path = config.data_paths.log_dir / f"dryrun-{self.wiki}-{safe_title}.wikitext"
 
         text_with_header = f"Title: [[{page_title}]]\n\n{text}"
         out_path.write_text(text_with_header, encoding="utf-8")
