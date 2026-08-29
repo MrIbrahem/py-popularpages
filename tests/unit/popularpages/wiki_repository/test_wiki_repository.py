@@ -115,7 +115,6 @@ class TestWikiRepositoryPureMethods:
 
     def test_get_config_parses_json(self):
         repo = WikiRepository.__new__(WikiRepository)
-        repo.log_dir = tmp_path
         repo.get_json_config = lambda *a, **k: self.JSON
         configs = repo.get_config()
         assert isinstance(configs, list)
@@ -123,20 +122,17 @@ class TestWikiRepositoryPureMethods:
 
     def test_get_project_by_name(self):
         repo = WikiRepository.__new__(WikiRepository)
-        repo.log_dir = tmp_path
         repo.get_json_config = lambda *a, **k: self.JSON
         assert repo.get_project("N").Name == "N"  # pyright: ignore[reportOptionalMemberAccess]
         assert repo.get_project("Nope") is None
 
     def test_get_wiki_config_returns_stored(self):
         repo = WikiRepository.__new__(WikiRepository)
-        repo.log_dir = tmp_path
         repo.wiki_config = {"category": "X"}
         assert repo.get_wiki_config() == {"category": "X"}
 
     def test_get_stale_projects_returns_not_updated_this_month(self):
         repo = WikiRepository.__new__(WikiRepository)
-        repo.log_dir = tmp_path
         repo.wiki = "en.wikipedia"
         repo.get_json_config = lambda *a, **k: {
             "P": {"Report": "P/r", "Limit": "5", "Name": "N"},
@@ -155,7 +151,6 @@ class TestWikiRepositoryPureMethods:
 
     def test_get_json_config_strips_description(self):
         repo = WikiRepository.__new__(WikiRepository)
-        repo.log_dir = tmp_path
         repo.wiki_config_page = "Wikipedia:WikiProject/Popular pages config.json"
         repo.site = MagicMock()
         payload = {
@@ -169,7 +164,6 @@ class TestWikiRepositoryPureMethods:
 
     def test_get_projects_with_last_bot_timestamp(self):
         repo = WikiRepository.__new__(WikiRepository)
-        repo.log_dir = tmp_path
         repo.db = MagicMock()
         repo.db.get_projects_timestamps.return_value = [
             {"page_title": "P/r", "rev_timestamp": "20240101120000"},
