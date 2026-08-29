@@ -8,6 +8,6 @@ TODO: write tests
 """
 
 
-from src.popularpages.db_analytics.client import (
+from src.py_port.popularpages.db_analytics.client import (
     WikiReplicaDB,
 )

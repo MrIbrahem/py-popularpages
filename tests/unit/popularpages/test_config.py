@@ -1,8 +1,8 @@
 """
-Tests for src.popularpages.config.AppConfig / user_agent.
+Tests for src.py_port.popularpages.config.AppConfig / user_agent.
 """
 
-import src.popularpages.config as cfg
+import src.py_port.popularpages.config as cfg
 
 
 def _config_with_env() -> cfg.AppConfig:

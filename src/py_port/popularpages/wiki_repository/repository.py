@@ -479,3 +479,8 @@ class WikiRepository:
         stale = [x for x in _config if x.project_main_page not in to_pop]
         logger.info("Found %d stale project(s) of %d", len(stale), len(_config))
         return stale
+
+
+__all__ = [
+    "WikiRepository",
+]

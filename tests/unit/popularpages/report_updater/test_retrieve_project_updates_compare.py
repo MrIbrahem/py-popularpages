@@ -21,8 +21,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from src.popularpages.mapping import WikiProjectConfig
-from src.popularpages.report_updater import ReportUpdater
+from src.py_port.popularpages.mapping import WikiProjectConfig
+from src.py_port.popularpages.report_updater import ReportUpdater
 
 # -- Sample data -----------------------------------------------------------
 

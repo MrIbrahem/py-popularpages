@@ -151,3 +151,8 @@ class PageviewsCache:
             if title:
                 total += self._cache.get(title, 0)
         return total
+
+
+__all__ = [
+    "PageviewsCache",
+]

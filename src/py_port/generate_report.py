@@ -4,7 +4,7 @@ Manually regenerate a report for a single WikiProject.
 Ported from bin/generateReport.php.
 
 Example:
-    - python3 src/generate_report.py --wiki en.wikipedia --project Dinosaurs
+    - python3 src/py_port/generate_report.py --wiki en.wikipedia --project Dinosaurs
 """
 
 from __future__ import annotations

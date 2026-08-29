@@ -246,3 +246,8 @@ class PageviewsRepository:
 
         logger.debug("Processed %d item(s) for '%s': %d total views", len(items), article, total_views)
         return article, total_views
+
+
+__all__ = [
+    "PageviewsRepository",
+]

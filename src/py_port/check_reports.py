@@ -6,7 +6,7 @@ fetches config for WikiProjects not already updated this month, and passes
 it to ReportUpdater.
 
 Example:
-    - python3 src/check_reports.py --wiki en.wikipedia
+    - python3 src/py_port/check_reports.py --wiki en.wikipedia
 """
 
 from __future__ import annotations

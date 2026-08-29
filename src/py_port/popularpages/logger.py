@@ -33,3 +33,8 @@ def log_to_file(message: str, wiki: str) -> None:
 
     with log_path.open("a", encoding="utf-8") as f:
         f.write(output + "\n")
+
+
+__all__ = [
+    "log_to_file",
+]

@@ -69,3 +69,8 @@ class I18n:
 
         logger.debug("Resolved message '%s' -> '%s'", key, text)
         return text
+
+
+__all__ = [
+    "I18n",
+]

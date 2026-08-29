@@ -10,8 +10,8 @@ exercised this path were disabled upstream; these offline tests replace them.
 
 from unittest.mock import MagicMock
 
-from src.popularpages.db_analytics.maps import WikiReplicaMaps
-from src.popularpages.wiki_database_repository import WikiDatabaseRepository
+from src.py_port.popularpages.db_analytics.maps import WikiReplicaMaps
+from src.py_port.popularpages.wiki_database_repository import WikiDatabaseRepository
 
 
 class _FakeMaps:

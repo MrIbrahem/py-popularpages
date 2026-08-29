@@ -1,7 +1,7 @@
 """
-Tests for src.popularpages.i18n.I18n."""
+Tests for src.py_port.popularpages.i18n.I18n."""
 
-from src.popularpages.i18n import I18n
+from src.py_port.popularpages.i18n import I18n
 
 
 def test_msg_basic_lookup():

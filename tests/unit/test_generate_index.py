@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import src.generate_index as gi_module
+import src.py_port.generate_index as gi_module
 
 
 @pytest.fixture
