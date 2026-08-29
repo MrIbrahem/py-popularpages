@@ -228,18 +228,7 @@ class ReportUpdater:
         days_in_month = (self.end - self.start).days + 1
 
         # Add in averages.
-        for datum in data.values():
-            datum["avgPageviews"] = datum["pageviews"] // days_in_month
-
-        # Resolve assessment colors/categories here, in the data-fetch phase, so
-        # the template performs no network I/O (issue #4: Jinja templates must
-        # not make network requests). `get_assessment_config()` is fetched once
-        # and cached on the WikiRepository, so this is a single network call per
-        # run, reused across every page and project.
-        assessment_cfg = self.wiki_repository.get_assessment_config()
-        for datum in data.values():
-            datum["class_assessment"] = self._resolve_assessment(assessment_cfg, "class", datum["class"])
-            datum["importance_assessment"] = self._resolve_assessment(assessment_cfg, "importance", datum["importance"])
+        self.populate_assessment_categories(data, days_in_month)
 
         has_lead_section = self.wiki_repository.has_lead_section(config.Report)
         logger.debug("Report has lead section: %s", has_lead_section)
@@ -266,9 +255,26 @@ class ReportUpdater:
             section_number=section_number,
         )
 
+    def populate_assessment_categories(self, data: dict[str, dict], days_in_month) -> dict[str, dict]:
+        for datum in data.values():
+            datum["avgPageviews"] = datum["pageviews"] // days_in_month
+
+        # Resolve assessment colors/categories here, in the data-fetch phase, so
+        # the template performs no network I/O (issue #4: Jinja templates must
+        # not make network requests). `get_assessment_config()` is fetched once
+        # and cached on the WikiRepository, so this is a single network call per
+        # run, reused across every page and project.
+        assessment_cfg = self.wiki_repository.get_assessment_config()
+
+        for datum in data.values():
+            datum["class_assessment"] = self._resolve_assessment(assessment_cfg, "class", datum["class"])
+            datum["importance_assessment"] = self._resolve_assessment(assessment_cfg, "importance", datum["importance"])
+
+        return data
+
     async def _views_for_project_from_cache(
-        self, page_rows: list[dict], limit: int, cache: PageviewsCache
-    ) -> tuple[dict, int]:
+        self, page_rows: list[dict], limit: int, cache: PageviewsCache,
+    ) -> tuple[dict[str, dict], int]:
         """
         Compute per-project pageviews from the shared :class:`PageviewsCache`.
 
@@ -307,7 +313,9 @@ class ReportUpdater:
             out[target]["pageviews"] = count
             total_pageviews += count
 
-        return self.wiki_repository._sort_and_truncate_pages_list(out, limit), total_pageviews
+        out = self.wiki_repository._sort_and_truncate_pages_list(out, limit)
+
+        return out, total_pageviews
 
     def update_index(self) -> None:
         """
