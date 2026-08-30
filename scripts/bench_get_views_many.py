@@ -27,6 +27,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import src.py_port.popularpages.config as cfg
 from src.py_port.popularpages.pageviews.pageviews_cache import PageviewsCache
 
+import src.py_port.popularpages.pageviews.pageviews_cache as m  # noqa: E402
+
 
 class FakeRepo:
     async def get_title_views(self, titles, start, end):
@@ -47,8 +49,6 @@ def _build(n: int, wiki_dir: Path) -> PageviewsCache:
     targets = {f"Target {i}" for i in range(n)}
     redirects = {f"Redirect {i}" for i in range(n)}
     # Silence the tqdm progress bar during the build phase (it floods piped output).
-    import src.py_port.popularpages.pageviews.pageviews_cache as m
-
     old_tqdm = m.tqdm
     m.tqdm = lambda it, *a, **k: it
     try:
@@ -85,6 +85,7 @@ def main() -> None:
     import shutil
 
     wiki_dir = Path(tempfile.mkdtemp(prefix="bench_pv_"))
+    old_cfg = m.config
     try:
         print(f"Building cache with {n:,} targets + {n:,} redirects...")
         t0 = time.perf_counter()
@@ -112,7 +113,7 @@ def main() -> None:
         speedup = old_dt / new_dt if new_dt else float("inf")
         print(f"\nSpeedup (new vs old): {speedup:.1f}x  ({old_dt:.3f}s -> {new_dt:.3f}s)")
         cache.close()
-        m.config = new_cfg
+        m.config = old_cfg
     finally:
         shutil.rmtree(wiki_dir, ignore_errors=True)
 
