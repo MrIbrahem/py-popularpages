@@ -2,14 +2,19 @@
 Cross-project pageviews cache.
 
 Fetches monthly pageviews for every unique article title on a wiki **once** and
-persists the results to ``data/views/<wiki>/<YYYY-MM>.jsonl`` so they survive
+persists the results to ``data/views/<wiki>/<YYYY-MM>.sqlite3`` so they survive
 the run and can be reused by later runs.
 
 On ``en.wikipedia`` many WikiProjects share the same popular articles (e.g.
 *World War II*, *United States*). Without this cache each shared article would
 be requested once per project that references it. The cache de-duplicates by
-title across all projects for the month and writes the JSONL incrementally
-(flushing at most once per :data:`config.pageviews.flush_titles` titles).
+title across all projects for the month and upserts rows in batches of
+:data:`config.pageviews.fetch_batch` titles (committing after each batch so a
+partial run's progress is not lost).
+
+Backed by SQLite via SQLAlchemy (sync engine -- SQLite I/O is local and fast
+enough that async buys nothing here; only network calls to the Pageviews API,
+made through :class:`PageviewsRepository`, are ``async``).
 
 See docs/pageviews-persistence-and-dedup-plan.md.
 """
@@ -17,12 +22,15 @@ See docs/pageviews-persistence-and-dedup-plan.md.
 from __future__ import annotations
 
 import logging
-from tqdm import tqdm
 from pathlib import Path
 
-import jsonlines
+from sqlalchemy import create_engine, select
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.orm import Session, sessionmaker
+from tqdm import tqdm
 
 from ..config import config
+from .pageviews_models import Base, PageView
 from .pageviews_repository import PageviewsRepository
 
 logger = logging.getLogger(__name__)
@@ -30,11 +38,13 @@ logger = logging.getLogger(__name__)
 
 class PageviewsCache:
     """
-    Per-wiki, per-month pageviews cache backed by a JSONL file.
+    Per-wiki, per-month pageviews cache backed by a SQLite file.
 
-    Each line of the backing file is a JSON object ``{"title": ..., "views":
-    ...}``. The cache is loaded on construction (so a previous run's data is
-    reused) and appended to as new titles are fetched.
+    Each ``data/views/<wiki>/<YYYY-MM>.sqlite3`` file holds one ``pageviews``
+    table (see :mod:`pageviews_models`) mapping title -> total views for that
+    wiki and month. Reads (:meth:`get`) query SQLite directly rather than
+    keeping an in-memory dict, so the process's memory footprint doesn't grow
+    with the number of cached titles.
     """
 
     def __init__(
@@ -55,50 +65,23 @@ class PageviewsCache:
         self.repo = pageviews_repo
 
         _path_dir: Path = path_dir or config.data_paths.views_data_dir
-        self.path: Path = _path_dir / wiki / f"{year_month}.jsonl"
-
-        self._cache: dict[str, int] = {}
-        self._pending: list[tuple[str, int]] = []
-        self._load()
-
-    # ----------------------------------------------------------------
-    # Loading / flushing
-    # ----------------------------------------------------------------
-    def _load(self) -> None:
-        """Load any previously persisted titles for this wiki + month."""
-        if not self.path.exists():
-            return
-        try:
-            with jsonlines.open(self.path, mode="r") as reader:
-                loaded = 0
-                # skip_invalid drops lines that are not valid JSON; type=dict
-                # drops any non-object lines. Malformed-but-valid objects
-                # (e.g. missing a key) are caught below.
-                for obj in reader.iter(type=dict, skip_invalid=True):
-                    try:
-                        self._cache[obj["title"]] = int(obj["views"])
-                        loaded += 1
-                    except (KeyError, TypeError, ValueError):
-                        logger.debug("Skipping malformed cache object in %s: %r", self.path, obj)
-        except OSError as exc:
-            logger.warning("Could not read pageviews cache %s: %s", self.path, exc)
-            return
-        if loaded:
-            logger.info("Loaded %d cached title(s) from %s", loaded, self.path)
-
-    def _flush(self) -> None:
-        """Append buffered title/view pairs to the JSONL file."""
-        if not self._pending:
-            return
-
+        self.path: Path = _path_dir / wiki / f"{year_month}.sqlite3"
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-        with jsonlines.open(self.path, mode="a") as writer:
-            for title, views in self._pending:
-                writer.write({"title": title, "views": views})
+        # SQLite creates the file on first connection if it doesn't exist yet.
+        self._engine = create_engine(f"sqlite:///{self.path}", future=True)
+        Base.metadata.create_all(self._engine)
+        self._Session: sessionmaker[Session] = sessionmaker(bind=self._engine, future=True)
 
-        logger.debug("Flushed %d title(s) to %s", len(self._pending), self.path)
-        self._pending = []
+        logger.debug("Pageviews cache backed by %s", self.path)
+
+    # ----------------------------------------------------------------
+    # Lifecycle
+    # ----------------------------------------------------------------
+    def close(self) -> None:
+        """Dispose of the underlying SQLite engine/connection pool."""
+        self._engine.dispose()
+        logger.debug("Closed pageviews cache %s", self.path)
 
     # ----------------------------------------------------------------
     # Fetching
@@ -109,50 +92,74 @@ class PageviewsCache:
 
         Titles already present in the cache (from this run or a previous one)
         are not re-fetched. Missing titles are fetched from the Pageviews API in
-        batches of :data:`config.pageviews.fetch_batch` and written to the JSONL file as
-        they accumulate (flushing at most once per :data:`config.pageviews.flush_titles`
-        titles).
+        batches of :data:`config.pageviews.fetch_batch` and upserted into
+        SQLite as they accumulate (committing once per batch).
 
         :param titles: Unique article titles (spaces) to ensure.
         :param start: Start date in YYYYMMDD00 format.
         :param end: End date in YYYYMMDD00 format.
         """
-        missing = [t for t in titles if t and t not in self._cache]
+        missing = self._find_missing(titles)
         if not missing:
             logger.info(
-                "Pageviews cache %s/%s: %d title(s) already cached, nothing to fetch",
+                "Pageviews cache %s/%s: all %d title(s) already cached, nothing to fetch",
                 self.wiki,
                 self.year_month,
-                len(self._cache),
+                len(titles),
             )
             return
 
         logger.info(
-            "Pageviews cache %s/%s: fetching %d new title(s) (%d already cached)",
+            "Pageviews cache %s/%s: fetching %d new title(s) (%d requested)",
             self.wiki,
             self.year_month,
             len(missing),
-            len(self._cache),
+            len(titles),
         )
 
         batches = range(0, len(missing), config.pageviews.fetch_batch)
 
         for i in tqdm(batches, desc=f"Fetching pageviews for {len(missing):,} titles"):
             chunk = missing[i : i + config.pageviews.fetch_batch]
-            # logger.info(
-            #     "Fetching pageviews for %d title(s)/%d (start=%s, end=%s)", len(chunk), len(missing), start, end
-            # )
             views = await self.repo.get_title_views(chunk, start, end)
 
-            for title in chunk:
-                value = views.get(title, 0)
-                self._cache[title] = value
-                self._pending.append((title, value))
-            if len(self._pending) >= config.pageviews.flush_titles:
-                self._flush()
+            self._upsert_many({title: views.get(title, 0) for title in chunk})
 
-        # Flush any remainder so the on-disk file reflects the full run.
-        self._flush()
+    def _find_missing(self, titles: set[str]) -> list[str]:
+        """
+        Return the subset of ``titles`` not already present in the cache.
+
+        Performs a single ``SELECT ... WHERE title IN (...)`` rather than one
+        query per title.
+        """
+        wanted = [t for t in titles if t]
+        if not wanted:
+            return []
+
+        with self._Session() as session:
+            cached = set(
+                session.execute(select(PageView.title).where(PageView.title.in_(wanted))).scalars().all()
+            )
+
+        return [t for t in wanted if t not in cached]
+
+    def _upsert_many(self, title_views: dict[str, int]) -> None:
+        """Upsert a batch of title -> views pairs, committing once for the batch."""
+        if not title_views:
+            return
+
+        with self._Session() as session:
+            stmt = sqlite_insert(PageView).values(
+                [{"title": title, "views": views} for title, views in title_views.items()]
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[PageView.title],
+                set_={"views": stmt.excluded.views},
+            )
+            session.execute(stmt)
+            session.commit()
+
+        logger.debug("Upserted %d title(s) into %s", len(title_views), self.path)
 
     # ----------------------------------------------------------------
     # Lookup
@@ -165,11 +172,14 @@ class PageviewsCache:
         :param redirects: Redirect titles (spaces) associated with the target.
         :return: Sum of cached views across target + redirects.
         """
-        total = 0
-        for title in [target, *redirects]:
-            if title:
-                total += self._cache.get(title, 0)
-        return total
+        titles = [t for t in [target, *redirects] if t]
+        if not titles:
+            return 0
+
+        with self._Session() as session:
+            rows = session.execute(select(PageView.views).where(PageView.title.in_(titles))).scalars().all()
+
+        return sum(rows)
 
 
 __all__ = [

@@ -2,15 +2,13 @@
 Tests for src.py_port.popularpages.pageviews.pageviews_cache.PageviewsCache.
 
 The PageviewsRepository is replaced with a lightweight async fake so no network
-calls are made; we only assert on de-duplication, persistence, and flush
-behavior.
+calls are made; we only assert on de-duplication, persistence (SQLite), and
+lookup behavior of the new SQLAlchemy-backed cache.
 """
 
 import dataclasses
-import json
-from unittest.mock import MagicMock
+import sqlite3
 
-import jsonlines
 import pytest
 
 import src.py_port.popularpages.config as cfg
@@ -43,67 +41,81 @@ def cache_config(tmp_path, monkeypatch):
     return new_cfg
 
 
+@pytest.fixture
+def cache_factory():
+    """Create PageviewsCache instances and ensure they are closed on teardown."""
+    created: list[PageviewsCache] = []
+
+    def _make(*args, **kwargs) -> PageviewsCache:
+        c = PageviewsCache(*args, **kwargs)
+        created.append(c)
+        return c
+
+    yield _make
+    for c in created:
+        c.close()
+
+
+def _rows(sqlite_path) -> dict[str, int]:
+    """Read title -> views rows from a migrated/runtime SQLite cache file."""
+    con = sqlite3.connect(str(sqlite_path))
+    try:
+        cur = con.execute("SELECT title, views FROM pageviews ORDER BY title")
+        return dict(cur.fetchall())
+    finally:
+        con.close()
+
+
 # ---------------------------------------------------------------
 # 1. Tests for PageviewsCache.ensure batch fetch and persistence.
 # ---------------------------------------------------------------
 class TestCacheEnsureAndFetch:
     """Tests for PageviewsCache.ensure batch fetch and persistence."""
 
-    async def test_ensure_fetches_all_titles_once_and_persists(self, cache_config):
+    async def test_ensure_fetches_all_titles_once_and_persists(
+        self, cache_config, cache_factory
+    ):
         repo = FakeRepo({"A": 10, "B": 20, "C": 30})
-        cache = PageviewsCache("en.wikipedia", "2024-01", repo)  # pyright: ignore[reportArgumentType]
+        cache = cache_factory("en.wikipedia", "2024-01", repo)
         await cache.ensure({"A", "B", "C"}, "2024010100", "2024013100")
 
         # All three titles fetched in a single batch call (order is unspecified).
         assert len(repo.calls) == 1
         assert set(repo.calls[0]) == {"A", "B", "C"}
 
-        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
+        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-01.sqlite3"
         assert path.exists()
-        lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
-        assert {"title": "A", "views": 10} in lines
-        assert {"title": "B", "views": 20} in lines
-        assert {"title": "C", "views": 30} in lines
+        assert _rows(path) == {"A": 10, "B": 20, "C": 30}
 
-    async def test_incremental_appends_do_not_truncate(self, cache_config):
-        """Two ensures append to the same JSONL file rather than overwriting."""
+    async def test_incremental_only_fetches_missing(self, cache_config, cache_factory):
+        """Two ensures persist cumulatively; the 2nd only fetches the new title."""
         repo = FakeRepo({"A": 1, "B": 2, "C": 3})
-        cache = PageviewsCache("en.wikipedia", "2024-06", repo)  # pyright: ignore[reportArgumentType]
+        cache = cache_factory("en.wikipedia", "2024-06", repo)
         await cache.ensure({"A", "B"}, "2024060100", "2024063000")
         await cache.ensure({"C"}, "2024060100", "2024063000")
 
-        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-06.jsonl"
-        with jsonlines.open(path, mode="r") as reader:
-            lines = list(reader)
-        assert len(lines) == 3
-        titles = {line["title"] for line in lines}
-        assert titles == {"A", "B", "C"}
+        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-06.sqlite3"
+        assert _rows(path) == {"A": 1, "B": 2, "C": 3}
         # A and B were already cached on the second ensure, so only C was fetched.
         assert [sorted(c) for c in repo.calls] == [["A", "B"], ["C"]]
 
-    async def test_flush_threshold_writes_incrementally(self, tmp_path, monkeypatch):
-        small_flush = dataclasses.replace(
-            cfg.config,
-            pageviews=dataclasses.replace(cfg.config.pageviews, flush_titles=3),
+    async def test_fetch_respects_fetch_batch(self, cache_config, cache_factory, monkeypatch):
+        """Titles are fetched in batches of config.pageviews.fetch_batch."""
+        small_batch = dataclasses.replace(
+            cache_config,
+            pageviews=dataclasses.replace(cache_config.pageviews, fetch_batch=3),
         )
-        monkeypatch.setattr(cache_module, "config", small_flush)
+        monkeypatch.setattr(cache_module, "config", small_batch)
 
         mapping = {f"T{i}": i for i in range(10)}
         repo = FakeRepo(mapping)
-        cache = PageviewsCache(
-            "en.wikipedia",
-            "2024-02",
-            repo,  # pyright: ignore[reportArgumentType]
-            path_dir=tmp_path,
-        )  # pyright: ignore[reportArgumentType]
+        cache = cache_factory("en.wikipedia", "2024-02", repo)
         await cache.ensure(set(mapping), "2024020100", "2024022900")
 
-        path = tmp_path / "en.wikipedia" / "2024-02.jsonl"
-        lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
-        # 10 titles flushed in chunks of 3 -> 4 flushes -> 10 lines total.
-        assert len(lines) == 10
-        expected = [{"title": f"T{i}", "views": i} for i in range(10)]
-        assert sorted(lines, key=lambda d: d["title"]) == sorted(expected, key=lambda d: d["title"])
+        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-02.sqlite3"
+        # 10 titles in batches of 3 -> 4 API calls.
+        assert len(repo.calls) == 4
+        assert _rows(path) == mapping
 
 
 # ---------------------------------------------------------------
@@ -112,9 +124,9 @@ class TestCacheEnsureAndFetch:
 class TestCacheGet:
     """Tests for PageviewsCache.get summing target and redirects."""
 
-    async def test_get_sums_target_and_redirects(self, cache_config):
+    async def test_get_sums_target_and_redirects(self, cache_config, cache_factory):
         repo = FakeRepo({"A": 10, "A redir": 5})
-        cache = PageviewsCache("en.wikipedia", "2024-01", repo)  # pyright: ignore[reportArgumentType]
+        cache = cache_factory("en.wikipedia", "2024-01", repo)
         await cache.ensure({"A", "A redir"}, "2024010100", "2024013100")
         assert cache.get("A", ["A redir"]) == 15
         assert cache.get("A", []) == 10
@@ -125,113 +137,74 @@ class TestCacheGet:
 # 3. Tests for loading/reusing a previously persisted cache.
 # ---------------------------------------------------------------
 class TestCacheLoadReuse:
-    """Tests for loading/reusing a previously persisted cache."""
+    """Tests for loading/reusing a previously persisted SQLite cache."""
 
-    async def test_load_reuses_previous_run_and_only_fetches_missing(self, cache_config):
+    async def test_load_reuses_previous_run_and_only_fetches_missing(
+        self, cache_config, cache_factory
+    ):
         repo1 = FakeRepo({"A": 10, "B": 20})
-        cache1 = PageviewsCache("en.wikipedia", "2024-01", repo1)  # pyright: ignore[reportArgumentType]
+        cache1 = cache_factory("en.wikipedia", "2024-01", repo1)
         await cache1.ensure({"A", "B"}, "2024010100", "2024013100")
         assert repo1.calls  # fetched on first run
 
         # New cache for the same wiki/month should not re-fetch existing titles.
         repo2 = FakeRepo({"A": 999, "B": 999, "C": 999})
-        cache2 = PageviewsCache("en.wikipedia", "2024-01", repo2)  # pyright: ignore[reportArgumentType]
+        cache2 = cache_factory("en.wikipedia", "2024-01", repo2)
         assert repo2.calls == []  # nothing fetched at construction
 
         await cache2.ensure({"A", "B", "C"}, "2024010100", "2024013100")
         # Only the previously-missing title "C" is fetched.
         assert repo2.calls == [["C"]]
-        # Values come from disk (10), not the fake's 999.
-        assert cache2.get("A", []) == 10
-        assert cache2.get("C", []) == 999
-
-    async def test_missing_file_loads_empty(self, cache_config):
-        """A wiki/month with no cache file loads an empty cache, no fetch."""
-        repo = FakeRepo({"A": 10})
-        cache = PageviewsCache("en.wikipedia", "2099-12", repo)  # pyright: ignore[reportArgumentType]
-        # _load() ran at construction and found nothing.
-        assert cache.get("A", []) == 0
-        # No on-disk file is created until something is flushed.
-        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2099-12.jsonl"
-        assert not path.exists()
-
-    async def test_empty_file_loads_empty(self, cache_config):
-        """An existing but empty cache file loads an empty cache, no crash."""
-        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-05.jsonl"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("", encoding="utf-8")
-
-        repo = FakeRepo({"A": 10})
-        cache = PageviewsCache("en.wikipedia", "2024-05", repo)  # pyright: ignore[reportArgumentType]
-        assert cache.get("A", []) == 0
-
-    async def test_load_oserror_is_swallowed(self, cache_config, monkeypatch):
-        """A read error while loading is logged and treated as an empty cache."""
-        repo = FakeRepo({"A": 10})
-        cache = PageviewsCache("en.wikipedia", "2024-07", repo)  # pyright: ignore[reportArgumentType]
-        # Make path.report exist (so we reach the read) but have read_text raise.
-        fake = MagicMock()
-        fake.exists.return_value = True
-        fake.read_text.side_effect = OSError("permission denied")
-        cache.path = fake
-        cache._load()  # must not raise
-        assert cache.get("A", []) == 0
-
-
-# ---------------------------------------------------------------
-# 4. Tests for on-disk JSONL format, non-ASCII, and malformed-line handling.
-# ---------------------------------------------------------------
-class TestCacheJsonlFormat:
-    """Tests for on-disk JSONL format, non-ASCII, and malformed-line handling."""
-
-    async def test_written_file_is_valid_jsonl_readable_by_jsonlines(self, cache_config):
-        """The on-disk cache must be valid JSONL that jsonlines can read back."""
-        repo = FakeRepo({"A": 10, "B": 20, "C": 30})
-        cache = PageviewsCache("en.wikipedia", "2024-01", repo)  # pyright: ignore[reportArgumentType]
-        await cache.ensure({"A", "B", "C"}, "2024010100", "2024013100")
-
-        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
-        # Read the file back with jsonlines itself (not json.loads line-by-line).
-        with jsonlines.open(path, mode="r") as reader:
-            lines = list(reader)
-        assert {"title": "A", "views": 10} in lines
-        assert {"title": "B", "views": 20} in lines
-        assert {"title": "C", "views": 30} in lines
-        # Values come from disk, not the fake.
-        assert cache.get("A", []) == 10
-
-    async def test_non_ascii_title_round_trips(self, cache_config):
-        """Non-ASCII titles are written as UTF-8 and read back identically."""
-        title = "Café_İstanbul"
-        repo = FakeRepo({title: 7})
-        cache = PageviewsCache("en.wikipedia", "2024-03", repo)  # pyright: ignore[reportArgumentType]
-        await cache.ensure({title}, "2024030100", "2024033100")
-
-        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-03.jsonl"
-        with jsonlines.open(path, mode="r") as reader:
-            lines = list(reader)
-        assert lines == [{"title": title, "views": 7}]
-        # The title is stored as literal UTF-8, not \u-escaped ASCII.
-        raw = path.read_text(encoding="utf-8")
-        assert "Café_İstanbul" in raw
-        assert cache.get(title, []) == 7
-
-    async def test_malformed_lines_are_skipped_on_load(self, cache_config):
-        """Invalid JSON and malformed-but-valid objects are skipped, not fatal."""
-        repo1 = FakeRepo({"A": 10, "B": 20})
-        cache1 = PageviewsCache("en.wikipedia", "2024-01", repo1)  # pyright: ignore[reportArgumentType]
-        await cache1.ensure({"A", "B"}, "2024010100", "2024013100")
-
-        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-01.jsonl"
-        # Append a line that is not valid JSON and a dict missing 'views'.
-        with path.open("a", encoding="utf-8") as f:
-            f.write("this is not json\n")
-            f.write(json.dumps({"title": "Z"}) + "\n")
-
-        # A fresh cache must load only the two valid entries and not crash.
-        repo2 = FakeRepo({"A": 999, "B": 999})
-        cache2 = PageviewsCache("en.wikipedia", "2024-01", repo2)  # pyright: ignore[reportArgumentType]
-        assert repo2.calls == []  # nothing fetched -- both entries were on disk
+        # Values come from disk (10/20), not the fake's 999.
         assert cache2.get("A", []) == 10
         assert cache2.get("B", []) == 20
-        assert cache2.get("Z", []) == 0  # malformed object skipped
+        assert cache2.get("C", []) == 999
+
+    async def test_missing_file_creates_empty_sqlite(self, cache_config, cache_factory):
+        """A wiki/month with no cache file gets an empty .sqlite3 created."""
+        repo = FakeRepo({"A": 10})
+        cache = cache_factory("en.wikipedia", "2099-12", repo)
+        # The SQLite file is created at construction (schema initialized).
+        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2099-12.sqlite3"
+        assert path.exists()
+        assert cache.get("A", []) == 0
+
+
+# ---------------------------------------------------------------
+# 4. Tests for upsert/conflict behavior.
+# ---------------------------------------------------------------
+class TestCacheUpsert:
+    """Tests that re-fetching a title overwrites rather than duplicates."""
+
+    async def test_re_fetch_overwrites_existing_row(self, cache_config, cache_factory):
+        repo = FakeRepo({"A": 10})
+        cache = cache_factory("en.wikipedia", "2024-01", repo)
+        await cache.ensure({"A"}, "2024010100", "2024013100")
+
+        # Re-upserting the same title with a new view count must overwrite the
+        # existing row (primary-key conflict), never duplicate it.
+        cache._upsert_many({"A": 999})
+
+        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-01.sqlite3"
+        assert _rows(path) == {"A": 999}  # exactly one row, value overwritten
+        assert cache.get("A", []) == 999
+
+
+# ---------------------------------------------------------------
+# 5. Tests for lifecycle (close).
+# ---------------------------------------------------------------
+class TestCacheLifecycle:
+    """Tests for the sync close() lifecycle method."""
+
+    async def test_close_is_idempotent_and_safe(self, cache_config, cache_factory):
+        repo = FakeRepo({"A": 10})
+        cache = cache_factory("en.wikipedia", "2024-01", repo)
+        await cache.ensure({"A"}, "2024010100", "2024013100")
+
+        # close() must be callable and safe to call more than once.
+        cache.close()
+        cache.close()
+
+        # The on-disk data survives disposal.
+        path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-01.sqlite3"
+        assert _rows(path) == {"A": 10}

@@ -158,6 +158,11 @@ class ReportUpdater:
                     log_to_file(f"Error processing {project.Name}: {exc}", self.wiki)
                     skipped += 1
                 finally:
+                    # Close the per-project SQLite cache so its engine/file
+                    # handle is released before the next iteration; otherwise
+                    # open SQLite handles accumulate across project iterations.
+                    if cache is not None:
+                        cache.close()
                     # Drop references so this project's page/pageview data is
                     # eligible for GC before the next iteration allocates more,
                     # rather than living until the whole batch finishes.
