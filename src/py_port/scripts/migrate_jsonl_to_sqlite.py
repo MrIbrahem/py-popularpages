@@ -3,7 +3,7 @@ One-off migration: convert existing ``data/views/<wiki>/<YYYY-MM>.jsonl``
 pageviews caches to the new SQLite format (``<YYYY-MM>.sqlite3``).
 
 Usage:
-    python3 -m py_port.popularpages.pageviews.migrate_jsonl_to_sqlite [--data-dir PATH] [--delete-jsonl] [--dry-run]
+    python3 -m py_port.migrate_jsonl_to_sqlite [--data-dir PATH] [--delete-jsonl] [--dry-run]
 
 For every ``*.jsonl`` file found under the views data directory, this creates
 (or updates) a sibling ``.sqlite3`` file with the same title/views rows, using
@@ -27,8 +27,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import sessionmaker
 
-from ..config import app_config
-from .pageviews_models import Base, PageView
+from popularpages.config import app_config
+from popularpages.pageviews.pageviews_models import Base, PageView
 
 logger = logging.getLogger(__name__)
 
