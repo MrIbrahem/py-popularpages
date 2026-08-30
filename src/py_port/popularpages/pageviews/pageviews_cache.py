@@ -121,7 +121,8 @@ class PageviewsCache:
             chunk = missing[i : i + self.fetch_batch]
             views = await self.repo.get_title_views(chunk, start, end)
 
-            self.db._upsert_many({title: views.get(title, 0) for title in chunk})
+            fetched_views = {title: views.get(title, 0) for title in chunk}
+            self.db.upsert_many(fetched_views)
 
 
 __all__ = [

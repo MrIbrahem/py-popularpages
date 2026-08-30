@@ -5,7 +5,7 @@ pageviews db.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 from sqlalchemy import create_engine, select
@@ -54,13 +54,38 @@ class PageviewsDb:
         self._engine.dispose()
         logger.debug("Closed pageviews cache %s", self.path)
 
-    def query_titles_from_db(self, chunk: list[str]) -> Sequence[str]:
-        with self._Session() as session:
-            query = select(PageView.title).where(PageView.title.in_(chunk))
-            result = session.execute(query).scalars().all()
-            return result
+    # ----------------------------------------------------------------
+    # Internal helpers
+    # ----------------------------------------------------------------
+    @staticmethod
+    def _chunked(items: Sequence[str], size: int) -> Iterator[Sequence[str]]:
+        """Yield successive chunks of ``items`` of at most ``size`` elements."""
+        for i in range(0, len(items), size):
+            yield items[i : i + size]
 
-    def _upsert_many(self, title_views: dict[str, int]) -> None:
+    def _query_views_by_title(self, session: Session, titles: list[str]) -> dict[str, int]:
+        """
+        Resolve title -> views for many titles, reusing a single session and
+        querying in chunks to stay under SQLite's bound-variable limit.
+
+        This is the single query primitive used by both the "does this title
+        exist" lookups and the "what are its views" lookups, since the latter
+        is a strict superset of the former (a title with no cached views
+        simply won't appear as a key in the result).
+        """
+        views_by_title: dict[str, int] = {}
+
+        for chunk in self._chunked(titles, self._SELECT_IN_CHUNK_SIZE):
+            query = select(PageView.title, PageView.views).where(PageView.title.in_(chunk))
+            for title, views in session.execute(query).all():
+                views_by_title[title] = views
+
+        return views_by_title
+
+    # ----------------------------------------------------------------
+    # Writes
+    # ----------------------------------------------------------------
+    def upsert_many(self, title_views: dict[str, int]) -> None:
         """Upsert a batch of title -> views pairs, committing once for the batch."""
         if not title_views:
             return
@@ -78,17 +103,19 @@ class PageviewsDb:
 
         logger.debug("Upserted %d title(s) into %s", len(title_views), self.path)
 
-    def query_titles_cache(self, wanted: list[str]) -> set[str]:
-        cached: set[str] = set()
-        for i in range(0, len(wanted), self._SELECT_IN_CHUNK_SIZE):
-            chunk = wanted[i : i + self._SELECT_IN_CHUNK_SIZE]
-            result = self.query_titles_from_db(chunk)
-            cached.update(result)
-        return cached
-
     # ----------------------------------------------------------------
     # Lookup
     # ----------------------------------------------------------------
+    def query_titles_cache(self, wanted: list[str]) -> set[str]:
+        """Return the subset of ``wanted`` titles already present in the cache."""
+        if not wanted:
+            return set()
+
+        with self._Session() as session:
+            views_by_title = self._query_views_by_title(session, wanted)
+
+        return set(views_by_title)
+
     def get_views(self, target: str, redirects: list[str]) -> int:
         """
         Return the total views for a target page plus its redirects.
@@ -97,14 +124,7 @@ class PageviewsDb:
         :param redirects: Redirect titles (spaces) associated with the target.
         :return: Sum of cached views across target + redirects.
         """
-        titles = [t for t in [target, *redirects] if t]
-        if not titles:
-            return 0
-
-        with self._Session() as session:
-            rows = session.execute(select(PageView.views).where(PageView.title.in_(titles))).scalars().all()
-
-        return sum(rows)
+        return self.get_views_many([target], {target: redirects}).get(target, 0)
 
     def get_views_many(
         self,
@@ -137,22 +157,15 @@ class PageviewsDb:
         if not title_to_targets:
             return dict.fromkeys(targets, 0)
 
-        views_by_title: dict[str, int] = {}
         with self._Session() as session:
-            titles = list(title_to_targets)
-            for i in range(0, len(titles), self._SELECT_IN_CHUNK_SIZE):
-                chunk = titles[i : i + self._SELECT_IN_CHUNK_SIZE]
-                rows = session.execute(select(PageView.title, PageView.views).where(PageView.title.in_(chunk))).all()
-                for title, views in rows:
-                    views_by_title[title] = views
+            views_by_title = self._query_views_by_title(session, list(title_to_targets))
 
         result: dict[str, int] = {}
         for target in targets:
-            total = 0
-            for title in (target, *redirects_by_target.get(target, [])):
-                if title:
-                    total += views_by_title.get(title, 0)
-            result[target] = total
+            result[target] = sum(
+                views_by_title.get(title, 0) for title in (target, *redirects_by_target.get(target, [])) if title
+            )
+
         return result
 
 

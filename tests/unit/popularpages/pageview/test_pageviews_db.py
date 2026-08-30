@@ -2,7 +2,7 @@
 Tests for src.py_port.popularpages.pageviews.pageviews_db.PageviewsDb.
 
 The SQLite-backed store is exercised directly (no PageviewsCache, no network):
-we upsert rows with ``_upsert_many`` and assert on ``get_views`` /
+we upsert rows with ``upsert_many`` and assert on ``get_views`` /
 ``get_views_many`` lookup behavior, conflict/overwrite semantics, and the
 ``close`` lifecycle.
 """
@@ -68,7 +68,7 @@ class TestDbGet:
 
     async def test_get_sums_target_and_redirects(self, db_factory):
         db = db_factory()
-        db._upsert_many({"A": 10, "A redir": 5})
+        db.upsert_many({"A": 10, "A redir": 5})
 
         assert db.get_views("A", ["A redir"]) == 15
         assert db.get_views("A", []) == 10
@@ -83,11 +83,11 @@ class TestDbUpsert:
 
     async def test_re_fetch_overwrites_existing_row(self, db_factory) -> None:
         db = db_factory()
-        db._upsert_many({"A": 10})
+        db.upsert_many({"A": 10})
 
         # Re-upserting the same title with a new view count must overwrite the
         # existing row (primary-key conflict), never duplicate it.
-        db._upsert_many({"A": 999})
+        db.upsert_many({"A": 999})
 
         path = db.path
         assert _rows(path) == {"A": 999}  # exactly one row, value overwritten
@@ -102,14 +102,14 @@ class TestDbGetViewsMany:
 
     async def test_get_views_many_sums_target_and_redirects(self, db_factory):
         db = db_factory()
-        db._upsert_many({"A": 10, "A redir": 5, "B": 20})
+        db.upsert_many({"A": 10, "A redir": 5, "B": 20})
 
         counts = db.get_views_many(["A", "B"], {"A": ["A redir"], "B": []})
         assert counts == {"A": 15, "B": 20}
 
     async def test_get_views_many_unknown_is_zero(self, db_factory):
         db = db_factory()
-        db._upsert_many({"A": 10})
+        db.upsert_many({"A": 10})
 
         counts = db.get_views_many(["A", "Unknown"], {"A": [], "Unknown": ["Also missing"]})
         assert counts == {"A": 10, "Unknown": 0}
@@ -126,7 +126,7 @@ class TestDbGetViewsMany:
         n = 250
         mapping = {f"T{i}": i for i in range(n)}
         db = db_factory("en.wikipedia", "2024-03")
-        db._upsert_many(mapping)
+        db.upsert_many(mapping)
 
         targets = [f"T{i}" for i in range(n)]
         counts = db.get_views_many(targets, {t: [] for t in targets})
@@ -135,7 +135,7 @@ class TestDbGetViewsMany:
     async def test_get_views_many_shared_redirect_resolves_once(self, db_factory):
         """A redirect referenced by two targets is looked up once but counted for both."""
         db = db_factory()
-        db._upsert_many({"A": 1, "B": 2, "shared redir": 9})
+        db.upsert_many({"A": 1, "B": 2, "shared redir": 9})
 
         counts = db.get_views_many(["A", "B"], {"A": ["shared redir"], "B": ["shared redir"]})
         assert counts == {"A": 10, "B": 11}
@@ -149,7 +149,7 @@ class TestDbLifecycle:
 
     async def test_close_is_idempotent_and_safe(self, db_factory):
         db = db_factory("en.wikipedia", "2024-01")
-        db._upsert_many({"A": 10})
+        db.upsert_many({"A": 10})
 
         # close() must be callable and safe to call more than once.
         db.close()
