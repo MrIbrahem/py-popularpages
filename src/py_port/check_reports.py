@@ -7,6 +7,7 @@ it to ReportUpdater.
 
 Example:
     - python3 src/py_port/check_reports.py --wiki en.wikipedia
+    - python3 src/py_port/check_reports.py --wiki en.wikipedia --update-index  # update index page after updating reports
 """
 
 from __future__ import annotations
