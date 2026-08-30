@@ -132,7 +132,7 @@ class TestProcessProject:
     """Tests for the `process_project` method of the `ReportUpdater` class."""
 
     @pytest.mark.asyncio
-    async def test_process_project_renders_report_from_cache(self, updater):
+    async def test_process_project_renders_report_from_cache(self, updater: tuple[ReportUpdater, MagicMock]):
         u, repo = updater
         cache = MagicMock()
         cache.get_views.return_value = 42
