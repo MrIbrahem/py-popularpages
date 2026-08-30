@@ -107,6 +107,7 @@ def main() -> None:
         speedup = old_dt / new_dt if new_dt else float("inf")
         print(f"\nSpeedup (new vs old): {speedup:.1f}x  ({old_dt:.3f}s -> {new_dt:.3f}s)")
         cache.close()
+        m.config = new_cfg
 
 
 if __name__ == "__main__":
