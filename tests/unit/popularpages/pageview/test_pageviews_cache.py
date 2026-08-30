@@ -49,13 +49,13 @@ def cache_factory():
     created: list[PageviewsCache] = []
 
     def _make(*args, **kwargs) -> PageviewsCache:
-        c = PageviewsCache(*args, **kwargs)
-        created.append(c)
-        return c
+        _cache = PageviewsCache(*args, **kwargs)
+        created.append(_cache)
+        return _cache
 
     yield _make
-    for c in created:
-        c.db.close_db()
+    for cache in created:
+        cache.db.close_db()
 
 
 def _rows(sqlite_path) -> dict[str, int]:
@@ -76,8 +76,8 @@ class TestCacheEnsureAndFetch:
 
     async def test_ensure_fetches_all_titles_once_and_persists(self, cache_config, cache_factory):
         repo = FakeRepo({"A": 10, "B": 20, "C": 30})
-        cache = cache_factory("en.wikipedia", "2024-01", repo)
-        await cache.ensure({"A", "B", "C"}, "2024010100", "2024013100")
+        cache = cache_factory("en.wikipedia", "2024010100", "2024013100", repo)
+        await cache.ensure({"A", "B", "C"})
 
         # All three titles fetched in a single batch call (order is unspecified).
         assert len(repo.calls) == 1
@@ -90,9 +90,9 @@ class TestCacheEnsureAndFetch:
     async def test_incremental_only_fetches_missing(self, cache_config, cache_factory):
         """Two ensures persist cumulatively; the 2nd only fetches the new title."""
         repo = FakeRepo({"A": 1, "B": 2, "C": 3})
-        cache = cache_factory("en.wikipedia", "2024-06", repo)
-        await cache.ensure({"A", "B"}, "2024060100", "2024063000")
-        await cache.ensure({"C"}, "2024060100", "2024063000")
+        cache = cache_factory("en.wikipedia", "2024060100", "2024063000", repo)
+        await cache.ensure({"A", "B"})
+        await cache.ensure({"C"})
 
         path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-06.sqlite3"
         assert _rows(path) == {"A": 1, "B": 2, "C": 3}
@@ -104,8 +104,8 @@ class TestCacheEnsureAndFetch:
 
         mapping = {f"T{i}": i for i in range(10)}
         repo = FakeRepo(mapping)
-        cache = cache_factory("en.wikipedia", "2024-02", repo, fetch_batch=3)
-        await cache.ensure(set(mapping), "2024020100", "2024022900")
+        cache = cache_factory("en.wikipedia", "2024020100", "2024022900", repo, fetch_batch=3)
+        await cache.ensure(set(mapping))
 
         path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-02.sqlite3"
         # 10 titles in batches of 3 -> 4 API calls.
@@ -121,16 +121,16 @@ class TestCacheLoadReuse:
 
     async def test_load_reuses_previous_run_and_only_fetches_missing(self, cache_config, cache_factory):
         repo1 = FakeRepo({"A": 10, "B": 20})
-        cache1 = cache_factory("en.wikipedia", "2024-01", repo1)
-        await cache1.ensure({"A", "B"}, "2024010100", "2024013100")
+        cache1 = cache_factory("en.wikipedia", "2024010100", "2024013100", repo1)
+        await cache1.ensure({"A", "B"})
         assert repo1.calls  # fetched on first run
 
         # New cache for the same wiki/month should not re-fetch existing titles.
         repo2 = FakeRepo({"A": 999, "B": 999, "C": 999})
-        cache2 = cache_factory("en.wikipedia", "2024-01", repo2)
+        cache2 = cache_factory("en.wikipedia", "2024010100", "2024013100", repo2)
         assert repo2.calls == []  # nothing fetched at construction
 
-        await cache2.ensure({"A", "B", "C"}, "2024010100", "2024013100")
+        await cache2.ensure({"A", "B", "C"})
         # Only the previously-missing title "C" is fetched.
         assert repo2.calls == [["C"]]
         # Values come from disk (10/20), not the fake's 999.
@@ -141,7 +141,7 @@ class TestCacheLoadReuse:
     async def test_missing_file_creates_empty_sqlite(self, cache_config, cache_factory):
         """A wiki/month with no cache file gets an empty .sqlite3 created."""
         repo = FakeRepo({"A": 10})
-        cache = cache_factory("en.wikipedia", "2099-12", repo)
+        cache = cache_factory("en.wikipedia", "20991201", "20991231", repo)
         # The SQLite file is created at construction (schema initialized).
         path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2099-12.sqlite3"
         assert path.exists()
@@ -156,8 +156,8 @@ class TestCacheLifecycle:
 
     async def test_close_is_idempotent_and_safe(self, cache_config, cache_factory):
         repo = FakeRepo({"A": 10})
-        cache = cache_factory("en.wikipedia", "2024-01", repo)
-        await cache.ensure({"A"}, "2024010100", "2024013100")
+        cache = cache_factory("en.wikipedia", "2024010100", "2024013100", repo)
+        await cache.ensure({"A"})
 
         # close() must be callable and safe to call more than once.
         cache.db.close_db()

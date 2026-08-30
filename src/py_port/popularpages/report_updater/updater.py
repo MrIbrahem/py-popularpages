@@ -230,7 +230,7 @@ class ReportUpdater:
 
         return True
 
-    async def _build_views_cache(self, projects: list[WikiProjectConfig], all_titles: set[str]) -> PageviewsCache:
+    async def _build_views_cache(self, all_titles: set[str]) -> PageviewsCache:
         """
         Build a :class:`PageviewsCache` for this wiki's reporting month and fetch
         every unique title across ``projects`` exactly once.
@@ -240,19 +240,14 @@ class ReportUpdater:
         processed project earlier in this same run -- are reused and not
         dropped when the task finishes.
         """
-        year_month = self.start.strftime("%Y-%m")
-        cache = PageviewsCache(self.wiki, year_month, self.wiki_repository.pageviews_repo)
-
-        start_date = self.start.strftime("%Y%m%d00")
-        end_date = self.end.strftime("%Y%m%d00")
-        logger.info(
-            "Building pageviews cache for %d project(s); %d unique title(s) (window %s..%s)",
-            len(projects),
-            len(all_titles),
-            start_date,
-            end_date,
+        cache = PageviewsCache(
+            self.wiki,
+            self.start,
+            self.end,
+            self.wiki_repository.pageviews_repo,
         )
-        await cache.ensure(all_titles, start_date, end_date)
+
+        await cache.ensure(all_titles)
         return cache
 
     async def _views_for_project_from_cache(
@@ -372,7 +367,7 @@ class ReportUpdater:
                     # only (instead of accumulating titles across all stale
                     # projects before fetching anything).
                     titles = self._titles_for_pages(page_rows)
-                    cache = await self._build_views_cache([project], titles)
+                    cache = await self._build_views_cache(titles)
 
                     logger.info("Processing project '%s'", project.Name)
                     await self.process_project(

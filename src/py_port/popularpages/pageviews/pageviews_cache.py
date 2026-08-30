@@ -22,6 +22,7 @@ See docs/pageviews-persistence-and-dedup-plan.md.
 from __future__ import annotations
 
 import logging
+from datetime import date
 from pathlib import Path
 
 from tqdm import tqdm
@@ -47,14 +48,16 @@ class PageviewsCache:
     def __init__(
         self,
         wiki: str,
-        year_month: str,
+        start: date | str,
+        end: date | str,
         pageviews_repo: PageviewsRepository,
         path_dir: Path | None = None,
         fetch_batch: int | None = None,
     ) -> None:
         """
         :param wiki: Wiki domain, e.g. 'en.wikipedia'.
-        :param year_month: Month key, e.g. '2024-01'.
+        :param start: start date in datetime.date format
+        :param end: end date in datetime.date format
         :param pageviews_repo: A ``PageviewsRepository`` instance used to fetch
             any titles not already present in the cache.
         """
@@ -64,10 +67,14 @@ class PageviewsCache:
         self.fetch_batch = fetch_batch
 
         self.wiki = wiki
-        self.year_month = year_month
+
+        self.start = start if isinstance(start, date) else date.fromisoformat(start)
+        self.end = end if isinstance(end, date) else date.fromisoformat(end)
+
+        self.year_month = self.start.strftime("%Y-%m")
         self.repo = pageviews_repo
 
-        self.db = PageviewsDb(wiki, year_month, path_dir=path_dir)
+        self.db = PageviewsDb(wiki, self.year_month, path_dir=path_dir)
 
     def _find_missing(self, titles: set[str]) -> list[str]:
         """
@@ -81,7 +88,7 @@ class PageviewsCache:
 
         return [t for t in wanted if t not in cached]
 
-    async def ensure(self, titles: set[str], start: str, end: str) -> None:
+    async def ensure(self, titles: set[str]) -> None:
         """
         Make sure every title in ``titles`` has a cached view count.
 
@@ -91,9 +98,17 @@ class PageviewsCache:
         SQLite as they accumulate (committing once per batch).
 
         :param titles: Unique article titles (spaces) to ensure.
-        :param start: Start date in YYYYMMDD00 format.
-        :param end: End date in YYYYMMDD00 format.
         """
+        start_date = self.start.strftime("%Y%m%d00")
+        end_date = self.end.strftime("%Y%m%d00")
+
+        logger.info(
+            "Building pageviews cache for %d unique title(s) (window: %s-%s)",
+            len(titles),
+            start_date,
+            end_date,
+        )
+
         missing = self._find_missing(titles)
         if not missing:
             logger.info(
@@ -116,7 +131,7 @@ class PageviewsCache:
 
         for i in tqdm(batches, desc=f"Fetching pageviews for {len(missing):,} titles"):
             chunk = missing[i : i + self.fetch_batch]
-            views = await self.repo.get_title_views(chunk, start, end)
+            views = await self.repo.get_title_views(chunk, start_date, end_date)
 
             fetched_views = {title: views.get(title, 0) for title in chunk}
             self.db.upsert_many(fetched_views)
