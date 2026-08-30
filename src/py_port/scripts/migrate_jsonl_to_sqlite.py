@@ -23,12 +23,11 @@ import logging
 from pathlib import Path
 
 import jsonlines
+from popularpages.config import app_config
+from popularpages.pageviews.pageviews_models import Base, PageView
 from sqlalchemy import create_engine
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import sessionmaker
-
-from popularpages.config import app_config
-from popularpages.pageviews.pageviews_models import Base, PageView
 
 logger = logging.getLogger(__name__)
 

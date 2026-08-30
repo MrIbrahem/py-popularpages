@@ -6,7 +6,6 @@ calls are made; we only assert on de-duplication, persistence (SQLite), and
 lookup behavior of the new SQLAlchemy-backed cache.
 """
 
-import dataclasses
 import sqlite3
 
 import pytest
