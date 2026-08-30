@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 
-from .config import config
+from .config import app_config
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +27,13 @@ class I18n:
     positional placeholders. Falls back to English for missing keys.
     """
 
-    def __init__(self, lang: str = config.wiki.fallback_lang):
+    def __init__(self, lang: str = app_config.wiki.fallback_lang):
         self.lang = lang
         self._cache: dict[str, dict] = {}
 
     def _load(self, lang: str) -> dict:
         if lang not in self._cache:
-            path = config.paths.messages_dir / f"{lang}.json"
+            path = app_config.paths.messages_dir / f"{lang}.json"
             if not path.exists():
                 logger.info("No messages file for lang '%s'; falling back", lang)
                 self._cache[lang] = {}
@@ -56,9 +56,9 @@ class I18n:
         messages = self._load(self.lang)
         text = messages.get(key)
 
-        if text is None and self.lang != config.wiki.fallback_lang:
+        if text is None and self.lang != app_config.wiki.fallback_lang:
             logger.debug("Message key '%s' missing in '%s'; trying fallback", key, self.lang)
-            text = self._load(config.wiki.fallback_lang).get(key)
+            text = self._load(app_config.wiki.fallback_lang).get(key)
 
         if text is None:
             logger.debug("Message key '%s' not found in any lang; using raw key", key)

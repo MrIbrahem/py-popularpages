@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from ..config import config
+from ..config import app_config
 from .maps import WikiReplicaMaps
 from .replica_db import WikiReplicaBaseDB
 
@@ -32,8 +32,8 @@ class WikiReplicaDB(WikiReplicaBaseDB):
         super().__init__(
             dbname=f"{dbname}_p",
             host=host,
-            user=config.db.user,
-            password=config.db.password,
+            user=app_config.db.user,
+            password=app_config.db.password,
         )
 
 

@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..config import config
+from ..config import app_config
 from .replica_db import WikiReplicaBaseDB
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class WikiReplicaMaps:
         self.file_name = file_name
 
         if cache_ttl is None:
-            cache_ttl = config.db.cache_ttl
+            cache_ttl = app_config.db.cache_ttl
 
         self.cache_ttl = cache_ttl
         self._wiki_map: dict[str, dict[str, str]] = {}
@@ -79,7 +79,7 @@ class WikiReplicaMaps:
         """
         new_map = {}
 
-        if not config.db.has_db_data():
+        if not app_config.db.has_db_data():
             logger.warning("No credentials for DB, skipping wiki map load")
             return new_map
 
@@ -87,8 +87,8 @@ class WikiReplicaMaps:
             with WikiReplicaBaseDB(
                 dbname="meta_p",
                 host="s7.analytics.db.svc.wikimedia.cloud",
-                user=config.db.user,
-                password=config.db.password,
+                user=app_config.db.user,
+                password=app_config.db.password,
             ) as meta_db:
 
                 results = meta_db.select(query)

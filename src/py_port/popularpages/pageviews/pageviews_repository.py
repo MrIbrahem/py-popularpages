@@ -23,7 +23,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from ..config import config
+from ..config import app_config
 from ..logger import log_to_file
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ def _is_retryable(exc: BaseException) -> bool:
     not 4xx/5xx transport problems (e.g. DNS/connect) are also retried.
     """
     if isinstance(exc, httpx.HTTPStatusError):
-        return exc.response.status_code in config.pageviews.retry_status_codes
+        return exc.response.status_code in app_config.pageviews.retry_status_codes
     # Connection/transport errors and timeouts are retryable too.
     if isinstance(exc, httpx.TimeoutException | httpx.TransportError):
         return True
@@ -85,10 +85,10 @@ class PageviewsRepository:
         logger.debug("PageviewsRepository initialized for domain '%s'", domain)
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(
-                config.pageviews.request_timeout_seconds,
-                connect=config.pageviews.connect_timeout_seconds,
+                app_config.pageviews.request_timeout_seconds,
+                connect=app_config.pageviews.connect_timeout_seconds,
             ),
-            headers={"User-Agent": config.other.user_agent},
+            headers={"User-Agent": app_config.other.user_agent},
         )
 
     async def aclose(self) -> None:
@@ -116,7 +116,7 @@ class PageviewsRepository:
     @retry(
         retry=retry_if_exception(_is_retryable),
         wait=_retry_wait,
-        stop=stop_after_attempt(config.pageviews.max_retry_attempts),
+        stop=stop_after_attempt(app_config.pageviews.max_retry_attempts),
         after=lambda retry_state: retry_state.args[0]._log_retry(retry_state),
         reraise=True,
     )
@@ -125,7 +125,7 @@ class PageviewsRepository:
         # page titles may contain &, /, ?, #, +, % etc.; without encoding the URL is
         # malformed and the API returns no data (silently counted as 0 pageviews).
         encoded_article = quote(article, safe="")
-        url = f"{config.pageviews.endpoint_url}/{self.domain}/all-access/user/{encoded_article}/monthly/{start}/{end}"
+        url = f"{app_config.pageviews.endpoint_url}/{self.domain}/all-access/user/{encoded_article}/monthly/{start}/{end}"
         logger.debug("GET %s", url)
         response = await self._client.get(url)
         response.raise_for_status()
@@ -205,7 +205,7 @@ class PageviewsRepository:
         error occurs; only 429/5xx-style retryable failures are retried by the
         tenacity wrapper on :meth:`_get`.
         """
-        await asyncio.sleep(config.pageviews.request_delay_seconds)
+        await asyncio.sleep(app_config.pageviews.request_delay_seconds)
         article = title.replace(" ", "_")
         try:
             response = await self._get(article, start, end)

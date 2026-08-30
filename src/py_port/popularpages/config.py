@@ -8,11 +8,11 @@ python-dotenv, falling back to real environment variables.
     cp .env.example .env
     # then edit .env with your bot username/password (from Special:BotPasswords)
 
-The whole application reads its settings through the single :data:`config`
+The whole application reads its settings through the single :data:`app_config`
 instance of :class:`AppConfig`. No other module should read raw environment
-variables or hard-code paths/limits; import :data:`config` from this module
-and access the nested sub-configs (``config.paths``, ``config.credentials``,
-``config.pageviews``, ``config.wiki``, ``config.project``).
+variables or hard-code paths/limits; import :data:`app_config` from this module
+and access the nested sub-configs (``app_config.paths``, ``app_config.credentials``,
+``app_config.pageviews``, ``app_config.wiki``, ``app_config.project``).
 """
 
 from __future__ import annotations
@@ -239,7 +239,7 @@ class AppConfig:
         )
 
 
-config = AppConfig.load()
+app_config = AppConfig.load()
 
 __all__ = [
     "AppConfig",
@@ -249,5 +249,5 @@ __all__ = [
     "DataPathsConfig",
     "WikiConfig",
     "OtherConfig",
-    "config",
+    "app_config",
 ]

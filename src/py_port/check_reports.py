@@ -16,7 +16,7 @@ import argparse
 import asyncio
 import logging
 
-from popularpages.config import config
+from popularpages.config import app_config
 from popularpages.logger import log_to_file
 from popularpages.report_updater import IndexUpdater, ReportUpdater
 
@@ -42,7 +42,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    wikis_config = config.paths.load_wikis_config()
+    wikis_config = app_config.paths.load_wikis_config()
 
     if args.wiki:
         if args.wiki not in wikis_config:

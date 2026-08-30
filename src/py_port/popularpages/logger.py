@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from .config import config
+from .config import app_config
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ def log_to_file(message: str, wiki: str) -> None:
     :param wiki: Wiki key (e.g. 'en.wikipedia'), used to select the log file.
     Mirrors the behaviour of the PHP ``wfLogToFile()`` helper used on Toolforge.
     """
-    log_path = config.data_paths.log_dir / f"log-{wiki}.txt"
+    log_path = app_config.data_paths.log_dir / f"log-{wiki}.txt"
 
     # match php time: date( 'Y-m-d H:i:s' )
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

@@ -27,7 +27,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import sessionmaker
 
-from ..config import config
+from ..config import app_config
 from .pageviews_models import Base, PageView
 
 logger = logging.getLogger(__name__)
@@ -125,7 +125,7 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    data_dir = args.data_dir or config.data_paths.views_data_dir
+    data_dir = args.data_dir or app_config.data_paths.views_data_dir
     migrate(data_dir, delete_jsonl=args.delete_jsonl, dry_run=args.dry_run)
 
 

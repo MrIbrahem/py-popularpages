@@ -13,8 +13,7 @@ from datetime import datetime, timezone
 
 from jinja2 import Environment, FileSystemLoader
 
-from ..config import config  # AppConfig singleton (unshadowed by method params)
-from ..config import config as app_config
+from ..config import app_config
 from ..logger import log_to_file
 from ..mapping import WikiProjectConfig
 from ..pageviews.pageviews_cache import PageviewsCache
@@ -45,7 +44,7 @@ class ReportUpdater:
         # NOTE: dont use date.today(), use datetime.now(timezone.utc).date() instead to avoid timezone issues.
         self.start, self.end = previous_month_range(datetime.now(timezone.utc).date())
 
-        self.env = Environment(loader=FileSystemLoader(str(config.paths.views_dir)))
+        self.env = Environment(loader=FileSystemLoader(str(app_config.paths.views_dir)))
         self._register_template_helpers()
 
     def _register_template_helpers(self) -> None:

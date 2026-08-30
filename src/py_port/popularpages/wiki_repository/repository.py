@@ -23,7 +23,7 @@ import mwclient
 import mwclient.errors
 import wikitextparser as wtp
 
-from ..config import config
+from ..config import app_config
 from ..i18n import I18n
 from ..logger import log_to_file
 from ..mapping import WikiProjectConfig
@@ -54,13 +54,13 @@ class WikiRepository:
         """
         self.wiki = wiki
         self.dry_run = dry_run
-        self.log_dir: Path = log_dir or config.data_paths.log_dir
+        self.log_dir: Path = log_dir or app_config.data_paths.log_dir
         self.i18n = I18n(wiki.split(".")[0])
-        self.creds = config.credentials
+        self.creds = app_config.credentials
         self.username = self.creds.botuser.split("@")[0]
         self.host = f"{wiki}.org"
 
-        _config: dict = config.paths.load_wikis_config()
+        _config: dict = app_config.paths.load_wikis_config()
         self.wiki_config: dict = _config.get(wiki) or {}
         if not self.wiki_config:
             raise ValueError(f"Wiki {wiki} not found in config")
@@ -83,7 +83,7 @@ class WikiRepository:
         self._http_client = httpx.Client(
             timeout=10.0,
             follow_redirects=True,
-            headers={"User-Agent": config.other.user_agent},
+            headers={"User-Agent": app_config.other.user_agent},
         )
 
         logger.info(
@@ -106,7 +106,7 @@ class WikiRepository:
             self._site = mwclient.Site(
                 self.host,
                 path="/w/",
-                clients_useragent=config.other.user_agent,
+                clients_useragent=app_config.other.user_agent,
             )
             self.login()
         return self._site
@@ -259,9 +259,9 @@ class WikiRepository:
             logger.debug("Returning cached assessment config")
             return self._assessment_config
 
-        logger.info("Fetching assessment config from %s", config.wiki.assessment_config_url)
+        logger.info("Fetching assessment config from %s", app_config.wiki.assessment_config_url)
         try:
-            resp = self._http_client.get(config.wiki.assessment_config_url)
+            resp = self._http_client.get(app_config.wiki.assessment_config_url)
             resp.raise_for_status()
             data = resp.json()
 
@@ -321,7 +321,7 @@ class WikiRepository:
             # queued. The 60 is arbitrary (see T-plan notes): we keep batches
             # close to the API's ~100 req/sec limit without a hard cap.
             batch_count += 1
-            if batch_count > config.pageviews.batch_size_threshold:
+            if batch_count > app_config.pageviews.batch_size_threshold:
                 log_to_file(f"Processing page {index} of {num_results}", self.wiki)
                 total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
                 batch_count = 0

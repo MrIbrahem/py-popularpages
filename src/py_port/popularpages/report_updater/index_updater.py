@@ -13,7 +13,7 @@ from datetime import datetime
 import pymysql
 from jinja2 import Environment, FileSystemLoader
 
-from ..config import config  # AppConfig singleton (unshadowed by method params)
+from ..config import app_config
 from ..mapping import WikiProjectConfig
 from ..utils import format_date, uc_first
 from ..wiki_repository import WikiRepository
@@ -37,7 +37,7 @@ class IndexUpdater:
         self.i18n = self.wiki_repository.i18n
         logger.info("ReportUpdater initialized for wiki '%s' (dry_run=%s)", wiki, dry_run)
 
-        self.env = Environment(loader=FileSystemLoader(str(config.paths.views_dir)))
+        self.env = Environment(loader=FileSystemLoader(str(app_config.paths.views_dir)))
         self._register_template_helpers()
 
     def _register_template_helpers(self) -> None:

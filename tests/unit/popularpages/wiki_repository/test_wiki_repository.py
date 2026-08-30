@@ -23,7 +23,7 @@ from src.py_port.popularpages.wiki_repository.repository import WikiRepository
 # live in .env (gitignored). Skip them when absent so the suite stays green in
 # CI.
 requires_creds = pytest.mark.skipif(
-    not cfg.config.credentials.has_credentials(),
+    not cfg.app_config.credentials.has_credentials(),
     reason="requires credentials in .env with live credentials",
 )
 

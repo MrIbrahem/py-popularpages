@@ -29,7 +29,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, sessionmaker
 from tqdm import tqdm
 
-from ..config import config
+from ..config import app_config
 from .pageviews_models import Base, PageView
 from .pageviews_repository import PageviewsRepository
 
@@ -69,7 +69,7 @@ class PageviewsCache:
         self.year_month = year_month
         self.repo = pageviews_repo
 
-        _path_dir: Path = path_dir or config.data_paths.views_data_dir
+        _path_dir: Path = path_dir or app_config.data_paths.views_data_dir
         self.path: Path = _path_dir / wiki / f"{year_month}.sqlite3"
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -122,10 +122,10 @@ class PageviewsCache:
             len(titles),
         )
 
-        batches = range(0, len(missing), config.pageviews.fetch_batch)
+        batches = range(0, len(missing), app_config.pageviews.fetch_batch)
 
         for i in tqdm(batches, desc=f"Fetching pageviews for {len(missing):,} titles"):
-            chunk = missing[i : i + config.pageviews.fetch_batch]
+            chunk = missing[i : i + app_config.pageviews.fetch_batch]
             views = await self.repo.get_title_views(chunk, start, end)
 
             self._upsert_many({title: views.get(title, 0) for title in chunk})

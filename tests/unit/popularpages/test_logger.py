@@ -11,9 +11,9 @@ class TestLogToFile:
 
     def test_log_to_file_writes_expected_line(self, tmp_path, monkeypatch):
         monkeypatch.setenv("POPULAR_PAGES_MAIN_DIR", str(tmp_path))
-        _config = cfg.config.load()
+        _config = cfg.app_config.load()
 
-        monkeypatch.setattr(logger_module, "config", _config)
+        monkeypatch.setattr(logger_module, "app_config", _config)
 
         log_to_file("Test message", "en.wikipedia")
 
@@ -26,9 +26,9 @@ class TestLogToFile:
 
     def test_log_to_file_appends_multiple_messages(self, tmp_path, monkeypatch):
         monkeypatch.setenv("POPULAR_PAGES_MAIN_DIR", str(tmp_path))
-        _config = cfg.config.load()
+        _config = cfg.app_config.load()
 
-        monkeypatch.setattr(logger_module, "config", _config)
+        monkeypatch.setattr(logger_module, "app_config", _config)
 
         log_to_file("First", "ar.wikipedia")
         log_to_file("Second", "ar.wikipedia")

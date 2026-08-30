@@ -34,10 +34,10 @@ class FakeRepo:
 def cache_config(tmp_path, monkeypatch):
     """Redirect the persisted cache directory to a temp path."""
     monkeypatch.setenv("POPULAR_PAGES_MAIN_DIR", str(tmp_path))
-    new_cfg = cfg.config.load()
+    new_cfg = cfg.app_config.load()
 
-    monkeypatch.setattr("src.py_port.popularpages.pageviews.pageviews_cache.config", new_cfg)
-    monkeypatch.setattr(cache_module, "config", new_cfg)
+    monkeypatch.setattr("src.py_port.popularpages.pageviews.pageviews_cache.app_config", new_cfg)
+    monkeypatch.setattr(cache_module, "app_config", new_cfg)
     return new_cfg
 
 
@@ -103,7 +103,7 @@ class TestCacheEnsureAndFetch:
             cache_config,
             pageviews=dataclasses.replace(cache_config.pageviews, fetch_batch=3),
         )
-        monkeypatch.setattr(cache_module, "config", small_batch)
+        monkeypatch.setattr(cache_module, "app_config", small_batch)
 
         mapping = {f"T{i}": i for i in range(10)}
         repo = FakeRepo(mapping)
@@ -218,7 +218,7 @@ class TestCacheGetViewsMany:
             cache_config,
             pageviews=dataclasses.replace(cache_config.pageviews, fetch_batch=1000),
         )
-        monkeypatch.setattr(cache_module, "config", small_chunk)
+        monkeypatch.setattr(cache_module, "app_config", small_chunk)
         # Override the chunk size used by get_views_many to exercise chunking.
         monkeypatch.setattr(cache_module.PageviewsCache, "_SELECT_IN_CHUNK_SIZE", 100)
 
