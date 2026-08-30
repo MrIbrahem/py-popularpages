@@ -193,6 +193,57 @@ class PageviewsCache:
 
         return sum(rows)
 
+    def get_views_many(
+        self,
+        targets: list[str],
+        redirects_by_target: dict[str, list[str]],
+    ) -> dict[str, int]:
+        """
+        Bulk variant of :meth:`get_views` for many targets at once.
+
+        Instead of one SQLite query per target -- which, for projects with
+        hundreds of thousands of titles, means hundreds of thousands of
+        session opens plus round-trips -- this resolves every unique title
+        across all targets and their redirects in a handful of chunked
+        ``SELECT ... WHERE title IN (...)`` queries that reuse a single
+        session, then aggregates the per-title views back to each target.
+
+        :param targets: Target page titles (spaces).
+        :param redirects_by_target: Map of target -> its redirect titles.
+        :return: Map of target -> total views (target + redirects).
+        """
+        # Map every unique title to the targets that reference it (as the
+        # target itself or as one of its redirects). A title may be referenced
+        # by more than one target, so keep a list.
+        title_to_targets: dict[str, list[str]] = {}
+        for target in targets:
+            for title in (target, *redirects_by_target.get(target, [])):
+                if title:
+                    title_to_targets.setdefault(title, []).append(target)
+
+        if not title_to_targets:
+            return dict.fromkeys(targets, 0)
+
+        views_by_title: dict[str, int] = {}
+        with self._Session() as session:
+            titles = list(title_to_targets)
+            for i in range(0, len(titles), self._SELECT_IN_CHUNK_SIZE):
+                chunk = titles[i : i + self._SELECT_IN_CHUNK_SIZE]
+                rows = session.execute(
+                    select(PageView.title, PageView.views).where(PageView.title.in_(chunk))
+                ).all()
+                for title, views in rows:
+                    views_by_title[title] = views
+
+        result: dict[str, int] = {}
+        for target in targets:
+            total = 0
+            for title in (target, *redirects_by_target.get(target, [])):
+                if title:
+                    total += views_by_title.get(title, 0)
+            result[target] = total
+        return result
+
 
 __all__ = [
     "PageviewsCache",
