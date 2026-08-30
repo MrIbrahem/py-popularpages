@@ -125,7 +125,9 @@ class PageviewsRepository:
         # page titles may contain &, /, ?, #, +, % etc.; without encoding the URL is
         # malformed and the API returns no data (silently counted as 0 pageviews).
         encoded_article = quote(article, safe="")
-        url = f"{app_config.pageviews.endpoint_url}/{self.domain}/all-access/user/{encoded_article}/monthly/{start}/{end}"
+        url = (
+            f"{app_config.pageviews.endpoint_url}/{self.domain}/all-access/user/{encoded_article}/monthly/{start}/{end}"
+        )
         logger.debug("GET %s", url)
         response = await self._client.get(url)
         response.raise_for_status()
