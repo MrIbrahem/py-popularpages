@@ -51,7 +51,7 @@ class PageviewsCache:
     # even on older builds that cap at 999 (vs. 32766 on SQLite >=3.32.0).
     # See: https://www.sqlite.org/limits.html#max_variable_number
     _SELECT_IN_CHUNK_SIZE = 500
-    
+
     def __init__(
         self,
         wiki: str,

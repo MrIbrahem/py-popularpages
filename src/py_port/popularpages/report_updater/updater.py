@@ -8,6 +8,7 @@ page templates.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timezone
 
 import pymysql
@@ -337,6 +338,8 @@ class ReportUpdater:
         :param cache: The shared pageviews cache.
         :return: (pages_dict, total_pageviews).
         """
+        _t0 = time.perf_counter()
+        logger.info("Fetching pageviews for %d page(s), limit: %d", len(page_rows), limit)
         unknown_msg = self.i18n.msg("unknown")
         out: dict[str, dict] = {}
         redirects: dict[str, list[str]] = {}
@@ -362,6 +365,13 @@ class ReportUpdater:
 
         out = self.wiki_repository._sort_and_truncate_pages_list(out, limit)
 
+        _elapsed = time.perf_counter() - _t0
+        logger.info(
+            "_views_for_project_from_cache took %.4f s for %d page(s), limit: %d",
+            _elapsed,
+            len(page_rows),
+            limit,
+        )
         return out, total_pageviews
 
     def update_index(self) -> None:

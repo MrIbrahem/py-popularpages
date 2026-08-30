@@ -243,7 +243,6 @@ class PageviewsRepository:
             total_views += int(item["views"])
             article = item["article"].replace("_", " ")
 
-        logger.debug("Processed %d item(s) for '%s': %d total views", len(items), article, total_views)
         return article, total_views
 
 
