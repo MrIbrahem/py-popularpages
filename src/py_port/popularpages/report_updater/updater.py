@@ -404,7 +404,7 @@ class ReportUpdater:
 
             logger.info("update_reports: done (%d processed, %d skipped)", processed, skipped)
 
-            # Update index page.
+            # NOTE: update index moved into IndexUpdater
             # self.update_index()
         finally:
             # Release the per-run Pageviews HTTP client (async context).
