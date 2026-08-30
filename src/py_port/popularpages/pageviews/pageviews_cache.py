@@ -24,13 +24,10 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from sqlalchemy import create_engine, select
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.orm import Session, sessionmaker
 from tqdm import tqdm
 
 from ..config import app_config
-from .pageviews_models import Base, PageView
+from .pageviews_db import PageviewsDb
 from .pageviews_repository import PageviewsRepository
 
 logger = logging.getLogger(__name__)
@@ -46,11 +43,6 @@ class PageviewsCache:
     keeping an in-memory dict, so the process's memory footprint doesn't grow
     with the number of cached titles.
     """
-
-    # Conservative chunk size, safely under SQLite's SQLITE_MAX_VARIABLE_NUMBER
-    # even on older builds that cap at 999 (vs. 32766 on SQLite >=3.32.0).
-    # See: https://www.sqlite.org/limits.html#max_variable_number
-    _SELECT_IN_CHUNK_SIZE = 500
 
     def __init__(
         self,
@@ -69,28 +61,23 @@ class PageviewsCache:
         self.year_month = year_month
         self.repo = pageviews_repo
 
-        _path_dir: Path = path_dir or app_config.data_paths.views_data_dir
-        self.path: Path = _path_dir / wiki / f"{year_month}.sqlite3"
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.db = PageviewsDb(wiki, year_month, path_dir=path_dir)
 
-        # SQLite creates the file on first connection if it doesn't exist yet.
-        self._engine = create_engine(f"sqlite:///{self.path}", future=True)
-        Base.metadata.create_all(self._engine)
-        self._Session: sessionmaker[Session] = sessionmaker(bind=self._engine, future=True)
-
-        logger.debug("Pageviews cache backed by %s", self.path)
-
-    # ----------------------------------------------------------------
-    # Lifecycle
-    # ----------------------------------------------------------------
     def close(self) -> None:
-        """Dispose of the underlying SQLite engine/connection pool."""
-        self._engine.dispose()
-        logger.debug("Closed pageviews cache %s", self.path)
+        return self.db.close()
 
-    # ----------------------------------------------------------------
-    # Fetching
-    # ----------------------------------------------------------------
+    def _find_missing(self, titles: set[str]) -> list[str]:
+        """
+        Return the subset of ``titles`` not already present in the cache.
+        """
+        wanted = [t for t in titles if t]
+        if not wanted:
+            return []
+
+        cached = self.db.query_titles_cache(wanted)
+
+        return [t for t in wanted if t not in cached]
+
     async def ensure(self, titles: set[str], start: str, end: str) -> None:
         """
         Make sure every title in ``titles`` has a cached view count.
@@ -128,117 +115,7 @@ class PageviewsCache:
             chunk = missing[i : i + app_config.pageviews.fetch_batch]
             views = await self.repo.get_title_views(chunk, start, end)
 
-            self._upsert_many({title: views.get(title, 0) for title in chunk})
-
-    def _find_missing(self, titles: set[str]) -> list[str]:
-        """
-        Return the subset of ``titles`` not already present in the cache.
-
-        Performs one ``SELECT ... WHERE title IN (...)`` per chunk of at most
-        ``_SELECT_IN_CHUNK_SIZE`` titles, rather than a single query with one
-        bound parameter per title -- large projects (thousands of unique
-        titles) could otherwise exceed SQLite's SQLITE_MAX_VARIABLE_NUMBER,
-        which is as low as 999 on some system SQLite builds regardless of the
-        Python/SQLite version in use.
-        """
-        wanted = [t for t in titles if t]
-        if not wanted:
-            return []
-
-        cached: set[str] = set()
-        with self._Session() as session:
-            for i in range(0, len(wanted), self._SELECT_IN_CHUNK_SIZE):
-                chunk = wanted[i : i + self._SELECT_IN_CHUNK_SIZE]
-                cached.update(session.execute(select(PageView.title).where(PageView.title.in_(chunk))).scalars().all())
-
-        return [t for t in wanted if t not in cached]
-
-    def _upsert_many(self, title_views: dict[str, int]) -> None:
-        """Upsert a batch of title -> views pairs, committing once for the batch."""
-        if not title_views:
-            return
-
-        with self._Session() as session:
-            stmt = sqlite_insert(PageView).values(
-                [{"title": title, "views": views} for title, views in title_views.items()]
-            )
-            stmt = stmt.on_conflict_do_update(
-                index_elements=[PageView.title],
-                set_={"views": stmt.excluded.views},
-            )
-            session.execute(stmt)
-            session.commit()
-
-        logger.debug("Upserted %d title(s) into %s", len(title_views), self.path)
-
-    # ----------------------------------------------------------------
-    # Lookup
-    # ----------------------------------------------------------------
-    def get_views(self, target: str, redirects: list[str]) -> int:
-        """
-        Return the total views for a target page plus its redirects.
-
-        :param target: Target page title (spaces).
-        :param redirects: Redirect titles (spaces) associated with the target.
-        :return: Sum of cached views across target + redirects.
-        """
-        titles = [t for t in [target, *redirects] if t]
-        if not titles:
-            return 0
-
-        with self._Session() as session:
-            rows = session.execute(select(PageView.views).where(PageView.title.in_(titles))).scalars().all()
-
-        return sum(rows)
-
-    def get_views_many(
-        self,
-        targets: list[str],
-        redirects_by_target: dict[str, list[str]],
-    ) -> dict[str, int]:
-        """
-        Bulk variant of :meth:`get_views` for many targets at once.
-
-        Instead of one SQLite query per target -- which, for projects with
-        hundreds of thousands of titles, means hundreds of thousands of
-        session opens plus round-trips -- this resolves every unique title
-        across all targets and their redirects in a handful of chunked
-        ``SELECT ... WHERE title IN (...)`` queries that reuse a single
-        session, then aggregates the per-title views back to each target.
-
-        :param targets: Target page titles (spaces).
-        :param redirects_by_target: Map of target -> its redirect titles.
-        :return: Map of target -> total views (target + redirects).
-        """
-        # Map every unique title to the targets that reference it (as the
-        # target itself or as one of its redirects). A title may be referenced
-        # by more than one target, so keep a list.
-        title_to_targets: dict[str, list[str]] = {}
-        for target in targets:
-            for title in (target, *redirects_by_target.get(target, [])):
-                if title:
-                    title_to_targets.setdefault(title, []).append(target)
-
-        if not title_to_targets:
-            return dict.fromkeys(targets, 0)
-
-        views_by_title: dict[str, int] = {}
-        with self._Session() as session:
-            titles = list(title_to_targets)
-            for i in range(0, len(titles), self._SELECT_IN_CHUNK_SIZE):
-                chunk = titles[i : i + self._SELECT_IN_CHUNK_SIZE]
-                rows = session.execute(select(PageView.title, PageView.views).where(PageView.title.in_(chunk))).all()
-                for title, views in rows:
-                    views_by_title[title] = views
-
-        result: dict[str, int] = {}
-        for target in targets:
-            total = 0
-            for title in (target, *redirects_by_target.get(target, [])):
-                if title:
-                    total += views_by_title.get(title, 0)
-            result[target] = total
-        return result
+            self.db._upsert_many({title: views.get(title, 0) for title in chunk})
 
 
 __all__ = [

@@ -117,18 +117,18 @@ class TestCacheEnsureAndFetch:
 
 
 # ---------------------------------------------------------------
-# 2. Tests for PageviewsCache.get_views summing target and redirects.
+# 2. Tests for PageviewsCache.db.get_views summing target and redirects.
 # ---------------------------------------------------------------
 class TestCacheGet:
-    """Tests for PageviewsCache.get_views summing target and redirects."""
+    """Tests for PageviewsCache.db.get_views summing target and redirects."""
 
     async def test_get_sums_target_and_redirects(self, cache_config, cache_factory):
         repo = FakeRepo({"A": 10, "A redir": 5})
         cache = cache_factory("en.wikipedia", "2024-01", repo)
         await cache.ensure({"A", "A redir"}, "2024010100", "2024013100")
-        assert cache.get_views("A", ["A redir"]) == 15
-        assert cache.get_views("A", []) == 10
-        assert cache.get_views("Unknown", []) == 0
+        assert cache.db.get_views("A", ["A redir"]) == 15
+        assert cache.db.get_views("A", []) == 10
+        assert cache.db.get_views("Unknown", []) == 0
 
 
 # ---------------------------------------------------------------
@@ -152,9 +152,9 @@ class TestCacheLoadReuse:
         # Only the previously-missing title "C" is fetched.
         assert repo2.calls == [["C"]]
         # Values come from disk (10/20), not the fake's 999.
-        assert cache2.get_views("A", []) == 10
-        assert cache2.get_views("B", []) == 20
-        assert cache2.get_views("C", []) == 999
+        assert cache2.db.get_views("A", []) == 10
+        assert cache2.db.get_views("B", []) == 20
+        assert cache2.db.get_views("C", []) == 999
 
     async def test_missing_file_creates_empty_sqlite(self, cache_config, cache_factory):
         """A wiki/month with no cache file gets an empty .sqlite3 created."""
@@ -163,7 +163,7 @@ class TestCacheLoadReuse:
         # The SQLite file is created at construction (schema initialized).
         path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2099-12.sqlite3"
         assert path.exists()
-        assert cache.get_views("A", []) == 0
+        assert cache.db.get_views("A", []) == 0
 
 
 # ---------------------------------------------------------------
@@ -172,32 +172,32 @@ class TestCacheLoadReuse:
 class TestCacheUpsert:
     """Tests that re-fetching a title overwrites rather than duplicates."""
 
-    async def test_re_fetch_overwrites_existing_row(self, cache_config, cache_factory):
+    async def test_re_fetch_overwrites_existing_row(self, cache_config: cfg.AppConfig, cache_factory) -> None:
         repo = FakeRepo({"A": 10})
         cache = cache_factory("en.wikipedia", "2024-01", repo)
         await cache.ensure({"A"}, "2024010100", "2024013100")
 
         # Re-upserting the same title with a new view count must overwrite the
         # existing row (primary-key conflict), never duplicate it.
-        cache._upsert_many({"A": 999})
+        cache.db._upsert_many({"A": 999})
 
         path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-01.sqlite3"
         assert _rows(path) == {"A": 999}  # exactly one row, value overwritten
-        assert cache.get_views("A", []) == 999
+        assert cache.db.get_views("A", []) == 999
 
 
 # ---------------------------------------------------------------
 # 5. Tests for get_views_many (bulk lookup used by large projects).
 # ---------------------------------------------------------------
 class TestCacheGetViewsMany:
-    """Tests for PageviewsCache.get_views_many bulk lookup."""
+    """Tests for PageviewsCache.db.get_views_many bulk lookup."""
 
     async def test_get_views_many_sums_target_and_redirects(self, cache_config, cache_factory):
         repo = FakeRepo({"A": 10, "A redir": 5, "B": 20})
         cache = cache_factory("en.wikipedia", "2024-01", repo)
         await cache.ensure({"A", "A redir", "B"}, "2024010100", "2024013100")
 
-        counts = cache.get_views_many(["A", "B"], {"A": ["A redir"], "B": []})
+        counts = cache.db.get_views_many(["A", "B"], {"A": ["A redir"], "B": []})
         assert counts == {"A": 15, "B": 20}
 
     async def test_get_views_many_unknown_is_zero(self, cache_config, cache_factory):
@@ -205,7 +205,7 @@ class TestCacheGetViewsMany:
         cache = cache_factory("en.wikipedia", "2024-01", repo)
         await cache.ensure({"A"}, "2024010100", "2024013100")
 
-        counts = cache.get_views_many(["A", "Unknown"], {"A": [], "Unknown": ["Also missing"]})
+        counts = cache.db.get_views_many(["A", "Unknown"], {"A": [], "Unknown": ["Also missing"]})
         assert counts == {"A": 10, "Unknown": 0}
 
     async def test_get_views_many_chunks_large_title_set(self, cache_config, cache_factory, monkeypatch):
@@ -229,7 +229,7 @@ class TestCacheGetViewsMany:
         await cache.ensure(set(mapping), "2024030100", "2024033100")
 
         targets = [f"T{i}" for i in range(n)]
-        counts = cache.get_views_many(targets, {t: [] for t in targets})
+        counts = cache.db.get_views_many(targets, {t: [] for t in targets})
         assert counts == mapping
 
     async def test_get_views_many_shared_redirect_resolves_once(self, cache_config, cache_factory):
@@ -238,7 +238,7 @@ class TestCacheGetViewsMany:
         cache = cache_factory("en.wikipedia", "2024-01", repo)
         await cache.ensure({"A", "B", "shared redir"}, "2024010100", "2024013100")
 
-        counts = cache.get_views_many(["A", "B"], {"A": ["shared redir"], "B": ["shared redir"]})
+        counts = cache.db.get_views_many(["A", "B"], {"A": ["shared redir"], "B": ["shared redir"]})
         assert counts == {"A": 10, "B": 11}
 
 

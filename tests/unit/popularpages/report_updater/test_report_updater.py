@@ -136,7 +136,7 @@ class TestProcessProject:
         cache = MagicMock()
         # The updater reads already-fetched counts via `get_views_many`
         # (per-title `get_views` would mean one query per page).
-        cache.get_views_many.return_value = {"Foo bar": 42}
+        cache.db.get_views_many.return_value = {"Foo bar": 42}
         page_rows = [
             {
                 "page_title": "Foo_bar",
@@ -168,7 +168,7 @@ class TestProcessProject:
             page_rows=[],
         )
         repo.set_text.assert_not_called()
-        cache.get_views_many.assert_not_called()
+        cache.db.get_views_many.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_process_project_without_cache_fetches_pageviews(self, updater):
@@ -200,7 +200,7 @@ class TestProcessProject:
     async def test_process_project_accepts_dict_config(self, updater):
         u, repo = updater
         cache = MagicMock()
-        cache.get_views_many.return_value = {}
+        cache.db.get_views_many.return_value = {}
         page_rows = [
             {
                 "page_title": "Foo_bar",
@@ -236,7 +236,7 @@ class TestUpdateReports:
             }
         ]
         repo.get_project_pages.return_value = page_rows
-        # _views_for_project_from_cache reads from cache.get_views_many, not the
+        # _views_for_project_from_cache reads from cache.db.get_views_many, not the
         # API; provide an empty result so the report renders with 0 views.
         repo.get_json_config.return_value = {
             "Wikipedia:WikiProject Foo": {

@@ -301,7 +301,8 @@ class ReportUpdater:
         # `get_views` call would mean >900,000 separate SQLite queries; instead
         # resolve every unique title across all targets + redirects in a few
         # chunked queries that share one session, then aggregate back per target.
-        counts = cache.get_views_many(list(out), redirects)
+        counts = cache.db.get_views_many(list(out), redirects)
+
         for target, count in counts.items():
             out[target]["pageviews"] = count
             total_pageviews += count
