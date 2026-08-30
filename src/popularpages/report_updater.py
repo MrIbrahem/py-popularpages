@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from jinja2 import Environment, FileSystemLoader
 
 from .config import config
+from .config import config as app_config  # AppConfig singleton (unshadowed by method params)
 from .logger import log_to_file
 from .mapping import WikiProjectConfig
 from .pageviews_cache import PageviewsCache
@@ -69,107 +70,144 @@ class ReportUpdater:
         """
         dataset = config[type_]
         if not config:
-           return {"name": "Unknown", "color": "gray", "category": "unknown"}
+            return {"name": "Unknown", "color": "gray", "category": "unknown"}
         dataset = config.get(type_)
         if not dataset:
             return {"name": "Unknown", "color": "gray", "category": "unknown"}
         value = value or ""
         for key, values in dataset.items():
             if value.lower() == key.lower():
-                   return values
+                return values
         return dataset.get("Unknown", {"name": "Unknown", "color": "gray", "category": "unknown"})
-        
+
     # ---------------------------------------------------
     # Execution
     # ---------------------------------------------------
     async def update_reports(self, config: list[WikiProjectConfig]) -> None:
         """
-        Update popular pages reports. Primary async execution point.
+        Update popular pages reports, processing one WikiProject at a time.
 
-        :param config: The JSON config from the wiki page.
+        Previously this method first loaded *every* project's page rows into
+        memory before fetching any pageviews, which caused the process to be
+        OOM-killed (``O0MKilled``) on large wikis. It now processes projects
+        sequentially:
+
+        For each project it validates, loads that project's pages, ensures only
+        that project's titles in the shared cross-project :class:`PageviewsCache`,
+        generates the report, and then releases the project's data before moving
+        on. Memory is therefore bounded by a single project instead of the whole
+        wiki, while cross-project title de-duplication and incremental on-disk
+        persistence are preserved.
+
+        :param config: The list of WikiProjectConfig to (re)generate.
         """
         # Make sure config isn't empty.
         if not config:
             log_to_file("Error: Invalid config. Aborting!", self.wiki)
             return
 
+        total = len(config)
+        logger.info("update_reports: processing %d project(s)", total)
+
+        # One shared cache per wiki/month, reused across every project so that
+        # cross-project article titles are de-duplicated and persisted
+        # incrementally to data/views/<wiki>/<YYYY-MM>.jsonl. Reusing a single
+        # cache also means a shared title (e.g. "United States") is fetched only
+        # once even when referenced by many projects.
+        year_month = self.start.strftime("%Y-%m")
+        cache = PageviewsCache(self.wiki, year_month, self.wiki_repository.pageviews_repo)
+        start_date = self.start.strftime("%Y%m%d00")
+        end_date = self.end.strftime("%Y%m%d00")
+
         try:
-            logger.info("update_reports: processing %d project(s)", len(config))
+            for idx, project in enumerate(config, start=1):
+                try:
+                    await self._process_one_project(project, cache, start_date, end_date, idx, total)
+                except Exception:
+                    logger.exception(
+                        "[%d/%d] Error processing project '%s'; continuing with the next project",
+                        idx,
+                        total,
+                        getattr(project, "Name", project.project_main_page),
+                    )
+                    log_to_file(
+                        f"Error processing {getattr(project, 'Name', project.project_main_page)}; continuing",
+                        self.wiki,
+                    )
 
-            # --- Phase 1: validate + gather titles (single DB pass per project) ---
-            valid_projects: list[WikiProjectConfig] = []
-            project_pages: dict[str, list[dict]] = {}
-            all_titles: set[str] = set()
-            for project in config:
-                if not self.validate_project_config(project.project_main_page, project):
-                    continue
-
-                page_rows = self.wiki_repository.get_project_pages(project.Name)
-                if not page_rows:
-                    log_to_file(f'No pages found for "{project.project_main_page}"', self.wiki)
-                    continue
-
-                # See T164178: guard against runaway memory for very large projects.
-                if len(page_rows) > config.wiki.max_project_size:
-                    log_to_file(f"Error: {project.project_main_page} is too large. Skipping.", self.wiki)
-                    continue
-
-                project_pages[project.project_main_page] = page_rows
-                valid_projects.append(project)
-
-                for row in page_rows:
-                    target = (row["page_title"] or "").replace("_", " ")
-                    redir = (row["redir_title"] or "").replace("_", " ")
-                    if target:
-                        all_titles.add(target)
-                    if redir:
-                        all_titles.add(redir)
-
-            # --- Phase 2: fetch pageviews once per unique title (cross-project) ---
-            cache = await self._build_views_cache(valid_projects, all_titles)
-
-            # --- Phase 3: render + save each project from the shared cache ---
-            for project in valid_projects:
-                logger.info("Processing project '%s'", project.Name)
-                await self.process_project(
-                    project.project_main_page,
-                    project,
-                    cache=cache,
-                    page_rows=project_pages[project.project_main_page],
-                )
-                log_to_file(f"Finished processing: {project.Name}", self.wiki)
-
-            # Update index page.
+            # Update the index only after every project has been processed.
             self.update_index()
         finally:
             # Release the per-run Pageviews HTTP client (async context).
             await self.wiki_repository.pageviews_repo.aclose()
 
-    async def _build_views_cache(
-        self, projects: list[WikiProjectConfig], all_titles: set[str]
-    ) -> PageviewsCache:
+    async def _process_one_project(
+        self,
+        project: WikiProjectConfig,
+        cache: PageviewsCache,
+        start_date: str,
+        end_date: str,
+        idx: int,
+        total: int,
+    ) -> None:
         """
-        Build a :class:`PageviewsCache` for this wiki's reporting month and fetch
-        every unique title across ``projects`` exactly once.
+        Load, generate, and persist the report for a single WikiProject.
 
-        Results are persisted to ``data/views/<wiki>/<YYYY-MM>.jsonl`` (see the
-        plan doc), so titles fetched in a previous run are reused and not
-        dropped when the task finishes.
+        Page data for this project lives only within this method's local scope;
+        it is released (and eligible for garbage collection) once the method
+        returns, before the next project is loaded. The shared ``cache`` is
+        reused so cross-project titles are de-duplicated and persisted
+        incrementally.
+
+        Any failure is allowed to propagate so the caller's per-project error
+        boundary can log it and continue with the next project.
+
+        :param project: The WikiProjectConfig to process.
+        :param cache: The shared, persisted :class:`PageviewsCache`.
+        :param start_date: Pageviews window start (YYYYMMDD00).
+        :param end_date: Pageviews window end (YYYYMMDD00).
+        :param idx: 1-based index of this project in the run.
+        :param total: Total number of projects in the run.
         """
-        year_month = self.start.strftime("%Y-%m")
-        cache = PageviewsCache(self.wiki, year_month, self.wiki_repository.pageviews_repo)
+        logger.info("[%d/%d] Processing project '%s'", idx, total, project.Name)
 
-        start_date = self.start.strftime("%Y%m%d00")
-        end_date = self.end.strftime("%Y%m%d00")
-        logger.info(
-            "Building pageviews cache for %d project(s); %d unique title(s) (window %s..%s)",
-            len(projects),
-            len(all_titles),
-            start_date,
-            end_date,
+        if not self.validate_project_config(project.project_main_page, project):
+            return
+
+        page_rows = self.wiki_repository.get_project_pages(project.Name)
+        if not page_rows:
+            log_to_file(f'No pages found for "{project.project_main_page}"', self.wiki)
+            return
+
+        # See T164178: guard against runaway memory for very large projects.
+        if len(page_rows) > app_config.wiki.max_project_size:
+            log_to_file(f"Error: {project.project_main_page} is too large. Skipping.", self.wiki)
+            return
+
+        # Collect only this project's target + redirect titles.
+        titles: set[str] = set()
+        for row in page_rows:
+            target = (row["page_title"] or "").replace("_", " ")
+            redir = (row["redir_title"] or "").replace("_", " ")
+            if target:
+                titles.add(target)
+            if redir:
+                titles.add(redir)
+
+        # Ensure only this project's (still-missing) titles. The shared cache
+        # handles cross-project de-duplication and on-disk persistence, so a
+        # title already fetched for another project is not re-fetched.
+        await cache.ensure(titles, start_date, end_date)
+
+        await self.process_project(
+            project.project_main_page,
+            project,
+            cache=cache,
+            page_rows=page_rows,
         )
-        await cache.ensure(all_titles, start_date, end_date)
-        return cache
+
+        log_to_file(f"Finished processing: {project.Name}", self.wiki)
+        logger.info("[%d/%d] Finished project '%s'", idx, total, project.Name)
 
     async def process_project(
         self,
@@ -203,14 +241,12 @@ class ReportUpdater:
             return
 
         # See T164178: guard against runaway memory for very large projects.
-        if len(page_rows) > config.wiki.max_project_size:
+        if len(page_rows) > app_config.wiki.max_project_size:
             log_to_file(f"Error: {project} is too large. Skipping.", self.wiki)
             return
 
         if cache is not None:
-            data, total_views = await self._views_for_project_from_cache(
-                page_rows, config.Limit, cache
-            )
+            data, total_views = await self._views_for_project_from_cache(page_rows, config.Limit, cache)
         else:
             start_date = self.start.strftime("%Y%m%d00")
             end_date = self.end.strftime("%Y%m%d00")
@@ -236,12 +272,8 @@ class ReportUpdater:
         # run, reused across every page and project.
         assessment_cfg = self.wiki_repository.get_assessment_config()
         for datum in data.values():
-            datum["class_assessment"] = self._resolve_assessment(
-                assessment_cfg, "class", datum["class"]
-            )
-            datum["importance_assessment"] = self._resolve_assessment(
-                assessment_cfg, "importance", datum["importance"]
-            )
+            datum["class_assessment"] = self._resolve_assessment(assessment_cfg, "class", datum["class"])
+            datum["importance_assessment"] = self._resolve_assessment(assessment_cfg, "importance", datum["importance"])
 
         has_lead_section = self.wiki_repository.has_lead_section(config.Report)
         logger.debug("Report has lead section: %s", has_lead_section)
