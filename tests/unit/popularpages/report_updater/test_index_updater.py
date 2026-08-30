@@ -1,5 +1,20 @@
 """
 Unit tests for ``IndexUpdater.retrieve_project_updates``.
+
+``retrieve_project_updates`` returns the list of :class:`WikiProjectConfig`
+objects for the wiki, with each project's ``Updated`` field intended to be
+populated from the bot's last-edit timestamp (the ``rev_timestamp`` returned by
+``WikiRepository.get_projects_with_last_bot_timestamp``).
+
+These tests drive the method with a mocked ``WikiRepository``.
+
+Current status (see ``test_with_timestamps_present``): with the real keying --
+``get_json_config`` returns config keyed by ``project_main_page`` while the
+last-edit rows are keyed by the report db-title -- the guard
+``row["page_title"] in projects_config`` is never true, so every row is dropped
+and the method returns the projects with ``Updated`` left as ``None``. The tests
+document that behaviour (the timestamp -> ``Updated`` mapping is currently
+broken) so it is visible rather than silently diverging.
 """
 
 from __future__ import annotations
