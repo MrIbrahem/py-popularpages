@@ -72,9 +72,7 @@ def _rows(sqlite_path) -> dict[str, int]:
 class TestCacheEnsureAndFetch:
     """Tests for PageviewsCache.ensure batch fetch and persistence."""
 
-    async def test_ensure_fetches_all_titles_once_and_persists(
-        self, cache_config, cache_factory
-    ):
+    async def test_ensure_fetches_all_titles_once_and_persists(self, cache_config, cache_factory):
         repo = FakeRepo({"A": 10, "B": 20, "C": 30})
         cache = cache_factory("en.wikipedia", "2024-01", repo)
         await cache.ensure({"A", "B", "C"}, "2024010100", "2024013100")
@@ -139,9 +137,7 @@ class TestCacheGet:
 class TestCacheLoadReuse:
     """Tests for loading/reusing a previously persisted SQLite cache."""
 
-    async def test_load_reuses_previous_run_and_only_fetches_missing(
-        self, cache_config, cache_factory
-    ):
+    async def test_load_reuses_previous_run_and_only_fetches_missing(self, cache_config, cache_factory):
         repo1 = FakeRepo({"A": 10, "B": 20})
         cache1 = cache_factory("en.wikipedia", "2024-01", repo1)
         await cache1.ensure({"A", "B"}, "2024010100", "2024013100")
@@ -196,9 +192,7 @@ class TestCacheUpsert:
 class TestCacheGetViewsMany:
     """Tests for PageviewsCache.get_views_many bulk lookup."""
 
-    async def test_get_views_many_sums_target_and_redirects(
-        self, cache_config, cache_factory
-    ):
+    async def test_get_views_many_sums_target_and_redirects(self, cache_config, cache_factory):
         repo = FakeRepo({"A": 10, "A redir": 5, "B": 20})
         cache = cache_factory("en.wikipedia", "2024-01", repo)
         await cache.ensure({"A", "A redir", "B"}, "2024010100", "2024013100")
@@ -214,9 +208,7 @@ class TestCacheGetViewsMany:
         counts = cache.get_views_many(["A", "Unknown"], {"A": [], "Unknown": ["Also missing"]})
         assert counts == {"A": 10, "Unknown": 0}
 
-    async def test_get_views_many_chunks_large_title_set(
-        self, cache_config, cache_factory, monkeypatch
-    ):
+    async def test_get_views_many_chunks_large_title_set(self, cache_config, cache_factory, monkeypatch):
         """A huge title set is queried in _SELECT_IN_CHUNK_SIZE-sized chunks.
 
         Exercises the >900k-title code path: every unique title is resolved in a
@@ -240,17 +232,13 @@ class TestCacheGetViewsMany:
         counts = cache.get_views_many(targets, {t: [] for t in targets})
         assert counts == mapping
 
-    async def test_get_views_many_shared_redirect_resolves_once(
-        self, cache_config, cache_factory
-    ):
+    async def test_get_views_many_shared_redirect_resolves_once(self, cache_config, cache_factory):
         """A redirect referenced by two targets is looked up once but counted for both."""
         repo = FakeRepo({"A": 1, "B": 2, "shared redir": 9})
         cache = cache_factory("en.wikipedia", "2024-01", repo)
         await cache.ensure({"A", "B", "shared redir"}, "2024010100", "2024013100")
 
-        counts = cache.get_views_many(
-            ["A", "B"], {"A": ["shared redir"], "B": ["shared redir"]}
-        )
+        counts = cache.get_views_many(["A", "B"], {"A": ["shared redir"], "B": ["shared redir"]})
         assert counts == {"A": 10, "B": 11}
 
 

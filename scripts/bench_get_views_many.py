@@ -25,9 +25,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import src.py_port.popularpages.config as cfg
+import src.py_port.popularpages.pageviews.pageviews_cache as m
 from src.py_port.popularpages.pageviews.pageviews_cache import PageviewsCache
-
-import src.py_port.popularpages.pageviews.pageviews_cache as m  # noqa: E402
 
 
 class FakeRepo:
@@ -45,7 +44,7 @@ def _build(n: int, wiki_dir: Path) -> PageviewsCache:
     m.config = new_cfg
 
     repo = FakeRepo()
-    cache = PageviewsCache("en.wikipedia", "2024-01", repo, path_dir=wiki_dir)
+    cache = PageviewsCache("en.wikipedia", "2024-01", repo, path_dir=wiki_dir)  # pyright: ignore[reportArgumentType]
     targets = {f"Target {i}" for i in range(n)}
     redirects = {f"Redirect {i}" for i in range(n)}
     # Silence the tqdm progress bar during the build phase (it floods piped output).

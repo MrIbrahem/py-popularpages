@@ -66,9 +66,7 @@ def _write_sqlite(sqlite_path: Path, title_views: dict[str, int], dry_run: bool)
         with Session() as session:
             for i in range(0, len(items), UPSERT_BATCH_SIZE):
                 batch = items[i : i + UPSERT_BATCH_SIZE]
-                stmt = sqlite_insert(PageView).values(
-                    [{"title": title, "views": views} for title, views in batch]
-                )
+                stmt = sqlite_insert(PageView).values([{"title": title, "views": views} for title, views in batch])
                 stmt = stmt.on_conflict_do_update(
                     index_elements=[PageView.title],
                     set_={"views": stmt.excluded.views},

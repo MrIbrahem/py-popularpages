@@ -13,7 +13,6 @@ import logging
 import sqlite3
 from pathlib import Path
 
-
 from src.py_port.popularpages.pageviews.migrate_jsonl_to_sqlite import main, migrate
 
 

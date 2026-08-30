@@ -149,9 +149,7 @@ class PageviewsCache:
         with self._Session() as session:
             for i in range(0, len(wanted), self._SELECT_IN_CHUNK_SIZE):
                 chunk = wanted[i : i + self._SELECT_IN_CHUNK_SIZE]
-                cached.update(
-                session.execute(select(PageView.title).where(PageView.title.in_(chunk))).scalars().all()
-            )
+                cached.update(session.execute(select(PageView.title).where(PageView.title.in_(chunk))).scalars().all())
 
         return [t for t in wanted if t not in cached]
 
@@ -229,9 +227,7 @@ class PageviewsCache:
             titles = list(title_to_targets)
             for i in range(0, len(titles), self._SELECT_IN_CHUNK_SIZE):
                 chunk = titles[i : i + self._SELECT_IN_CHUNK_SIZE]
-                rows = session.execute(
-                    select(PageView.title, PageView.views).where(PageView.title.in_(chunk))
-                ).all()
+                rows = session.execute(select(PageView.title, PageView.views).where(PageView.title.in_(chunk))).all()
                 for title, views in rows:
                     views_by_title[title] = views
 
