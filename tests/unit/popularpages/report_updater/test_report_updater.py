@@ -1,10 +1,10 @@
 """
-Tests for src.py_port.popularpages.report_updater.ReportUpdater.
+Tests for src.py_port.popularpages.report_updater.ReportUpdater (report generation)
 
 The real WikiRepository performs network/DB I/O, so it is replaced with a
 MagicMock via monkeypatch. We exercise the orchestration and rendering paths:
-process_project (with and without a cache), update_reports, update_index,
-validate_project_config, and the assessment resolver.
+process_project (with and without a cache), update_reports, validate_project_config,
+the assessment resolver
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -19,11 +19,10 @@ from src.py_port.popularpages.wiki_repository import WikiRepository
 
 
 @pytest.fixture
-def updater(tmp_path, monkeypatch):
+def updater(monkeypatch):
     """Create a configured `ReportUpdater` and mocked wiki repository for tests.
 
     Parameters:
-        tmp_path: Temporary directory used for the pageviews cache.
         monkeypatch: Pytest fixture used to replace repository and configuration dependencies.
 
     Returns:
@@ -135,7 +134,9 @@ class TestProcessProject:
     async def test_process_project_renders_report_from_cache(self, updater: tuple[ReportUpdater, MagicMock]):
         u, repo = updater
         cache = MagicMock()
-        cache.get_views.return_value = 42
+        # The updater reads already-fetched counts via `get_views_many`
+        # (per-title `get_views` would mean one query per page).
+        cache.get_views_many.return_value = {"Foo bar": 42}
         page_rows = [
             {
                 "page_title": "Foo_bar",
@@ -167,7 +168,7 @@ class TestProcessProject:
             page_rows=[],
         )
         repo.set_text.assert_not_called()
-        cache.get_views.assert_not_called()
+        cache.get_views_many.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_process_project_without_cache_fetches_pageviews(self, updater):
@@ -199,7 +200,7 @@ class TestProcessProject:
     async def test_process_project_accepts_dict_config(self, updater):
         u, repo = updater
         cache = MagicMock()
-        cache.get_views.return_value = 0
+        cache.get_views_many.return_value = {}
         page_rows = [
             {
                 "page_title": "Foo_bar",
@@ -235,7 +236,8 @@ class TestUpdateReports:
             }
         ]
         repo.get_project_pages.return_value = page_rows
-        repo.get_monthly_pageviews_and_assessments.return_value = ({}, 0)
+        # _views_for_project_from_cache reads from cache.get_views_many, not the
+        # API; provide an empty result so the report renders with 0 views.
         repo.get_json_config.return_value = {
             "Wikipedia:WikiProject Foo": {
                 "Report": "Wikipedia:WikiProject Foo/Popular pages",
@@ -248,8 +250,7 @@ class TestUpdateReports:
 
         await u.update_reports([_project()])
 
-        # One set_text for the report, one for the index page.
-        assert repo.set_text.call_count == 2
+        assert repo.set_text.call_count == 1
         repo.pageviews_repo.aclose.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -265,39 +266,5 @@ class TestUpdateReports:
         }
         repo.get_projects_with_last_bot_timestamp.return_value = []
         await u.update_reports([_project()])
-        # Invalid project -> no report written, but index still attempted.
-        repo.set_text.assert_called_once()  # index page only
 
-
-# ---------------------------------------------------------------
-# update_index
-# ---------------------------------------------------------------
-class TestUpdateIndex:
-    """Tests for the `update_index` method of the `ReportUpdater` class."""
-
-    def test_update_index_renders(self, updater):
-        u, repo = updater
-        repo.get_json_config.return_value = {
-            "Wikipedia:WikiProject Foo": {
-                "Report": "Wikipedia:WikiProject Foo/Popular pages",
-                "Limit": "10",
-                "Name": "Foo",
-            }
-        }
-        repo.get_projects_with_last_bot_timestamp.return_value = []
-        repo.get_wiki_config.return_value = {
-            "config": "Wikipedia:WikiProject/Popular pages",
-            "index": "Wikipedia:WikiProject/Popular pages/Index",
-        }
-        u.update_index()
-        repo.set_text.assert_called_once()
-        assert repo.set_text.call_args.kwargs["page_title"] == ("Wikipedia:WikiProject/Popular pages/Index")
-
-    def test_update_index_no_projects(self, updater):
-        u, repo = updater
-        repo.get_json_config.return_value = {}
-        repo.get_projects_with_last_bot_timestamp.return_value = []
-        repo.get_wiki_config.return_value = {"config": "X", "index": "Y"}
-        u.update_index()
-        # No projects -> update_index returns early and writes nothing.
         repo.set_text.assert_not_called()
