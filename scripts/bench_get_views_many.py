@@ -45,6 +45,15 @@ def _build(n: int, wiki_dir: Path) -> PageviewsCache:
     repo = FakeRepo()
     cache = PageviewsCache("en.wikipedia", "2024-01", repo, path_dir=wiki_dir)
     targets = {f"Target {i}" for i in range(n)}
+    # Silence the tqdm progress bar during the build phase (it floods piped output).
+    import src.py_port.popularpages.pageviews.pageviews_cache as m
+
+    old_tqdm = m.tqdm
+    m.tqdm = lambda it, *a, **k: it
+    try:
+        asyncio.run(cache.ensure(targets | redirects, "2024010100", "2024013100"))
+    finally:
+        m.tqdm = old_tqdm
     redirects = {f"Redirect {i}" for i in range(n)}
     asyncio.run(cache.ensure(targets | redirects, "2024010100", "2024013100"))
     return cache
