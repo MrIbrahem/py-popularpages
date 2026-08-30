@@ -102,15 +102,10 @@ class TestCacheEnsureAndFetch:
 
     async def test_fetch_respects_fetch_batch(self, cache_config, cache_factory, monkeypatch):
         """Titles are fetched in batches of config.pageviews.fetch_batch."""
-        small_batch = dataclasses.replace(
-            cache_config,
-            pageviews=dataclasses.replace(cache_config.pageviews, fetch_batch=3),
-        )
-        monkeypatch.setattr(cache_module, "app_config", small_batch)
 
         mapping = {f"T{i}": i for i in range(10)}
         repo = FakeRepo(mapping)
-        cache = cache_factory("en.wikipedia", "2024-02", repo)
+        cache = cache_factory("en.wikipedia", "2024-02", repo, fetch_batch=3)
         await cache.ensure(set(mapping), "2024020100", "2024022900")
 
         path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-02.sqlite3"
@@ -217,18 +212,13 @@ class TestCacheGetViewsMany:
         Exercises the >900k-title code path: every unique title is resolved in a
         few chunked SELECTs rather than one query per target.
         """
-        small_chunk = dataclasses.replace(
-            cache_config,
-            pageviews=dataclasses.replace(cache_config.pageviews, fetch_batch=1000),
-        )
-        monkeypatch.setattr(cache_module, "app_config", small_chunk)
         # Override the chunk size used by get_views_many to exercise chunking.
         monkeypatch.setattr(cache_module.PageviewsDb, "_SELECT_IN_CHUNK_SIZE", 100)
 
         n = 250
         mapping = {f"T{i}": i for i in range(n)}
         repo = FakeRepo(mapping)
-        cache = cache_factory("en.wikipedia", "2024-03", repo)
+        cache = cache_factory("en.wikipedia", "2024-03", repo, fetch_batch=1000)
         await cache.ensure(set(mapping), "2024030100", "2024033100")
 
         targets = [f"T{i}" for i in range(n)]

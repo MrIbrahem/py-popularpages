@@ -50,6 +50,7 @@ class PageviewsCache:
         year_month: str,
         pageviews_repo: PageviewsRepository,
         path_dir: Path | None = None,
+        fetch_batch: int | None = None,
     ) -> None:
         """
         :param wiki: Wiki domain, e.g. 'en.wikipedia'.
@@ -57,6 +58,11 @@ class PageviewsCache:
         :param pageviews_repo: A ``PageviewsRepository`` instance used to fetch
             any titles not already present in the cache.
         """
+        if fetch_batch is None:
+            fetch_batch = app_config.pageviews.fetch_batch
+
+        self.fetch_batch = fetch_batch
+
         self.wiki = wiki
         self.year_month = year_month
         self.repo = pageviews_repo
@@ -109,10 +115,10 @@ class PageviewsCache:
             len(titles),
         )
 
-        batches = range(0, len(missing), app_config.pageviews.fetch_batch)
+        batches = range(0, len(missing), self.fetch_batch)
 
         for i in tqdm(batches, desc=f"Fetching pageviews for {len(missing):,} titles"):
-            chunk = missing[i : i + app_config.pageviews.fetch_batch]
+            chunk = missing[i : i + self.fetch_batch]
             views = await self.repo.get_title_views(chunk, start, end)
 
             self.db._upsert_many({title: views.get(title, 0) for title in chunk})
