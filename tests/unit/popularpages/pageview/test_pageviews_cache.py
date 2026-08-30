@@ -38,6 +38,9 @@ def cache_config(tmp_path, monkeypatch):
 
     monkeypatch.setattr("src.py_port.popularpages.pageviews.pageviews_cache.app_config", new_cfg)
     monkeypatch.setattr(cache_module, "app_config", new_cfg)
+
+    monkeypatch.setattr("src.py_port.popularpages.pageviews.pageviews_db.app_config", new_cfg)
+    # monkeypatch.setattr(cache_module, "app_config", new_cfg)
     return new_cfg
 
 
@@ -220,7 +223,7 @@ class TestCacheGetViewsMany:
         )
         monkeypatch.setattr(cache_module, "app_config", small_chunk)
         # Override the chunk size used by get_views_many to exercise chunking.
-        monkeypatch.setattr(cache_module.PageviewsCache, "_SELECT_IN_CHUNK_SIZE", 100)
+        monkeypatch.setattr(cache_module.PageviewsDb, "_SELECT_IN_CHUNK_SIZE", 100)
 
         n = 250
         mapping = {f"T{i}": i for i in range(n)}
