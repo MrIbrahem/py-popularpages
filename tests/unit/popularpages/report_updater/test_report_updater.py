@@ -135,7 +135,7 @@ class TestProcessProject:
     async def test_process_project_renders_report_from_cache(self, updater):
         u, repo = updater
         cache = MagicMock()
-        cache.get.return_value = 42
+        cache.get_views.return_value = 42
         page_rows = [
             {
                 "page_title": "Foo_bar",
@@ -167,7 +167,7 @@ class TestProcessProject:
             page_rows=[],
         )
         repo.set_text.assert_not_called()
-        cache.get.assert_not_called()
+        cache.get_views.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_process_project_without_cache_fetches_pageviews(self, updater):
@@ -199,7 +199,7 @@ class TestProcessProject:
     async def test_process_project_accepts_dict_config(self, updater):
         u, repo = updater
         cache = MagicMock()
-        cache.get.return_value = 0
+        cache.get_views.return_value = 0
         page_rows = [
             {
                 "page_title": "Foo_bar",
