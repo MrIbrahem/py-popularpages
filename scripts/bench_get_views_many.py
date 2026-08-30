@@ -35,10 +35,7 @@ class FakeRepo:
 
 def _build(n: int, wiki_dir: Path) -> PageviewsCache:
     """Populate a cache with `n` target titles and `n` redirect titles."""
-    cwd_default = Path.cwd()
     # Redirect the data dir to a temp location via env so the cache lives there.
-    import os
-
     os.environ["POPULAR_PAGES_MAIN_DIR"] = str(wiki_dir)
     new_cfg = cfg.config.load()
     import src.py_port.popularpages.pageviews.pageviews_cache as m
