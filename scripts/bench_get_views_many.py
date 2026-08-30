@@ -45,6 +45,7 @@ def _build(n: int, wiki_dir: Path) -> PageviewsCache:
     repo = FakeRepo()
     cache = PageviewsCache("en.wikipedia", "2024-01", repo, path_dir=wiki_dir)
     targets = {f"Target {i}" for i in range(n)}
+    redirects = {f"Redirect {i}" for i in range(n)}
     # Silence the tqdm progress bar during the build phase (it floods piped output).
     import src.py_port.popularpages.pageviews.pageviews_cache as m
 
@@ -54,8 +55,6 @@ def _build(n: int, wiki_dir: Path) -> PageviewsCache:
         asyncio.run(cache.ensure(targets | redirects, "2024010100", "2024013100"))
     finally:
         m.tqdm = old_tqdm
-    redirects = {f"Redirect {i}" for i in range(n)}
-    asyncio.run(cache.ensure(targets | redirects, "2024010100", "2024013100"))
     return cache
 
 
@@ -79,8 +78,14 @@ def _new_bulk(cache: PageviewsCache, targets, redirects) -> int:
 
 def main() -> None:
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 900_000
-    with tempfile.TemporaryDirectory() as tmp:
-        wiki_dir = Path(tmp) / "data"
+    # Use a manual temp dir rather than TemporaryDirectory: on Windows the SQLite
+    # handle may linger briefly after close(), and TemporaryDirectory deletes
+    # eagerly on scope exit. Best-effort cleanup instead (this only affects the
+    # benchmark's scratch file; production never deletes the cache file).
+    import shutil
+
+    wiki_dir = Path(tempfile.mkdtemp(prefix="bench_pv_"))
+    try:
         print(f"Building cache with {n:,} targets + {n:,} redirects...")
         t0 = time.perf_counter()
         cache = _build(n, wiki_dir)
@@ -108,6 +113,8 @@ def main() -> None:
         print(f"\nSpeedup (new vs old): {speedup:.1f}x  ({old_dt:.3f}s -> {new_dt:.3f}s)")
         cache.close()
         m.config = new_cfg
+    finally:
+        shutil.rmtree(wiki_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
