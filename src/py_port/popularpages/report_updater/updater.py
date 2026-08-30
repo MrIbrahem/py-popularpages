@@ -124,7 +124,7 @@ class ReportUpdater:
 
         logger.info("Process project '%s' (config report='%s')", config.Name, config.Report)
         if page_rows is None:
-            page_rows = self.wiki_repository.get_project_pages(config.Name)
+            page_rows = self.wiki_repository.db.get_project_pages(config.Name)
 
         logger.debug("Fetched %d page(s) for project '%s'", len(page_rows), config.Name)
 
@@ -354,7 +354,7 @@ class ReportUpdater:
                     skipped += 1
                     continue
 
-                page_rows = self.wiki_repository.get_project_pages(project.Name)
+                page_rows = self.wiki_repository.db.get_project_pages(project.Name)
                 if not page_rows:
                     log_to_file(f'No pages found for "{project.project_main_page}"', self.wiki)
                     skipped += 1
@@ -395,7 +395,7 @@ class ReportUpdater:
                     # handle is released before the next iteration; otherwise
                     # open SQLite handles accumulate across project iterations.
                     if cache is not None:
-                        cache.close()
+                        cache.db.close_db()
                     # Drop references so this project's page/pageview data is
                     # eligible for GC before the next iteration allocates more,
                     # rather than living until the whole batch finishes.

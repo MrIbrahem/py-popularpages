@@ -55,7 +55,7 @@ def cache_factory():
 
     yield _make
     for c in created:
-        c.close()
+        c.db.close_db()
 
 
 def _rows(sqlite_path) -> dict[str, int]:
@@ -160,8 +160,8 @@ class TestCacheLifecycle:
         await cache.ensure({"A"}, "2024010100", "2024013100")
 
         # close() must be callable and safe to call more than once.
-        cache.close()
-        cache.close()
+        cache.db.close_db()
+        cache.db.close_db()
 
         # The on-disk data survives disposal.
         path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2024-01.sqlite3"

@@ -124,6 +124,7 @@ class WikiDatabaseRepository:
         :param project: Name of the project, e.g. 'Medicine'.
         :return: List of rows with page_title, pa_class, pa_importance, redir_title.
         """
+        logger.debug("Fetching pages for project '%s'", project)
         log_to_file(f"Fetching pages and assessments for project {project}", self.wiki)
 
         rows = self._get_project_pages(project)

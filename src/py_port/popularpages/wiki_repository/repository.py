@@ -179,18 +179,6 @@ class WikiRepository:
 
         return self.db.get_projects_timestamps(titles)
 
-    # -- Database-backed page/pageviews fetching ----------------------------
-
-    def get_project_pages(self, project: str) -> list[dict]:
-        """
-        Get titles & assessments for all pages in a WikiProject.
-
-        :param project: Name of the project, e.g. 'Medicine'.
-        :return: List of rows with page_title, pa_class, pa_importance, redir_title.
-        """
-        logger.debug("Fetching pages for project '%s'", project)
-        return self.db.get_project_pages(project)
-
     # ---------------------------------------------------
     # API helpers
     def does_title_exist(self, title: str) -> bool:

@@ -69,9 +69,6 @@ class PageviewsCache:
 
         self.db = PageviewsDb(wiki, year_month, path_dir=path_dir)
 
-    def close(self) -> None:
-        return self.db.close()
-
     def _find_missing(self, titles: set[str]) -> list[str]:
         """
         Return the subset of ``titles`` not already present in the cache.

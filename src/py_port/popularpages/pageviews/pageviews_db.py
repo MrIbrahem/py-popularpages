@@ -49,7 +49,7 @@ class PageviewsDb:
     # ----------------------------------------------------------------
     # Lifecycle
     # ----------------------------------------------------------------
-    def close(self) -> None:
+    def close_db(self) -> None:
         """Dispose of the underlying SQLite engine/connection pool."""
         self._engine.dispose()
         logger.debug("Closed pageviews cache %s", self.path)

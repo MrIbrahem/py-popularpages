@@ -235,7 +235,7 @@ class TestUpdateReports:
                 "pa_importance": "Unknown",
             }
         ]
-        repo.get_project_pages.return_value = page_rows
+        repo.db.get_project_pages.return_value = page_rows
         # _views_for_project_from_cache reads from cache.db.get_views_many, not the
         # API; provide an empty result so the report renders with 0 views.
         repo.get_json_config.return_value = {

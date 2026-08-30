@@ -47,7 +47,7 @@ def db_factory(db_dir):
 
     yield _make
     for db in created:
-        db.close()
+        db.close_db()
 
 
 def _rows(sqlite_path) -> dict[str, int]:
@@ -152,8 +152,8 @@ class TestDbLifecycle:
         db.upsert_many({"A": 10})
 
         # close() must be callable and safe to call more than once.
-        db.close()
-        db.close()
+        db.close_db()
+        db.close_db()
 
         # The on-disk data survives disposal.
         assert _rows(db.path) == {"A": 10}
