@@ -275,7 +275,11 @@ class WikiRepository:
     # ---------------------------------------------------
     # Pageviews + assessments (batched)
     async def get_monthly_pageviews_and_assessments(
-        self, rows: list[dict], start: str, end: str, limit: int
+        self,
+        rows: list[dict],
+        start: str,
+        end: str,
+        limit: int,
     ) -> tuple[dict, int]:
         """
         Get monthly pageviews for the given pages and their redirects.

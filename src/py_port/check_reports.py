@@ -17,7 +17,7 @@ import logging
 
 from popularpages.config import config
 from popularpages.logger import log_to_file
-from popularpages.report_updater import ReportUpdater
+from popularpages.report_updater import IndexUpdater, ReportUpdater
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,12 @@ def main() -> None:
         "--dry-run",
         action="store_true",
         help="Print output instead of saving edits to the wiki.",
+    )
+    # add an argument for update_index with default false value
+    parser.add_argument(
+        "--update-index",
+        action="store_true",
+        help="Update the index page after updating reports.",
     )
     args = parser.parse_args()
 
@@ -59,7 +65,14 @@ def main() -> None:
             log_to_file(f"Number of projects pending update: {len(stale_configs)}", wiki)
 
             asyncio.run(updater.update_reports(stale_configs))
+            index_updater = IndexUpdater(wiki, dry_run=args.dry_run)
+
+            if args.update_index:
+                # Update index page.
+                index_updater.update_index()
+
             logger.info("Finished cycle for wiki '%s'", wiki)
+
         except Exception as exc:
             logger.exception("Error processing %s: %s", wiki, exc)
             log_to_file(f"Error processing {wiki}: {exc}", wiki)
