@@ -47,6 +47,11 @@ class PageviewsCache:
     with the number of cached titles.
     """
 
+    # Conservative chunk size, safely under SQLite's SQLITE_MAX_VARIABLE_NUMBER
+    # even on older builds that cap at 999 (vs. 32766 on SQLite >=3.32.0).
+    # See: https://www.sqlite.org/limits.html#max_variable_number
+    _SELECT_IN_CHUNK_SIZE = 500
+    
     def __init__(
         self,
         wiki: str,
@@ -129,16 +134,23 @@ class PageviewsCache:
         """
         Return the subset of ``titles`` not already present in the cache.
 
-        Performs a single ``SELECT ... WHERE title IN (...)`` rather than one
-        query per title.
+        Performs one ``SELECT ... WHERE title IN (...)`` per chunk of at most
+        ``_SELECT_IN_CHUNK_SIZE`` titles, rather than a single query with one
+        bound parameter per title -- large projects (thousands of unique
+        titles) could otherwise exceed SQLite's SQLITE_MAX_VARIABLE_NUMBER,
+        which is as low as 999 on some system SQLite builds regardless of the
+        Python/SQLite version in use.
         """
         wanted = [t for t in titles if t]
         if not wanted:
             return []
 
+        cached: set[str] = set()
         with self._Session() as session:
-            cached = set(
-                session.execute(select(PageView.title).where(PageView.title.in_(wanted))).scalars().all()
+            for i in range(0, len(wanted), self._SELECT_IN_CHUNK_SIZE):
+                chunk = wanted[i : i + self._SELECT_IN_CHUNK_SIZE]
+                cached.update(
+                session.execute(select(PageView.title).where(PageView.title.in_(chunk))).scalars().all()
             )
 
         return [t for t in wanted if t not in cached]
