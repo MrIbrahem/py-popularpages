@@ -358,8 +358,9 @@ class ReportUpdater:
             if redir:
                 redirects[target].append(redir)
 
+        # TODO: Bio project has >900,000 title. how to speed this up?
         for target in out:
-            count = cache.get(target, redirects[target])
+            count = cache.get_views(target, redirects[target])
             out[target]["pageviews"] = count
             total_pageviews += count
 
@@ -367,7 +368,7 @@ class ReportUpdater:
 
         _elapsed = time.perf_counter() - _t0
         logger.info(
-            "_views_for_project_from_cache took %.4f s for %d page(s), limit: %d",
+            "took %.4f s for %d page(s), limit: %d",
             _elapsed,
             len(page_rows),
             limit,

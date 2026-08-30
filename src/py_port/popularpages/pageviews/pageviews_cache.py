@@ -176,7 +176,7 @@ class PageviewsCache:
     # ----------------------------------------------------------------
     # Lookup
     # ----------------------------------------------------------------
-    def get(self, target: str, redirects: list[str]) -> int:
+    def get_views(self, target: str, redirects: list[str]) -> int:
         """
         Return the total views for a target page plus its redirects.
 
