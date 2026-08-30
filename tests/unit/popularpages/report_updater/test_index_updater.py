@@ -1,20 +1,5 @@
 """
-Unit tests for ``ReportUpdater.retrieve_project_updates``.
-
-``retrieve_project_updates`` returns the list of :class:`WikiProjectConfig`
-objects for the wiki, with each project's ``Updated`` field intended to be
-populated from the bot's last-edit timestamp (the ``rev_timestamp`` returned by
-``WikiRepository.get_projects_with_last_bot_timestamp``).
-
-These tests drive the method with a mocked ``WikiRepository``.
-
-Current status (see ``test_with_timestamps_present``): with the real keying --
-``get_json_config`` returns config keyed by ``project_main_page`` while the
-last-edit rows are keyed by the report db-title -- the guard
-``row["page_title"] in projects_config`` is never true, so every row is dropped
-and the method returns the projects with ``Updated`` left as ``None``. The tests
-document that behaviour (the timestamp -> ``Updated`` mapping is currently
-broken) so it is visible rather than silently diverging.
+Unit tests for ``IndexUpdater.retrieve_project_updates``.
 """
 
 from __future__ import annotations
@@ -22,7 +7,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from src.py_port.popularpages.mapping import WikiProjectConfig
-from src.py_port.popularpages.report_updater import ReportUpdater
+from src.py_port.popularpages.report_updater.index_updater import IndexUpdater
 
 # -- Sample data -----------------------------------------------------------
 
@@ -70,9 +55,9 @@ def _db_rows(timestamps: dict[str, str]) -> list[dict]:
 # -- Harness ---------------------------------------------------------------
 
 
-def _make_updater(json_config: dict[str, dict], db_rows: list[dict]) -> ReportUpdater:
-    """Build a ``ReportUpdater`` without running its (network/DB) ``__init__``."""
-    updater = object.__new__(ReportUpdater)
+def _make_updater(json_config: dict[str, dict], db_rows: list[dict]) -> IndexUpdater:
+    """Build a ``IndexUpdater`` without running its (network/DB) ``__init__``."""
+    updater = object.__new__(IndexUpdater)
     updater.wiki = "en.wikipedia"
     updater.wiki_repository = MagicMock(name="wiki_repository")
     updater.wiki_repository.get_json_config.return_value = json_config
@@ -84,7 +69,7 @@ def _make_updater(json_config: dict[str, dict], db_rows: list[dict]) -> ReportUp
 
 
 class TestRetrieveProjectUpdatesNew:
-    """Tests for `ReportUpdater.retrieve_project_updates`, documenting current behaviour of the timestamp→Updated mapping."""
+    """Tests for `IndexUpdater.retrieve_project_updates`, documenting current behaviour of the timestamp→Updated mapping."""
 
     def test_empty_config_returns_empty(self) -> None:
         updater = _make_updater({}, [])
