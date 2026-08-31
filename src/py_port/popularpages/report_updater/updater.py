@@ -191,6 +191,9 @@ class ReportUpdater:
                 config.Limit,
             )
 
+        logger.info("[%s] Pageviews fetch complete", self.wiki)
+        logger.info("Pageviews fetch complete: %d total pageviews", total_views)
+
         _elapsed = time.perf_counter() - _t0
         logger.info(
             "took %.4f s for %d page(s), limit: %d",
@@ -409,7 +412,7 @@ class ReportUpdater:
         unknown_msg = self.i18n.msg("unknown")
 
         out: dict[str, dict] = {}
-        redirects: dict[str, list[str]] = {}
+        batches: dict[str, list[str]] = {}
 
         for row in rows:
             target = (row["page_title"] or "").replace("_", " ")
@@ -422,15 +425,11 @@ class ReportUpdater:
                     "importance": row["pa_importance"] or unknown_msg,
                 }
 
-                redirects[target] = []
+                batches[target] = []
             if redir:
-                redirects[target].append(redir)
+                batches[target].append(redir)
 
-        # Bio-like projects can have >900,000 titles. A per-target
-        # `get_views` call would mean >900,000 separate SQLite queries; instead
-        # resolve every unique title across all targets + redirects in a few
-        # chunked queries that share one session, then aggregate back per target.
-        counts = cache.db.get_views_many(list(out), redirects)
+        counts = cache.db.get_views_many(list(out), batches)
 
         total_pageviews = 0
         for target, count in counts.items():
