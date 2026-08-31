@@ -72,9 +72,9 @@ def _project(report="Wikipedia:WikiProject Foo/Popular pages", name="Foo", limit
     )
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # _resolve_assessment
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestResolveAssessment:
     """Tests for the `_resolve_assessment` method of the `ReportUpdater` class."""
 
@@ -92,9 +92,9 @@ class TestResolveAssessment:
         assert resolved["category"] == "C-Unknown"
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # validate_project_config
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestValidateProjectConfig:
     """Tests for the `validate_project_config` method of the `ReportUpdater` class."""
 
@@ -128,9 +128,9 @@ class TestValidateProjectConfig:
         assert u.validate_project_config("Wikipedia:WikiProject Foo", _project()) is False
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # process_project
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestProcessProject:
     """Tests for the `process_project` method of the `ReportUpdater` class."""
 
@@ -224,9 +224,9 @@ class TestProcessProject:
         repo.set_text.assert_called_once()
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # update_reports (full pipeline)
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestUpdateReports:
     """Tests for the `update_reports` method of the `ReportUpdater` class."""
 

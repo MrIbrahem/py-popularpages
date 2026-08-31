@@ -21,9 +21,9 @@ from src.py_port.popularpages.pageviews import PageviewsCache
 from src.py_port.popularpages.pageviews.pageviews_db import PageviewsDb
 
 
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 # Fixtures
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 @pytest.fixture
 def db_dir(tmp_path):
     """A temp directory to host the SQLite cache files."""
@@ -65,9 +65,9 @@ def _rows(sqlite_path) -> dict[str, int]:
         con.close()
 
 
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 # Lifecycle / init
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 class TestInitAndClose:
     def test_creates_sqlite_file_at_expected_path(self, db_factory, db_dir):
         db = db_factory("en.wikipedia", "2024-01")
@@ -99,9 +99,9 @@ class TestInitAndClose:
         assert db2.get_views("Cairo", []) == 100
 
 
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 # upsert_many
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 class TestUpsertMany:
     def test_empty_dict_is_a_noop(self, load_db):
         load_db.upsert_many({})
@@ -129,9 +129,9 @@ class TestUpsertMany:
         assert load_db.get_views("Giza", []) == 5
 
 
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 # query_titles_cache
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 class TestQueryTitlesCache:
     def test_empty_wanted_returns_empty_set(self, load_db):
         assert load_db.query_titles_cache([]) == set()
@@ -146,9 +146,9 @@ class TestQueryTitlesCache:
         assert result == set()
 
 
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 # get_views
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 class TestGetViews:
     def test_target_with_no_redirects(self, load_db):
         load_db.upsert_many({"Cairo": 42})
@@ -173,9 +173,9 @@ class TestGetViews:
         assert load_db.get_views("", []) == 0
 
 
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 # get_views_many (bulk lookup used by large projects)
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 class TestGetViewsMany:
     def test_empty_targets_returns_empty_dict(self, load_db):
         assert load_db.get_views_many([], {}) == {}
@@ -219,9 +219,9 @@ class TestGetViewsMany:
         assert result == {"Cairo": 10}
 
 
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 # Chunking behaviour (SQLite bound-variable limit safety)
-# ----------------------------------------------------------------
+# ---------------------------------------------------
 class TestChunking:
     def test_get_views_many_chunks_large_title_set(self, db_factory, monkeypatch):
         """A huge title set is queried in _SELECT_IN_CHUNK_SIZE-sized chunks.

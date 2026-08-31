@@ -93,9 +93,9 @@ class WikiRepository:
             dry_run,
         )
 
-    # ----------------------------------------------------
+    # ---------------------------------------------------
     # Lazy Properties
-    # ----------------------------------------------------
+    # ---------------------------------------------------
 
     @property
     def site(self) -> mwclient.Site:
@@ -146,7 +146,7 @@ class WikiRepository:
         config.pop("description", None)
         return config
 
-    # -- Setup / credentials -------------------------------------------------
+    # -- Setup / credentials ---------------------------------------------------
 
     def login(self) -> None:
         """

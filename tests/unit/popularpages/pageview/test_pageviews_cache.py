@@ -66,9 +66,9 @@ def _rows(sqlite_path) -> dict[str, int]:
         con.close()
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 1. Tests for PageviewsCache.ensure batch fetch and persistence.
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestCacheEnsureAndFetch:
     """Tests for PageviewsCache.ensure batch fetch and persistence."""
 
@@ -111,9 +111,9 @@ class TestCacheEnsureAndFetch:
         assert _rows(path) == mapping
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 2. Tests for loading/reusing a previously persisted cache.
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestCacheLoadReuse:
     """Tests for loading/reusing a previously persisted SQLite cache."""
 
@@ -146,9 +146,9 @@ class TestCacheLoadReuse:
         assert cache.db.get_views("A", []) == 0
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 3. Tests for lifecycle (close).
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestCacheLifecycle:
     """Tests for the sync close() lifecycle method."""
 

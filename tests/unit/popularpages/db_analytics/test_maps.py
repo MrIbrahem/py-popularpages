@@ -43,9 +43,9 @@ def _write_fresh_map(path):
     )
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 1. Tests for loading the file-backed wikimap cache
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestLoadLocalWikimap:
     """Loading the file-backed wikimap cache (present, missing, corrupt)."""
 
@@ -71,9 +71,9 @@ class TestLoadLocalWikimap:
         assert maps.load_local_wikimap().data == {}
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 2. Tests for resolving wiki identifiers to replica metadata
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestResolveWiki:
     """Resolving wiki identifiers to replica metadata."""
 
@@ -97,9 +97,9 @@ class TestResolveWiki:
         assert maps.resolve_wiki("zzwiki") is None
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 3. Tests for persisting the wikimap cache to disk
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestSaveWikimap:
     """Persisting the wikimap cache to disk."""
 

@@ -38,7 +38,7 @@ class WikiDatabaseRepository:
         logger.debug("WikiDatabaseRepository for wiki '%s' using db '%s'", wiki, db_name)
         self.db = WikiReplicaDB(db_name)
 
-    # -- Database -----------------------------------------
+    # -- Database ---------------------------------------------------
 
     def _get_projects_timestamps(self, titles: list[str]) -> list[dict[str, Any]]:
         """
@@ -100,7 +100,7 @@ class WikiDatabaseRepository:
 
         return rows
 
-    # -- Queries ----------------------------------------------------------
+    # -- Queries ---------------------------------------------------
 
     def get_projects_timestamps(self, titles: list[str]) -> list[dict[str, Any]]:
         """

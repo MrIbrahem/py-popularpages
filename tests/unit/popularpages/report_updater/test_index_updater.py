@@ -14,7 +14,7 @@ from src.py_port.popularpages.i18n import I18n
 from src.py_port.popularpages.mapping import WikiProjectConfig
 from src.py_port.popularpages.report_updater.index_updater import IndexUpdater
 
-# -- Sample data -----------------------------------------------------------
+# -- Sample data ---------------------------------------------------
 
 
 def _specs() -> list[tuple[str, str, str]]:
@@ -57,7 +57,7 @@ def _db_rows(timestamps: dict[str, str]) -> list[dict]:
     return [{"page_title": _report_key(by_name[name]), "rev_timestamp": ts} for name, ts in timestamps.items()]
 
 
-# -- Harness ---------------------------------------------------------------
+# -- Harness ---------------------------------------------------
 
 
 def _make_updater(json_config: dict[str, dict], db_rows: list[dict]) -> IndexUpdater:
@@ -70,7 +70,7 @@ def _make_updater(json_config: dict[str, dict], db_rows: list[dict]) -> IndexUpd
     return updater
 
 
-# -- Tests -----------------------------------------------------------------
+# -- Tests ---------------------------------------------------
 
 
 class TestRetrieveProjectUpdatesNew:
@@ -127,9 +127,9 @@ def index_updater(monkeypatch):
     return u, repo
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # update_index (now lives in IndexUpdater)
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestUpdateIndex:
     """Tests for the `update_index` method of the `IndexUpdater` class."""
 

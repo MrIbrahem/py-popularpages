@@ -319,7 +319,7 @@ class ReportUpdater:
         return out, total_pageviews
 
     # ---------------------------------------------------
-    # Public API
+    # Public Methods
     # ---------------------------------------------------
 
     async def update_reports(self, config: list[WikiProjectConfig]) -> None:

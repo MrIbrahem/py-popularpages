@@ -77,9 +77,15 @@ class PageviewsRepository:
     retries on 429/503.
     """
 
-    def __init__(self, domain: str):
+    def __init__(
+        self,
+        domain: str,
+        delay_seconds: float | None = None,
+    ):
         """
         :param domain: The wiki domain, e.g. 'en.wikipedia'.
+        :param delay_seconds: Override for the per-request rate-limit delay
+            (defaults to ``app_config.pageviews.request_delay_seconds``).
         """
         self.domain = domain
         logger.debug("PageviewsRepository initialized for domain '%s'", domain)
@@ -90,6 +96,11 @@ class PageviewsRepository:
             ),
             headers={"User-Agent": app_config.other.user_agent},
         )
+
+        if delay_seconds is None:
+            delay_seconds = app_config.pageviews.request_delay_seconds
+
+        self.delay_seconds = delay_seconds
 
     async def aclose(self) -> None:
         """
@@ -175,28 +186,6 @@ class PageviewsRepository:
 
         return pageviews
 
-    async def get_title_views(self, titles: list[str], start: str, end: str) -> dict[str, int]:
-        """
-        Fetch total pageviews for each of the given titles, once each.
-
-        Unlike :meth:`get_pageviews`, this does *not* deal with target/redirect
-        grouping; it simply returns ``{title: total_views}`` for every title
-        requested. Callers (e.g. the cross-project :class:`PageviewsCache`)
-        are responsible for summing a target with its redirects.
-
-        :param titles: Page titles (spaces) to query, deduplicated by caller.
-        :param start: Start date in YYYYMMDD00 format.
-        :param end: End date in YYYYMMDD00 format.
-        :return: Dict mapping each requested title -> total pageviews (0 if
-            missing / errored).
-        """
-
-        # gather returns a list of tuples: [(title, views_count), (title, views_count), ...]
-        results = await asyncio.gather(*(self._fetch_title_views(t, start, end) for t in titles))
-
-        # Convert list of tuples to a dict.
-        return dict(results)
-
     async def _fetch_title_views(self, title: str, start: str, end: str) -> tuple[str, int]:
         """
         Fetch the total monthly pageviews for a single title.
@@ -207,7 +196,7 @@ class PageviewsRepository:
         error occurs; only 429/5xx-style retryable failures are retried by the
         tenacity wrapper on :meth:`_get`.
         """
-        await asyncio.sleep(app_config.pageviews.request_delay_seconds)
+        await asyncio.sleep(self.delay_seconds)
         article = title.replace(" ", "_")
         try:
             response = await self._get(article, start, end)
@@ -246,6 +235,31 @@ class PageviewsRepository:
             article = item["article"].replace("_", " ")
 
         return article, total_views
+
+    # ---------------------------------------------------
+    # Public Methods
+    # ---------------------------------------------------
+    async def get_title_views(self, titles: list[str], start: str, end: str) -> dict[str, int]:
+        """
+        Fetch total pageviews for each of the given titles, once each.
+
+        Unlike :meth:`get_pageviews`, this does *not* deal with target/redirect
+        grouping; it simply returns ``{title: total_views}`` for every title
+        requested. Callers (e.g. the cross-project :class:`PageviewsCache`)
+        are responsible for summing a target with its redirects.
+
+        :param titles: Page titles (spaces) to query, deduplicated by caller.
+        :param start: Start date in YYYYMMDD00 format.
+        :param end: End date in YYYYMMDD00 format.
+        :return: Dict mapping each requested title -> total pageviews (0 if
+            missing / errored).
+        """
+
+        # gather returns a list of tuples: [(title, views_count), (title, views_count), ...]
+        results = await asyncio.gather(*(self._fetch_title_views(t, start, end) for t in titles))
+
+        # Convert list of tuples to a dict.
+        return dict(results)
 
 
 __all__ = [

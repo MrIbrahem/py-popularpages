@@ -19,9 +19,9 @@ from src.py_port.popularpages.db_analytics.replica_db import (
 )
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 1. Tests for decode_value bytes-to-str decoding
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestDecodeValue:
     """Tests for `decode_value` bytes-to-str decoding."""
 
@@ -36,9 +36,9 @@ class TestDecodeValue:
         assert decode_value("already str") == "already str"
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 2. Tests for resolve_bytes row decoding
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestResolveBytes:
     """Tests for `resolve_bytes` row decoding."""
 
@@ -51,9 +51,9 @@ class TestResolveBytes:
         assert resolve_bytes([]) == []
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 3. Tests for the get_sql connection-guard flag
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestGetSql:
     """Tests for the `get_sql` connection-guard flag."""
 
@@ -76,9 +76,9 @@ class TestGetSql:
         assert get_sql() is True
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 4. Tests for the DB connection guard without credentials
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestEnsureConnection:
     """Tests for the DB connection guard without credentials."""
 

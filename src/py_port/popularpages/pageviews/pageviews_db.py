@@ -35,17 +35,17 @@ class PageviewsDb:
         Base.metadata.create_all(self._engine)
         self._Session: sessionmaker[Session] = sessionmaker(bind=self._engine, future=True)
 
-    # ----------------------------------------------------------------
+    # ---------------------------------------------------
     # Lifecycle
-    # ----------------------------------------------------------------
+    # ---------------------------------------------------
     def close_db(self) -> None:
         """Dispose of the underlying SQLite engine/connection pool."""
         self._engine.dispose()
         logger.debug("Closed pageviews cache %s", self.db_file_path)
 
-    # ----------------------------------------------------------------
+    # ---------------------------------------------------
     # Internal helpers
-    # ----------------------------------------------------------------
+    # ---------------------------------------------------
     @staticmethod
     def _chunked(items: Sequence[str], size: int) -> Iterator[Sequence[str]]:
         """Yield successive chunks of ``items`` of at most ``size`` elements."""
@@ -71,9 +71,9 @@ class PageviewsDb:
 
         return views_by_title
 
-    # ----------------------------------------------------------------
+    # ---------------------------------------------------
     # Writes
-    # ----------------------------------------------------------------
+    # ---------------------------------------------------
     def upsert_many(self, title_views: dict[str, int]) -> None:
         """Upsert a batch of title -> views pairs, committing once for the batch."""
         if not title_views:
@@ -92,9 +92,9 @@ class PageviewsDb:
 
         logger.debug("Upserted %d title(s) into %s", len(title_views), self.db_file_path)
 
-    # ----------------------------------------------------------------
+    # ---------------------------------------------------
     # Lookup
-    # ----------------------------------------------------------------
+    # ---------------------------------------------------
     def query_titles_cache(self, wanted: list[str]) -> set[str]:
         """Return the subset of ``wanted`` titles already present in the cache."""
         if not wanted:

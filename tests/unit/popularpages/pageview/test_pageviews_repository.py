@@ -27,14 +27,14 @@ def _make_mock_repo(handler) -> PageviewsRepository:
     Returns:
         PageviewsRepository: A repository using the supplied mock HTTP handler.
     """
-    repo = PageviewsRepository("en.wikipedia")
+    repo = PageviewsRepository("en.wikipedia", delay_seconds=0)
     repo._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     return repo
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 1. Tests for PageviewsRepository.get_pageviews batch summation.
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestGetPageviews:
     """Tests for `PageviewsRepository.get_pageviews` batch summation."""
 
@@ -71,9 +71,9 @@ class TestGetPageviews:
         assert result == {"Nonexistent Page": 0}
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 2. Tests for PageviewsRepository._process_response.
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestProcessResponse:
     """Tests for `PageviewsRepository._process_response`."""
 
@@ -93,21 +93,21 @@ class TestProcessResponse:
         assert total == 30
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 3. Tests for the HTTP client configuration.
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestClientHeaders:
     """Tests for the HTTP client configuration."""
 
     def test_client_sets_user_agent_header(self):
-        repo = PageviewsRepository("en.wikipedia")
+        repo = PageviewsRepository("en.wikipedia", delay_seconds=0)
         ua = repo._client.headers.get("User-Agent")
         assert ua is not None
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 4. Tests for PageviewsRepository.get_title views.
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestGetTitleViews:
     """Tests for `PageviewsRepository.get_title views`."""
 
@@ -134,9 +134,9 @@ class TestGetTitleViews:
         assert result == {"Missing": 0}
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 5. Tests for the _is_retryable error classifier.
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestIsRetryable:
     """Tests for the `_is_retryable` error classifier."""
 
@@ -155,9 +155,9 @@ class TestIsRetryable:
         assert _is_retryable(ValueError("x")) is False
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 6. Tests for the _retry_wait backoff helper.
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestRetryWait:
     """Tests for the `_retry_wait` backoff helper."""
 
@@ -175,15 +175,15 @@ class TestRetryWait:
         assert 1.0 <= val <= 30.0
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 7. Tests for PageviewsRepository._fetch_title_views error handling.
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestFetchTitleViews:
     """Tests for `PageviewsRepository._fetch_title_views` error handling."""
 
     @pytest.mark.asyncio
     async def test_fetch_title_views_404_returns_zero(self):
-        repo = PageviewsRepository("en.wikipedia")
+        repo = PageviewsRepository("en.wikipedia", delay_seconds=0)
         repo._get = AsyncMock(
             side_effect=httpx.HTTPStatusError("x", request=MagicMock(), response=MagicMock(status_code=404))
         )
@@ -191,14 +191,14 @@ class TestFetchTitleViews:
 
     @pytest.mark.asyncio
     async def test_fetch_title_views_http_error_returns_zero(self):
-        repo = PageviewsRepository("en.wikipedia")
+        repo = PageviewsRepository("en.wikipedia", delay_seconds=0)
         repo._get = AsyncMock(side_effect=httpx.ReadError("x"))
         assert await repo._fetch_title_views("Foo", "2024010100", "2024013100") == ("Foo", 0)
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 8. Live network test for get_monthly_pageviews (requires network; marked skip in CI).
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 class TestMonthlyPageviewsLive:
     """Live network test for `get_monthly_pageviews` (requires network; marked skip in CI)."""
 
@@ -210,7 +210,7 @@ class TestMonthlyPageviewsLive:
     async def test_get_monthly_pageviews(self):
         pages = ["Star Wars", "Zootopia", "The Lion King"]
         batch = {p: [p] for p in pages}
-        repo = PageviewsRepository("en.wikipedia")
+        repo = PageviewsRepository("en.wikipedia", delay_seconds=0)
         result = repo.get_pageviews(batch, "2017020100", "2017022800")
         expected = {
             "Star Wars": 491220,

@@ -18,9 +18,9 @@ class TestPreviousMonthRange:
         assert obj.start == date(2023, 12, 1)
         assert obj.end == date(2023, 12, 31)
 
-    # ------------------------------------------------------------
+    # ---------------------------------------------------
     # Pure unit tests (no network/credentials required)
-    # ------------------------------------------------------------
+    # ---------------------------------------------------
     def test_previous_month_range_midyear(self):
         today = datetime(2023, 6, 15, 10, 30, 0)
         obj = MonthDate.from_today(today)

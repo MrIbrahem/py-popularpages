@@ -104,7 +104,7 @@ class IndexUpdater:
         return list_config_obj
 
     # ---------------------------------------------------
-    # Public API
+    # Public Methods
     # ---------------------------------------------------
 
     def update_index(self) -> None:
