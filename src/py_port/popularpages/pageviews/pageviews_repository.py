@@ -168,7 +168,8 @@ class PageviewsRepository:
 
         # All unique page titles (targets + redirects) to be queried.
         all_titles: set[str] = set()
-        for titles in batch.values():
+        for key, titles in batch.items():
+            all_titles.add(key)
             all_titles.update(t for t in titles if t)
 
         logger.info(
@@ -196,7 +197,7 @@ class PageviewsRepository:
 
         for title, count in views_by_title.items():
             for target in target_titles:
-                if title in batch[target]:
+                if title == target or title in batch[target]:
                     pageviews[target] += count
                     break
 
