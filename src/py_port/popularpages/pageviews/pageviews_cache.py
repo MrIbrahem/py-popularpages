@@ -15,8 +15,6 @@ partial run's progress is not lost).
 Backed by SQLite via SQLAlchemy (sync engine -- SQLite I/O is local and fast
 enough that async buys nothing here; only network calls to the Pageviews API,
 made through :class:`PageviewsRepository`, are ``async``).
-
-See docs/pageviews-persistence-and-dedup-plan.md.
 """
 
 from __future__ import annotations

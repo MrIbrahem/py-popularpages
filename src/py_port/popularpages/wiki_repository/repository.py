@@ -267,7 +267,7 @@ class WikiRepository:
         start: str,
         end: str,
         limit: int,
-    ) -> tuple[dict, int]:
+    ) -> tuple[dict[str, dict], int]:
         """
         Get monthly pageviews for the given pages and their redirects.
 
@@ -319,7 +319,8 @@ class WikiRepository:
         logger.info("[%s] Pageviews fetch complete", self.wiki)
         logger.info("Pageviews fetch complete: %d total pageviews", total_pageviews)
 
-        return self._sort_and_truncate_pages_list(out, limit), total_pageviews
+        out = self._sort_and_truncate_pages_list(out, limit)
+        return out, total_pageviews
 
     async def _process_batch(
         self,

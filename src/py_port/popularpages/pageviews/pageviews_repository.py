@@ -109,7 +109,8 @@ class PageviewsRepository:
 
     async def aclose(self) -> None:
         """
-        Close the underlying HTTP client. Call when done with this repository."""
+        Close the underlying HTTP client. Call when done with this repository.
+        """
         logger.debug("Closing PageviewsRepository HTTP client for '%s'", self.domain)
         await self._client.aclose()
 
@@ -120,6 +121,7 @@ class PageviewsRepository:
             exc = outcome.exception()
             if isinstance(exc, httpx.HTTPStatusError):
                 status = str(exc.response.status_code)
+
         msg = (
             f"Attempt #{retry_state.attempt_number} to retry pageviews request. "
             f"Server responded with {status}. "

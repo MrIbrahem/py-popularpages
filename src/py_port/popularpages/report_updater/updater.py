@@ -103,6 +103,7 @@ class ReportUpdater:
 
     async def process_project(
         self,
+        *,
         project: str,
         config: dict | WikiProjectConfig,
         cache: PageviewsCache | None = None,
@@ -260,7 +261,7 @@ class ReportUpdater:
 
     async def _views_for_project_from_cache(
         self,
-        page_rows: list[dict],
+        rows: list[dict],
         limit: int,
         cache: PageviewsCache,
     ) -> tuple[dict[str, dict], int]:
@@ -275,19 +276,21 @@ class ReportUpdater:
         the whole wiki (or read back from the on-disk cache if a previously
         processed project in this run already fetched it).
 
-        :param page_rows: Rows as returned by ``get_project_pages()``.
+        :param rows: Rows as returned by ``get_project_pages()``.
         :param limit: Max number of pages to include in the final report.
         :param cache: The shared pageviews cache.
         :return: (pages_dict, total_pageviews).
         """
         _t0 = time.perf_counter()
-        logger.info("Fetching pageviews for %d page(s), limit: %d", len(page_rows), limit)
+
+        logger.info("Fetching pageviews for %d page(s), limit: %d", len(rows), limit)
         unknown_msg = self.i18n.msg("unknown")
+
         out: dict[str, dict] = {}
         redirects: dict[str, list[str]] = {}
         total_pageviews = 0
 
-        for row in page_rows:
+        for row in rows:
             target = (row["page_title"] or "").replace("_", " ")
             redir = (row["redir_title"] or "").replace("_", " ")
             if target not in out:
@@ -316,7 +319,7 @@ class ReportUpdater:
         logger.info(
             "took %.4f s for %d page(s), limit: %d",
             _elapsed,
-            len(page_rows),
+            len(rows),
             limit,
         )
         return out, total_pageviews
@@ -324,6 +327,56 @@ class ReportUpdater:
     # ---------------------------------------------------
     # Public Methods
     # ---------------------------------------------------
+
+    async def update_one_report(self, project: WikiProjectConfig, cache: PageviewsCache) -> None:
+        """ """
+        if not self.validate_project_config(project.project_main_page, project):
+            self.skipped += 1
+            return
+
+        page_rows = self.wiki_repository.db.get_project_pages(project.Name)
+        if not page_rows:
+            logger.info('[%s] No pages found for "%s"', self.wiki, project.project_main_page)
+            self.skipped += 1
+            return
+
+        # See T164178: guard against runaway memory for very large projects.
+        if len(page_rows) > app_config.wiki.max_project_size:
+            logger.info("[%s] Error: %s is too large. Skipping.", self.wiki, project.project_main_page)
+            self.skipped += 1
+            return
+
+        try:
+            titles = self._titles_for_pages(page_rows)
+            logger.info(f"Fetching pageviews for {len(titles):,} titles in project: %s:%s", self.wiki, project.Name)
+
+            await cache.ensure(titles)
+
+            logger.info("Processing project '%s'", project.Name)
+
+            await self.process_project(
+                project=project.project_main_page,
+                config=project,
+                cache=cache,
+                page_rows=page_rows,
+            )
+
+            logger.info("[%s] Finished processing: %s", self.wiki, project.Name)
+            self.processed += 1
+
+        except Exception as exc:
+            # One project failing must not abort the whole run (mirrors
+            # the per-wiki isolation in check_reports.py, but at the
+            # per-project level).
+            logger.exception("Error processing project '%s': %s", project.Name, exc)
+            logger.info("[%s] Error processing %s: %s", self.wiki, project.Name, exc)
+            self.skipped += 1
+
+        finally:
+            # Drop references so this project's page/pageview data is
+            # eligible for GC before the next iteration allocates more,
+            # rather than living until the whole batch finishes.
+            page_rows = None
 
     async def update_reports(self, config: list[WikiProjectConfig]) -> None:
         """
@@ -346,69 +399,27 @@ class ReportUpdater:
             logger.info("[%s] Error: Invalid config. Aborting!", self.wiki)
             return
 
+        cache = PageviewsCache(
+            self.wiki,
+            self.month_date.start,
+            self.month_date.end,
+            self.wiki_repository.pageviews_repo,
+        )
+
         try:
             logger.info("update_reports: processing %d project(s) sequentially", len(config))
 
             for project in config:
-                if not self.validate_project_config(project.project_main_page, project):
-                    self.skipped += 1
-                    continue
-
-                page_rows = self.wiki_repository.db.get_project_pages(project.Name)
-                if not page_rows:
-                    logger.info('[%s] No pages found for "%s"', self.wiki, project.project_main_page)
-                    self.skipped += 1
-                    continue
-
-                # See T164178: guard against runaway memory for very large projects.
-                if len(page_rows) > app_config.wiki.max_project_size:
-                    logger.info("[%s] Error: %s is too large. Skipping.", self.wiki, project.project_main_page)
-                    self.skipped += 1
-                    continue
-
-                cache = None
-                try:
-                    # Build a pageviews cache scoped to *this project's* titles
-                    # only (instead of accumulating titles across all stale
-                    # projects before fetching anything).
-                    titles = self._titles_for_pages(page_rows)
-                    logger.info(f"Fetching pageviews for {len(titles):,} titles in project: %s:%s", self.wiki, project.Name)
-
-                    cache = await self._build_views_cache(titles)
-
-                    logger.info("Processing project '%s'", project.Name)
-                    await self.process_project(
-                        project=project.project_main_page,
-                        config=project,
-                        cache=cache,
-                        page_rows=page_rows,
-                    )
-                    logger.info("[%s] Finished processing: %s", self.wiki, project.Name)
-                    self.processed += 1
-                except Exception as exc:
-                    # One project failing must not abort the whole run (mirrors
-                    # the per-wiki isolation in check_reports.py, but at the
-                    # per-project level).
-                    logger.exception("Error processing project '%s': %s", project.Name, exc)
-                    logger.info("[%s] Error processing %s: %s", self.wiki, project.Name, exc)
-                    self.skipped += 1
-                finally:
-                    # Close the per-project SQLite cache so its engine/file
-                    # handle is released before the next iteration; otherwise
-                    # open SQLite handles accumulate across project iterations.
-                    if cache is not None:
-                        cache.db.close_db()
-                    # Drop references so this project's page/pageview data is
-                    # eligible for GC before the next iteration allocates more,
-                    # rather than living until the whole batch finishes.
-                    page_rows = None
-                    cache = None
+                await self.update_one_report(project, cache)
 
             logger.info("update_reports: done (%d processed, %d skipped)", self.processed, self.skipped)
 
             # NOTE: update index moved into IndexUpdater
             # self.update_index()
         finally:
+            # Close the SQLite engine
+            cache.db.close_db()
+
             # Release the per-run Pageviews HTTP client (async context).
             await self.wiki_repository.pageviews_repo.aclose()
 

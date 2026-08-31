@@ -32,7 +32,7 @@ def updater(monkeypatch) -> tuple[ReportUpdater, MagicMock]:
     repo.i18n = I18n("en")
     repo.pageviews_repo = AsyncMock()
 
-    # _build_views_cache exercises the pageviews client; make it return nothing.
+    # PageviewsCache.ensure exercises the pageviews client; make it return nothing.
     repo.pageviews_repo.get_title_views = AsyncMock(return_value={})
 
     # process_project delegates sorting to the real static method.
@@ -150,8 +150,8 @@ class TestProcessProject:
             }
         ]
         await u.process_project(
-            "Wikipedia:WikiProject Foo",
-            _project(),
+            project="Wikipedia:WikiProject Foo",
+            config=_project(),
             cache=cache,
             page_rows=page_rows,
         )
@@ -166,8 +166,8 @@ class TestProcessProject:
         u, repo = updater
         cache = MagicMock()
         await u.process_project(
-            "Wikipedia:WikiProject Foo",
-            _project(),
+            project="Wikipedia:WikiProject Foo",
+            config=_project(),
             cache=cache,
             page_rows=[],
         )
@@ -194,8 +194,8 @@ class TestProcessProject:
             }
         ]
         await u.process_project(
-            "Wikipedia:WikiProject Foo",
-            _project(),
+            project="Wikipedia:WikiProject Foo",
+            config=_project(),
             page_rows=page_rows,
         )
         repo.get_monthly_pageviews_and_assessments.assert_awaited_once()
@@ -216,8 +216,8 @@ class TestProcessProject:
             }
         ]
         await u.process_project(
-            "Wikipedia:WikiProject Foo",
-            {"Report": "Wikipedia:WikiProject Foo/Popular pages", "Limit": "10", "Name": "Foo"},
+            project="Wikipedia:WikiProject Foo",
+            config={"Report": "Wikipedia:WikiProject Foo/Popular pages", "Limit": "10", "Name": "Foo"},
             cache=cache,
             page_rows=page_rows,
         )
