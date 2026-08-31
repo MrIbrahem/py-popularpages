@@ -10,8 +10,6 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime, timezone
 
-from .mapping import MonthDate
-
 logger = logging.getLogger(__name__)
 
 
@@ -23,23 +21,6 @@ def uc_first(value: str) -> str:
     result = value[:1].upper() + value[1:] if value else value
     logger.debug("uc_first(%r) -> %r", value, result)
     return result
-
-
-def previous_month_range(today: date) -> tuple[date, date]:
-    """
-    Return (first, last) day of the month preceding ``today``.
-
-    Python has no ``strtotime('first day of previous month')`` equivalent,
-    so compute it manually. Verified against year boundaries.
-    """
-    obj = MonthDate.from_today(today)
-    logger.debug(
-        "%s -> (%s, %s)",
-        today,
-        obj.start,
-        obj.end,
-    )
-    return obj.start, obj.end
 
 
 # -- Module-level helpers ---------------------------------------------------
@@ -94,7 +75,6 @@ def format_date(value: date, fmt: str = "%Y-%m-%d") -> str:
 __all__ = [
     "format_date",
     "uc_first",
-    "previous_month_range",
     "first_of_this_month_timestamp",
     "mediawiki_timestamp_to_date",
     "mediawiki_timestamp_to_epoch",

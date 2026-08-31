@@ -1,6 +1,44 @@
-""" """
+from datetime import date, datetime
 
-from src.py_port.popularpages.mapping import WikiProjectConfig
+from src.py_port.popularpages.mapping import MonthDate, WikiProjectConfig
+
+
+class TestPreviousMonthRange:
+    """Tests for computing the previous calendar month's date range."""
+
+    def test_previous_month_range_mid_year(self):
+
+        obj = MonthDate.from_today(date(2024, 6, 15))
+        assert obj.start == date(2024, 5, 1)
+        assert obj.end == date(2024, 5, 31)
+
+    def test_previous_month_range_year_boundary(self):
+
+        obj = MonthDate.from_today(date(2024, 1, 10))
+        assert obj.start == date(2023, 12, 1)
+        assert obj.end == date(2023, 12, 31)
+
+    # ------------------------------------------------------------
+    # Pure unit tests (no network/credentials required)
+    # ------------------------------------------------------------
+    def test_previous_month_range_midyear(self):
+        today = datetime(2023, 6, 15, 10, 30, 0)
+        obj = MonthDate.from_today(today)
+        assert (obj.start.year, obj.start.month, obj.start.day) == (2023, 5, 1)
+        assert (obj.end.year, obj.end.month, obj.end.day) == (2023, 5, 31)
+
+    def test_previous_month_range_year_boundary2(self):
+        today = datetime(2023, 1, 10, 0, 0, 0)
+        obj = MonthDate.from_today(today)
+        assert (obj.start.year, obj.start.month, obj.start.day) == (2022, 12, 1)
+        assert (obj.end.year, obj.end.month, obj.end.day) == (2022, 12, 31)
+
+    def test_previous_month_range_days_in_month(self):
+        # February in a non-leap year.
+        today = datetime(2023, 3, 5)
+        obj = MonthDate.from_today(today)
+        days_in_month = (obj.end - obj.start).days + 1
+        assert days_in_month == 28
 
 
 class TestProjectReportTitles:
@@ -75,7 +113,7 @@ class TestWikiProjectConfigParsing:
             project_main_page="Foo",
             Report="Foo/Popular pages",
             report_without_ns="Foo/Popular_pages",
-            Limit="10",
+            Limit="10",  # pyright: ignore[reportArgumentType]
             Name="",
         )
         assert cfg.is_incomplete() is True
