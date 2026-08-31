@@ -412,7 +412,6 @@ class ReportUpdater:
         unknown_msg = self.i18n.msg("unknown")
 
         out: dict[str, dict] = {}
-        batches: dict[str, list[str]] = {}
 
         for row in rows:
             target = (row["page_title"] or "").replace("_", " ")
@@ -423,17 +422,19 @@ class ReportUpdater:
                     "pageviews": 0,
                     "class": row["pa_class"] or unknown_msg,
                     "importance": row["pa_importance"] or unknown_msg,
+                    "redirects": [],
                 }
 
-                batches[target] = []
-            if redir:
-                batches[target].append(redir)
+            if redir and redir not in out[target]["redirects"]:
+                out[target]["redirects"].append(redir)
 
-        counts = cache.db.get_views_many(list(out), batches)
+        batches = {target: data["redirects"] for target, data in out.items()}
+
+        counts = cache.db.get_views_many2(batches)
 
         total_pageviews = 0
         for target, count in counts.items():
-            out[target]["pageviews"] = count
+            out[target]["pageviews"] += count
             total_pageviews += count
 
         return out, total_pageviews

@@ -17,6 +17,7 @@ import logging
 import re
 import time
 from pathlib import Path
+from typing import Any
 
 import httpx
 import mwclient
@@ -424,10 +425,10 @@ class WikiRepository:
 
     async def _process_batches(
         self,
-        batches: dict[str, list[str]],
+        batches: dict[str, Any],
         start: str,
         end: str,
-    ):
+    ) -> dict[str, int]:
         """
         Split the given target batches into chunks of at most
         `app_config.pageviews.batch_size_threshold` targets each, and fetch
@@ -485,7 +486,6 @@ class WikiRepository:
         unknown_msg = self.i18n.msg("unknown")
 
         out: dict[str, dict] = {}
-        batches: dict[str, list[str]] = {}
 
         for row in rows:
             target = (row["page_title"] or "").replace("_", " ")
@@ -496,12 +496,13 @@ class WikiRepository:
                     "pageviews": 0,
                     "class": row["pa_class"] or unknown_msg,
                     "importance": row["pa_importance"] or unknown_msg,
+                    "redirects": [],
                 }
 
-            if target not in batches:
-                batches[target] = [target, redir]
-            else:
-                batches[target].append(redir)
+            if redir and redir not in out[target]["redirects"]:
+                out[target]["redirects"].append(redir)
+
+        batches = {target: data["redirects"] for target, data in out.items()}
 
         counts = await self._process_batches(batches, start, end)
 

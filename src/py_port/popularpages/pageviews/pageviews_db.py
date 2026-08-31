@@ -113,12 +113,11 @@ class PageviewsDb:
         :param redirects: Redirect titles (spaces) associated with the target.
         :return: Sum of cached views across target + redirects.
         """
-        return self.get_views_many([target], {target: redirects}).get(target, 0)
+        return self.get_views_many2({target: redirects}).get(target, 0)
 
-    def get_views_many(
+    def get_views_many2(
         self,
-        targets: list[str],
-        redirects_by_target: dict[str, list[str]],
+        targets_to_redirects: dict[str, list[str]],
     ) -> dict[str, int]:
         """
         Bulk variant of :meth:`get_views` for many targets at once.
@@ -129,18 +128,9 @@ class PageviewsDb:
         across all targets and their redirects in a handful of chunked
         ``SELECT ... WHERE title IN (...)`` queries that reuse a single
         session, then aggregates the per-title views back to each target.
-
-        :param targets: Target page titles (spaces).
-        :param redirects_by_target: Map of target -> its redirect titles.
-        :return: Map of target -> total views (target + redirects).
         """
-        # Map every unique title to the targets that reference it (as the
-        # target itself or as one of its redirects). A title may be referenced
-        # by more than one target, so keep a list.
-        title_to_targets = self.map_titles_to_targets(targets, redirects_by_target)
-
-        if not title_to_targets:
-            return dict.fromkeys(targets, 0)
+        targets = list(targets_to_redirects.keys())
+        title_to_targets = self.map_titles_to_targets(targets, targets_to_redirects)
 
         views_by_title = self._query_views_by_title(list(title_to_targets))
 
@@ -148,7 +138,7 @@ class PageviewsDb:
         for target in targets:
             result[target] = views_by_title.get(target, 0)
 
-            for title in redirects_by_target.get(target, []):
+            for title in targets_to_redirects.get(target, []):
                 result[target] += views_by_title.get(title, 0)
 
         return result
