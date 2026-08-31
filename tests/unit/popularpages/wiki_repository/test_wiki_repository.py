@@ -71,7 +71,7 @@ class TestGetBotLastEditDate:
 
 
 class TestWriteDryRunText:
-    """Tests for `_write_dry_run_text` dry-run persistence."""
+    """Tests for `_write_wikitext` dry-run persistence."""
 
     def test_writes_file_with_sanitized_title(self, tmp_path, monkeypatch):
         repo = WikiRepository.__new__(WikiRepository)
@@ -81,7 +81,7 @@ class TestWriteDryRunText:
 
         title = "Wikipedia:WikiProject Medicine/Popular pages"
         text = "== List ==\n| A | B\n"
-        repo._write_dry_run_text(title, text)
+        repo._write_wikitext(title, text)
 
         files = list(tmp_path.glob("*.wikitext"))
         assert len(files) == 1
@@ -97,7 +97,7 @@ class TestWriteDryRunText:
         repo = WikiRepository.__new__(WikiRepository)
         repo.log_dir = tmp_path
         repo.wiki = "ar.wikipedia"
-        repo._write_dry_run_text("User:Foo/Bar", "x")
+        repo._write_wikitext("User:Foo/Bar", "x")
         assert any("ar.wikipedia" in f.name for f in tmp_path.glob("*.wikitext"))
 
 

@@ -386,6 +386,8 @@ class WikiRepository:
 
         summary = summary or self.i18n.msg("edit-summary")
 
+        self._write_wikitext(page_title, text)
+
         if self.dry_run:
             logger.info(
                 {
@@ -395,7 +397,6 @@ class WikiRepository:
                     "bot": True,
                 }
             )
-            self._write_dry_run_text(page_title, text)
             return None
 
         page = self.site.pages[page_title]
@@ -425,7 +426,7 @@ class WikiRepository:
 
         return result
 
-    def _write_dry_run_text(self, page_title: str, text: str) -> None:
+    def _write_wikitext(self, page_title: str, text: str) -> None:
         """
         Persist the rendered wikitext to the logs folder when in dry-run mode.
 
