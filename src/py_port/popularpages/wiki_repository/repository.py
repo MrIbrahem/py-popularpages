@@ -440,12 +440,7 @@ class WikiRepository:
         views_by_title: dict[str, int] = {}
 
         for chunk_start in range(0, len_items, chunk_size):
-            # `batches` maps each target to its *redirect* titles only, so the
-            # canonical target title must be prepended here; get_pageviews
-            # expects every queried title (target + redirects) for each target.
-            chunk = {
-                target: [target, *redirects] for target, redirects in items[chunk_start : chunk_start + chunk_size]
-            }
+            chunk = dict(items[chunk_start : chunk_start + chunk_size])
 
             logger.info(
                 "[%s] Processing page %d of %d",
