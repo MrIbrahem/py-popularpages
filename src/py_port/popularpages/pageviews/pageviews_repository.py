@@ -81,11 +81,16 @@ class PageviewsRepository:
         self,
         domain: str,
         delay_seconds: float | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
     ):
         """
         :param domain: The wiki domain, e.g. 'en.wikipedia'.
         :param delay_seconds: Override for the per-request rate-limit delay
             (defaults to ``app_config.pageviews.request_delay_seconds``).
+        :param transport: Optional custom transport (e.g. ``httpx.MockTransport``
+            in tests). When omitted, the real default transport is used, which
+            builds a genuine TLS/SSL context — pass a transport explicitly in
+            tests to skip that cost and avoid any real network capability.
         """
         self.domain = domain
         logger.debug("PageviewsRepository initialized for domain '%s'", domain)
@@ -95,6 +100,7 @@ class PageviewsRepository:
                 connect=app_config.pageviews.connect_timeout_seconds,
             ),
             headers={"User-Agent": app_config.other.user_agent},
+            transport=transport,
         )
 
         if delay_seconds is None:

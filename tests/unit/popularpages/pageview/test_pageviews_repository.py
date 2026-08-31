@@ -17,9 +17,20 @@ from src.py_port.popularpages.pageviews.pageviews_repository import (
 )
 
 
-def _make_mock_repo(handler) -> PageviewsRepository:
+def _unused_handler(request: httpx.Request) -> httpx.Response:
+    """Fallback transport handler for repos whose HTTP layer isn't exercised."""
+    raise AssertionError(f"Unexpected HTTP request in test: {request.url}")
+
+
+def _make_mock_repo(handler=_unused_handler) -> PageviewsRepository:
     """
     Create a pageviews repository configured with a mocked HTTP request handler.
+
+    Passing ``transport`` directly to the constructor (rather than building the
+    repository with its real default transport and swapping ``_client``
+    afterwards) avoids paying the cost of building a real TLS/SSL context that
+    is immediately discarded — this was previously the dominant cost of each
+    test in this file.
 
     Parameters:
         handler: A callable that handles requests made by the repository's mock transport.
@@ -27,9 +38,11 @@ def _make_mock_repo(handler) -> PageviewsRepository:
     Returns:
         PageviewsRepository: A repository using the supplied mock HTTP handler.
     """
-    repo = PageviewsRepository("en.wikipedia", delay_seconds=0)
-    repo._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    return repo
+    return PageviewsRepository(
+        "en.wikipedia",
+        delay_seconds=0,
+        transport=httpx.MockTransport(handler),
+    )
 
 
 # ---------------------------------------------------
@@ -100,7 +113,7 @@ class TestClientHeaders:
     """Tests for the HTTP client configuration."""
 
     def test_client_sets_user_agent_header(self):
-        repo = PageviewsRepository("en.wikipedia", delay_seconds=0)
+        repo = _make_mock_repo()
         ua = repo._client.headers.get("User-Agent")
         assert ua is not None
 
@@ -183,7 +196,7 @@ class TestFetchTitleViews:
 
     @pytest.mark.asyncio
     async def test_fetch_title_views_404_returns_zero(self):
-        repo = PageviewsRepository("en.wikipedia", delay_seconds=0)
+        repo = _make_mock_repo()
         repo._get = AsyncMock(
             side_effect=httpx.HTTPStatusError("x", request=MagicMock(), response=MagicMock(status_code=404))
         )
@@ -191,7 +204,7 @@ class TestFetchTitleViews:
 
     @pytest.mark.asyncio
     async def test_fetch_title_views_http_error_returns_zero(self):
-        repo = PageviewsRepository("en.wikipedia", delay_seconds=0)
+        repo = _make_mock_repo()
         repo._get = AsyncMock(side_effect=httpx.ReadError("x"))
         assert await repo._fetch_title_views("Foo", "2024010100", "2024013100") == ("Foo", 0)
 
@@ -210,7 +223,7 @@ class TestMonthlyPageviewsLive:
     async def test_get_monthly_pageviews(self):
         pages = ["Star Wars", "Zootopia", "The Lion King"]
         batch = {p: [p] for p in pages}
-        repo = PageviewsRepository("en.wikipedia", delay_seconds=0)
+        repo = PageviewsRepository("en.wikipedia")
         result = repo.get_pageviews(batch, "2017020100", "2017022800")
         expected = {
             "Star Wars": 491220,
