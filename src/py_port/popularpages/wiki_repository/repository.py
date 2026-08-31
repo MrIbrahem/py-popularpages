@@ -259,32 +259,6 @@ class WikiRepository:
         logger.debug("Loaded assessment config for '%s.org'", self.wiki)
         return self._assessment_config  # pyright: ignore[reportReturnType]
 
-    async def _process_batch(
-        self,
-        batch: dict[str, list[str]],
-        out: dict[str, dict],
-        start: str,
-        end: str,
-    ) -> int:
-        """
-        Process one batch of pages, updating `out` and the running total in place.
-
-        :return: _total_views.
-        """
-        logger.debug("Processing batch of %d page(s)", len(batch))
-        batch_result = await self.pageviews_repo.get_pageviews(batch, start, end)
-        logger.debug("Batch returned %d result(s)", len(batch_result))
-
-        _total_views = 0
-        for title, count in batch_result.items():
-            out[title]["pageviews"] += count
-            _total_views += count
-            # Clear out batch only for this title, otherwise the target page
-            # might get re-added in the next batch.
-            batch[title] = []
-
-        return _total_views
-
     @staticmethod
     def _sort_and_truncate_pages_list(out: dict[str, dict], limit: int) -> dict[str, dict]:
         """
@@ -447,6 +421,34 @@ class WikiRepository:
         stale = [x for x in _config if x.project_main_page not in to_pop]
         logger.info("Found %d stale project(s) of %d", len(stale), len(_config))
         return stale
+
+    async def _process_batch(
+        self,
+        chunk: dict[str, list[str]],
+        out: dict[str, dict],
+        start: str,
+        end: str,
+    ) -> int:
+        """
+        Process one batch of pages, updating `out` and the running total in place.
+
+        :return: _total_views.
+        """
+        logger.debug("Processing batch of %d page(s)", len(chunk))
+
+        batch_result = await self.pageviews_repo.get_pageviews(chunk, start, end)
+        logger.debug("Batch returned %d result(s)", len(batch_result))
+
+        _total_views = 0
+
+        for title, count in batch_result.items():
+            out[title]["pageviews"] += count
+            _total_views += count
+            # Clear out batch only for this title, otherwise the target page
+            # might get re-added in the next batch.
+            chunk[title] = []
+
+        return _total_views
 
     # ---------------------------------------------------
     # Pageviews + assessments (batched)
