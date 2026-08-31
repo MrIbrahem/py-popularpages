@@ -87,11 +87,18 @@ class IndexUpdater:
             logger.info("Error: No last-edit timestamps found!")
             return list_config_obj
 
-        # Add the last updated date to the config.
+        # `last_edits` rows are keyed by the report db-title (report_without_ns,
+        # e.g. "WikiProject_Foo/Popular_pages"), NOT by the project main page.
+        # Map those db-titles back to the project main page title so we can
+        # attach each timestamp to the right WikiProjectConfig. Without this
+        # mapping every `Updated` stayed `None` and rendered as the literal
+        # string "None" in the index table.
+        report_to_project = {x.report_without_ns: x.project_main_page for x in list_config_obj}
+
         last_edits_times = {
-            projects_config[row["page_title"]]: row["rev_timestamp"]
+            report_to_project[row["page_title"]]: row["rev_timestamp"]
             for row in last_edits
-            if row["page_title"] in projects_config
+            if row["page_title"] in report_to_project
         }
 
         for x in list_config_obj:
