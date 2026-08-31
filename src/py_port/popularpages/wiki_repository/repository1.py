@@ -432,24 +432,6 @@ class WikiRepository:
         Split the given target batches into chunks of at most
         `app_config.pageviews.batch_size_threshold` targets each, and fetch
         pageviews for each chunk via `_process_batch`.
-
-        Chunking keeps each request to the Pageviews API close to its
-        ~100 req/sec limit without imposing a hard cap on the overall batch
-        size. Each chunk's results are merged into `out` (in place, by
-        `_process_batch`) and the pageview counts are summed across all
-        chunks.
-
-        Args:
-            batches (dict[str, list[str]]): Map of target -> [target,
-                *redirect titles], covering every page to fetch.
-            out (dict[str, dict]): Accumulated results map (page title ->
-                {'pageviews', 'class', 'importance'}), updated in place as
-                each chunk is processed.
-            start (str): Start date, in YYYYMMDD00 format.
-            end (str): End date, in YYYYMMDD00 format.
-
-        Returns:
-            int: The total number of pageviews fetched across all chunks.
         """
         chunk_size = app_config.pageviews.batch_size_threshold
         items = list(batches.items())
