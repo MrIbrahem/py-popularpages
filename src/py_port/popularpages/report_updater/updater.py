@@ -172,7 +172,7 @@ class ReportUpdater:
             output,
             self.i18n.msg("edit-summary"),
             section_number=section_number,
-            file_name=f"{self.wiki}_{config.Name}_report.wikitext",
+            file_name=f"{config.Name}.wikitext",
         )
 
     def populate_assessment_categories(self, data: dict[str, dict]) -> dict[str, dict]:

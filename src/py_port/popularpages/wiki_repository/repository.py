@@ -438,9 +438,14 @@ class WikiRepository:
         """
         if not file:
             safe_title = re.sub(r"[^\w.\-]+", "_", page_title)
-            file = f"dryrun-{self.wiki}-{safe_title}.wikitext"
+            file = f"{safe_title}.wikitext"
 
-        out_path = self.log_dir / file
+        out_path = self.log_dir / self.wiki / file
+
+        try:
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.error("Could not create directory for %s: %s", out_path, e)
 
         text_with_header = f"Title: [[{page_title}]]\n\n{text}"
         out_path.write_text(text_with_header, encoding="utf-8")
