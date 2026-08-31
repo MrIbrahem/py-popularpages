@@ -113,9 +113,9 @@ class PageviewsDb:
         :param redirects: Redirect titles (spaces) associated with the target.
         :return: Sum of cached views across target + redirects.
         """
-        return self.get_views_many2({target: redirects}).get(target, 0)
+        return self.get_views_many({target: redirects}).get(target, 0)
 
-    def get_views_many2(
+    def get_views_many(
         self,
         targets_to_redirects: dict[str, list[str]],
     ) -> dict[str, int]:

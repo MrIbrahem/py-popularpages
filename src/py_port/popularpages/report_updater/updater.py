@@ -430,7 +430,7 @@ class ReportUpdater:
 
         batches = {target: data["redirects"] for target, data in out.items()}
 
-        counts = cache.db.get_views_many2(batches)
+        counts = cache.db.get_views_many(batches)
 
         total_pageviews = 0
         for target, count in counts.items():
