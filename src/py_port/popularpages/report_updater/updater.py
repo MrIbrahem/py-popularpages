@@ -175,6 +175,8 @@ class ReportUpdater:
         cache: PageviewsCache | None,
         page_rows: list[dict],
     ) -> tuple[dict[str, dict], int]:
+        _t0 = time.perf_counter()
+
         if cache is not None:
             data, total_views = await self._views_for_project_from_cache(page_rows, config.Limit, cache)
         else:
@@ -189,6 +191,13 @@ class ReportUpdater:
                 config.Limit,
             )
 
+        _elapsed = time.perf_counter() - _t0
+        logger.info(
+            "took %.4f s for %d page(s), limit: %d",
+            _elapsed,
+            len(page_rows),
+            config.Limit,
+        )
         return data, total_views
 
     def populate_assessment_categories(self, data: dict[str, dict]) -> dict[str, dict]:
@@ -370,6 +379,8 @@ class ReportUpdater:
             # Release the per-run Pageviews HTTP client (async context).
             await self.wiki_repository.pageviews_repo.aclose()
 
+    # ---------------------------------------------------
+    # Pageviews + assessments (batched)
     async def _views_for_project_from_cache(
         self,
         rows: list[dict],
@@ -391,7 +402,6 @@ class ReportUpdater:
         :param limit: Max number of pages to include in the final report.
         :param cache: The shared pageviews cache.
         """
-        _t0 = time.perf_counter()
         len_rows = len(rows)
 
         logger.info("[%s] Fetching monthly pageviews", self.wiki)
@@ -400,7 +410,6 @@ class ReportUpdater:
 
         out: dict[str, dict] = {}
         redirects: dict[str, list[str]] = {}
-        total_pageviews = 0
 
         for row in rows:
             target = (row["page_title"] or "").replace("_", " ")
@@ -423,17 +432,11 @@ class ReportUpdater:
         # chunked queries that share one session, then aggregate back per target.
         counts = cache.db.get_views_many(list(out), redirects)
 
+        total_pageviews = 0
         for target, count in counts.items():
             out[target]["pageviews"] = count
             total_pageviews += count
 
-        _elapsed = time.perf_counter() - _t0
-        logger.info(
-            "took %.4f s for %d page(s), limit: %d",
-            _elapsed,
-            len_rows,
-            limit,
-        )
         return out, total_pageviews
 
 

@@ -265,23 +265,25 @@ class WikiRepository:
         out: dict[str, dict],
         start: str,
         end: str,
-        total_pageviews: int,
     ) -> int:
         """
         Process one batch of pages, updating `out` and the running total in place.
 
-        :return: Updated total_pageviews.
+        :return: _total_views.
         """
         logger.debug("Processing batch of %d page(s)", len(batch))
         batch_result = await self.pageviews_repo.get_pageviews(batch, start, end)
         logger.debug("Batch returned %d result(s)", len(batch_result))
+
+        _total_views = 0
         for title, count in batch_result.items():
             out[title]["pageviews"] += count
-            total_pageviews += count
+            _total_views += count
             # Clear out batch only for this title, otherwise the target page
             # might get re-added in the next batch.
             batch[title] = []
-        return total_pageviews
+
+        return _total_views
 
     @staticmethod
     def _sort_and_truncate_pages_list(out: dict[str, dict], limit: int) -> dict[str, dict]:
@@ -465,7 +467,6 @@ class WikiRepository:
         :return: (pages_dict, total_pageviews), where pages_dict maps page
             title -> {'pageviews', 'class', 'importance'}.
         """
-        _t0 = time.perf_counter()
         len_rows = len(rows)
 
         logger.info("[%s] Fetching monthly pageviews", self.wiki)
@@ -499,22 +500,15 @@ class WikiRepository:
             batch_count += 1
             if batch_count > app_config.pageviews.batch_size_threshold:
                 logger.info("[%s] Processing page %d of %d", self.wiki, index, len_rows)
-                total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
+                total_pageviews += await self._process_batch(batch, out, start, end)
                 batch_count = 0
 
         # Finish processing any leftover pages.
-        total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
+        total_pageviews += await self._process_batch(batch, out, start, end)
 
         logger.info("[%s] Pageviews fetch complete", self.wiki)
         logger.info("Pageviews fetch complete: %d total pageviews", total_pageviews)
 
-        _elapsed = time.perf_counter() - _t0
-        logger.info(
-            "took %.4f s for %d page(s), limit: %d",
-            _elapsed,
-            len_rows,
-            limit,
-        )
         return out, total_pageviews
 
 
