@@ -35,9 +35,9 @@ def _make_repo(monkeypatch) -> WikiDatabaseRepository:
     )
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 1. Tests for get_project_pages binary decoding
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 
 
 class TestGetProjectPagesDecoding:
@@ -64,9 +64,9 @@ class TestGetProjectPagesDecoding:
         assert result[0]["pa_importance"] == "FA"
 
 
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 # 2. Tests for get_projects_timestamps binary decoding
-# ---------------------------------------------------------------
+# ---------------------------------------------------
 
 
 class TestGetProjectsTimestampsDecoding:

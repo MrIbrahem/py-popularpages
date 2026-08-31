@@ -38,7 +38,7 @@ class WikiDatabaseRepository:
         logger.debug("WikiDatabaseRepository for wiki '%s' using db '%s'", wiki, db_name)
         self.db = WikiReplicaDB(db_name)
 
-    # -- Database -----------------------------------------
+    # -- Database ---------------------------------------------------
 
     def _get_projects_timestamps(self, titles: list[str]) -> list[dict[str, Any]]:
         """
@@ -100,7 +100,7 @@ class WikiDatabaseRepository:
 
         return rows
 
-    # -- Queries ----------------------------------------------------------
+    # -- Queries ---------------------------------------------------
 
     def get_projects_timestamps(self, titles: list[str]) -> list[dict[str, Any]]:
         """
@@ -124,6 +124,7 @@ class WikiDatabaseRepository:
         :param project: Name of the project, e.g. 'Medicine'.
         :return: List of rows with page_title, pa_class, pa_importance, redir_title.
         """
+        logger.debug("Fetching pages for project '%s'", project)
         log_to_file(f"Fetching pages and assessments for project {project}", self.wiki)
 
         rows = self._get_project_pages(project)

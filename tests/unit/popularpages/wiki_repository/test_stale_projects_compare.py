@@ -34,7 +34,7 @@ UPDATED_TS = "20230115000000"
 STALE_TS = "20221215000000"
 
 
-# -- Sample config ---------------------------------------------------------
+# -- Sample config ---------------------------------------------------
 
 
 def _specs() -> list[tuple[str, str, str]]:
@@ -106,7 +106,7 @@ def _expected_stale(config_objs: list[WikiProjectConfig], db_rows: list[dict]) -
     return {c.Name for c in config_objs if c.report_without_ns not in updated_pages}
 
 
-# -- Fixtures --------------------------------------------------------------
+# -- Fixtures ---------------------------------------------------
 
 
 @pytest.fixture
@@ -132,7 +132,7 @@ def _wire(
     monkeypatch.setattr(repository, "log_to_file", lambda *a, **k: None)
 
 
-# -- Comparison tests ------------------------------------------------------
+# -- Comparison tests ---------------------------------------------------
 
 
 class TestCompareStaleProjects:

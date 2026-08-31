@@ -57,7 +57,11 @@ def main() -> None:
         logger.info(f"No WikiProject found with Name '{args.project}' on {args.wiki}.")
         sys.exit(1)
 
-    asyncio.run(updater.update_reports([project_config]))
+    asyncio.run(
+        updater.update_reports(
+            [project_config],
+        ),
+    )
     logger.info("Finished generating report for project '%s'", args.project)
 
 

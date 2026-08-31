@@ -14,14 +14,14 @@ def patched(monkeypatch):
     Provide a mocked report updater and replace the module's report updater constructor for a test.
 
     Parameters:
-        monkeypatch: Pytest monkeypatch fixture used to replace `ReportUpdater`.
+        monkeypatch: Pytest monkeypatch fixture used to replace `IndexUpdater`.
 
     Returns:
         MagicMock: The mocked report updater with a mocked `update_index` method.
     """
     updater = MagicMock()
     updater.update_index = MagicMock()
-    monkeypatch.setattr(gi_module, "ReportUpdater", lambda *a, **k: updater)
+    monkeypatch.setattr(gi_module, "IndexUpdater", lambda *a, **k: updater)
     return updater
 
 

@@ -9,7 +9,6 @@ from src.py_port.popularpages.utils import (
     format_date,
     mediawiki_timestamp_to_date,
     mediawiki_timestamp_to_epoch,
-    previous_month_range,
     uc_first,
 )
 
@@ -26,44 +25,6 @@ class TestUcFirst:
     def test_ucfirst_does_not_lowercase_rest(self):
         # Unlike Jinja's builtin `capitalize`, only the first char should change.
         assert uc_first("hELLO") == "HELLO"
-
-
-class TestPreviousMonthRange:
-    """Tests for computing the previous calendar month's date range."""
-
-    def test_previous_month_range_mid_year(self):
-
-        start, end = previous_month_range(date(2024, 6, 15))
-        assert start == date(2024, 5, 1)
-        assert end == date(2024, 5, 31)
-
-    def test_previous_month_range_year_boundary(self):
-
-        start, end = previous_month_range(date(2024, 1, 10))
-        assert start == date(2023, 12, 1)
-        assert end == date(2023, 12, 31)
-
-    # ------------------------------------------------------------
-    # Pure unit tests (no network/credentials required)
-    # ------------------------------------------------------------
-    def test_previous_month_range_midyear(self):
-        today = datetime(2023, 6, 15, 10, 30, 0)
-        start, end = previous_month_range(today)
-        assert (start.year, start.month, start.day) == (2023, 5, 1)
-        assert (end.year, end.month, end.day) == (2023, 5, 31)
-
-    def test_previous_month_range_year_boundary2(self):
-        today = datetime(2023, 1, 10, 0, 0, 0)
-        start, end = previous_month_range(today)
-        assert (start.year, start.month, start.day) == (2022, 12, 1)
-        assert (end.year, end.month, end.day) == (2022, 12, 31)
-
-    def test_previous_month_range_days_in_month(self):
-        # February in a non-leap year.
-        today = datetime(2023, 3, 5)
-        start, end = previous_month_range(today)
-        days_in_month = (end - start).days + 1
-        assert days_in_month == 28
 
 
 class TestFormatDate:

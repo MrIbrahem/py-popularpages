@@ -1,30 +1,20 @@
 """
-Unit tests for ``ReportUpdater.retrieve_project_updates``.
-
-``retrieve_project_updates`` returns the list of :class:`WikiProjectConfig`
-objects for the wiki, with each project's ``Updated`` field intended to be
-populated from the bot's last-edit timestamp (the ``rev_timestamp`` returned by
-``WikiRepository.get_projects_with_last_bot_timestamp``).
-
-These tests drive the method with a mocked ``WikiRepository``.
-
-Current status (see ``test_with_timestamps_present``): with the real keying --
-``get_json_config`` returns config keyed by ``project_main_page`` while the
-last-edit rows are keyed by the report db-title -- the guard
-``row["page_title"] in projects_config`` is never true, so every row is dropped
-and the method returns the projects with ``Updated`` left as ``None``. The tests
-document that behaviour (the timestamp -> ``Updated`` mapping is currently
-broken) so it is visible rather than silently diverging.
+Tests for index page generation:
+at src.py_port.popularpages.report_updater.index_updater.IndexUpdater
 """
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from src.py_port.popularpages.mapping import WikiProjectConfig
-from src.py_port.popularpages.report_updater import ReportUpdater
+import pytest
 
-# -- Sample data -----------------------------------------------------------
+import src.py_port.popularpages.report_updater.index_updater as iu_module
+from src.py_port.popularpages.i18n import I18n
+from src.py_port.popularpages.mapping import WikiProjectConfig
+from src.py_port.popularpages.report_updater.index_updater import IndexUpdater
+
+# -- Sample data ---------------------------------------------------
 
 
 def _specs() -> list[tuple[str, str, str]]:
@@ -67,12 +57,12 @@ def _db_rows(timestamps: dict[str, str]) -> list[dict]:
     return [{"page_title": _report_key(by_name[name]), "rev_timestamp": ts} for name, ts in timestamps.items()]
 
 
-# -- Harness ---------------------------------------------------------------
+# -- Harness ---------------------------------------------------
 
 
-def _make_updater(json_config: dict[str, dict], db_rows: list[dict]) -> ReportUpdater:
-    """Build a ``ReportUpdater`` without running its (network/DB) ``__init__``."""
-    updater = object.__new__(ReportUpdater)
+def _make_updater(json_config: dict[str, dict], db_rows: list[dict]) -> IndexUpdater:
+    """Build a ``IndexUpdater`` without running its (network/DB) ``__init__``."""
+    updater = object.__new__(IndexUpdater)
     updater.wiki = "en.wikipedia"
     updater.wiki_repository = MagicMock(name="wiki_repository")
     updater.wiki_repository.get_json_config.return_value = json_config
@@ -80,11 +70,11 @@ def _make_updater(json_config: dict[str, dict], db_rows: list[dict]) -> ReportUp
     return updater
 
 
-# -- Tests -----------------------------------------------------------------
+# -- Tests ---------------------------------------------------
 
 
 class TestRetrieveProjectUpdatesNew:
-    """Tests for `ReportUpdater.retrieve_project_updates`, documenting current behaviour of the timestamp→Updated mapping."""
+    """Tests for `IndexUpdater.retrieve_project_updates`, documenting current behaviour of the timestamp→Updated mapping."""
 
     def test_empty_config_returns_empty(self) -> None:
         updater = _make_updater({}, [])
@@ -112,3 +102,60 @@ class TestRetrieveProjectUpdatesNew:
         updater = _make_updater(_build_json_config(), [])
         result = updater.retrieve_project_updates()
         assert all(isinstance(c, WikiProjectConfig) for c in result)
+
+
+@pytest.fixture
+def index_updater(monkeypatch):
+    """Create a configured `IndexUpdater` and mocked wiki repository for tests.
+
+    Returns:
+        A tuple containing the configured `IndexUpdater` and its mocked repository.
+    """
+    repo = MagicMock()
+    repo.i18n = I18n("en")
+    repo.get_wiki_config.return_value = {
+        "category": "Category:WikiProject popular pages",
+        "config": "Wikipedia:WikiProject/Popular pages",
+        "index": "Wikipedia:WikiProject/Popular pages/Index",
+    }
+    repo.get_json_config.return_value = {}
+    repo.get_projects_with_last_bot_timestamp.return_value = []
+
+    monkeypatch.setattr(iu_module, "WikiRepository", lambda *a, **k: repo)
+
+    u = iu_module.IndexUpdater("en.wikipedia", dry_run=True)
+    return u, repo
+
+
+# ---------------------------------------------------
+# update_index (now lives in IndexUpdater)
+# ---------------------------------------------------
+class TestUpdateIndex:
+    """Tests for the `update_index` method of the `IndexUpdater` class."""
+
+    def test_update_index_renders(self, index_updater):
+        u, repo = index_updater
+        repo.get_json_config.return_value = {
+            "Wikipedia:WikiProject Foo": {
+                "Report": "Wikipedia:WikiProject Foo/Popular pages",
+                "Limit": "10",
+                "Name": "Foo",
+            }
+        }
+        repo.get_projects_with_last_bot_timestamp.return_value = []
+        repo.get_wiki_config.return_value = {
+            "config": "Wikipedia:WikiProject/Popular pages",
+            "index": "Wikipedia:WikiProject/Popular pages/Index",
+        }
+        u.update_index()
+        repo.set_text.assert_called_once()
+        assert repo.set_text.call_args.kwargs["page_title"] == ("Wikipedia:WikiProject/Popular pages/Index")
+
+    def test_update_index_no_projects(self, index_updater):
+        u, repo = index_updater
+        repo.get_json_config.return_value = {}
+        repo.get_projects_with_last_bot_timestamp.return_value = []
+        repo.get_wiki_config.return_value = {"config": "X", "index": "Y"}
+        u.update_index()
+        # No projects -> update_index returns early and writes nothing.
+        repo.set_text.assert_not_called()

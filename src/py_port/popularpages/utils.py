@@ -8,7 +8,7 @@ page templates.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -21,28 +21,6 @@ def uc_first(value: str) -> str:
     result = value[:1].upper() + value[1:] if value else value
     logger.debug("uc_first(%r) -> %r", value, result)
     return result
-
-
-def previous_month_range(today: date) -> tuple[date, date]:
-    """
-    Return (first, last) day of the month preceding ``today``.
-
-    Python has no ``strtotime('first day of previous month')`` equivalent,
-    so compute it manually. Verified against year boundaries.
-    """
-    first_of_this_month = today.replace(day=1)
-    last_day_of_prev_month = first_of_this_month - timedelta(days=1)
-    first_day_of_prev_month = last_day_of_prev_month.replace(day=1)
-    # TODO: Check diffrent
-    # end = last_day_of_prev_month.replace()
-    # return first_day_of_prev_month, end
-    logger.debug(
-        "previous_month_range(%s) -> (%s, %s)",
-        today,
-        first_day_of_prev_month,
-        last_day_of_prev_month,
-    )
-    return first_day_of_prev_month, last_day_of_prev_month
 
 
 # -- Module-level helpers ---------------------------------------------------
@@ -97,7 +75,6 @@ def format_date(value: date, fmt: str = "%Y-%m-%d") -> str:
 __all__ = [
     "format_date",
     "uc_first",
-    "previous_month_range",
     "first_of_this_month_timestamp",
     "mediawiki_timestamp_to_date",
     "mediawiki_timestamp_to_epoch",

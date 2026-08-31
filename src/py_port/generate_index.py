@@ -12,7 +12,8 @@ import argparse
 import logging
 import re
 
-from popularpages.report_updater import ReportUpdater
+# from popularpages.report_updater import ReportUpdater
+from popularpages.report_updater import IndexUpdater
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ def main() -> None:
         return
 
     logger.info("Generating index page for wiki '%s' (dry_run=%s)", args.wiki, args.dry_run)
-    updater = ReportUpdater(args.wiki, dry_run=args.dry_run)
+    updater = IndexUpdater(args.wiki, dry_run=args.dry_run)
     updater.update_index()
 
 

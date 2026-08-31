@@ -23,7 +23,7 @@ from src.py_port.popularpages.wiki_repository.repository import WikiRepository
 # live in .env (gitignored). Skip them when absent so the suite stays green in
 # CI.
 requires_creds = pytest.mark.skipif(
-    not cfg.config.credentials.has_credentials(),
+    not cfg.app_config.credentials.has_credentials(),
     reason="requires credentials in .env with live credentials",
 )
 
@@ -182,8 +182,8 @@ class TestWikiRepositoryPureMethodsSkipped:
     #     reason="Disabled upstream in the PHP version too (was 'ertestGetProjectPages', never actually run by PHPUnit)."
     # )
     @pytest.mark.network
-    def test_get_project_pages(self, repository):
-        rows = repository.get_project_pages("Disney")
+    def test_get_project_pages(self, repository: WikiRepository):
+        rows = repository.db.get_project_pages("Disney")
         titles = [row["page_title"] for row in rows]
         assert "Walt Disney" in titles
         assert "Pixar" in titles

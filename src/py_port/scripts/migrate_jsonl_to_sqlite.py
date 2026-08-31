@@ -3,7 +3,7 @@ One-off migration: convert existing ``data/views/<wiki>/<YYYY-MM>.jsonl``
 pageviews caches to the new SQLite format (``<YYYY-MM>.sqlite3``).
 
 Usage:
-    python3 -m py_port.popularpages.pageviews.migrate_jsonl_to_sqlite [--data-dir PATH] [--delete-jsonl] [--dry-run]
+    python3 -m py_port.migrate_jsonl_to_sqlite [--data-dir PATH] [--delete-jsonl] [--dry-run]
 
 For every ``*.jsonl`` file found under the views data directory, this creates
 (or updates) a sibling ``.sqlite3`` file with the same title/views rows, using
@@ -23,12 +23,11 @@ import logging
 from pathlib import Path
 
 import jsonlines
+from popularpages.config import app_config
+from popularpages.pageviews.pageviews_models import Base, PageView
 from sqlalchemy import create_engine
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import sessionmaker
-
-from ..config import config
-from .pageviews_models import Base, PageView
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +65,7 @@ def _write_sqlite(sqlite_path: Path, title_views: dict[str, int], dry_run: bool)
         with Session() as session:
             for i in range(0, len(items), UPSERT_BATCH_SIZE):
                 batch = items[i : i + UPSERT_BATCH_SIZE]
-                stmt = sqlite_insert(PageView).values(
-                    [{"title": title, "views": views} for title, views in batch]
-                )
+                stmt = sqlite_insert(PageView).values([{"title": title, "views": views} for title, views in batch])
                 stmt = stmt.on_conflict_do_update(
                     index_elements=[PageView.title],
                     set_={"views": stmt.excluded.views},
@@ -127,7 +124,7 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    data_dir = args.data_dir or config.data_paths.views_data_dir
+    data_dir = args.data_dir or app_config.data_paths.views_data_dir
     migrate(data_dir, delete_jsonl=args.delete_jsonl, dry_run=args.dry_run)
 
 

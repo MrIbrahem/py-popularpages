@@ -112,9 +112,11 @@ this file and only requests the remainder. See
     -   `src/py_port/generate_index.py` — Generate the index page.
 
 -   Core modules:
-    -   `src/popularpages/report_updater.py` — The module that updates projects.
-    -   `src/popularpages/wiki_repository.py` — MediaWiki API + replica DB helpers.
-    -   `src/popularpages/pageviews_repository.py` — Pageviews API helpers.
+    -   `src/py_port/popularpages/report_updater/` — Project/report/index updating logic.
+        -   `updater.py` — `ReportUpdater` (per-project report generation).
+        -   `index_updater.py` — `IndexUpdater` (index page generation).
+    -   `src/py_port/popularpages/wiki_repository.py` — MediaWiki API + replica DB helpers.
+    -   `src/py_port/popularpages/pageviews_repository.py` — Pageviews API helpers.
     -   `src/popularpages/logger.py` — Logging updates to the `logs/` directory.
     -   `src/popularpages/i18n.py` — Minimal message-translation layer (`messages/*.json`).
 

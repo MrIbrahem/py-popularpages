@@ -23,7 +23,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from ..config import config
+from ..config import app_config
 from ..logger import log_to_file
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ def _is_retryable(exc: BaseException) -> bool:
     not 4xx/5xx transport problems (e.g. DNS/connect) are also retried.
     """
     if isinstance(exc, httpx.HTTPStatusError):
-        return exc.response.status_code in config.pageviews.retry_status_codes
+        return exc.response.status_code in app_config.pageviews.retry_status_codes
     # Connection/transport errors and timeouts are retryable too.
     if isinstance(exc, httpx.TimeoutException | httpx.TransportError):
         return True
@@ -77,19 +77,36 @@ class PageviewsRepository:
     retries on 429/503.
     """
 
-    def __init__(self, domain: str):
+    def __init__(
+        self,
+        domain: str,
+        delay_seconds: float | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ):
         """
         :param domain: The wiki domain, e.g. 'en.wikipedia'.
+        :param delay_seconds: Override for the per-request rate-limit delay
+            (defaults to ``app_config.pageviews.request_delay_seconds``).
+        :param transport: Optional custom transport (e.g. ``httpx.MockTransport``
+            in tests). When omitted, the real default transport is used, which
+            builds a genuine TLS/SSL context — pass a transport explicitly in
+            tests to skip that cost and avoid any real network capability.
         """
         self.domain = domain
         logger.debug("PageviewsRepository initialized for domain '%s'", domain)
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(
-                config.pageviews.request_timeout_seconds,
-                connect=config.pageviews.connect_timeout_seconds,
+                app_config.pageviews.request_timeout_seconds,
+                connect=app_config.pageviews.connect_timeout_seconds,
             ),
-            headers={"User-Agent": config.other.user_agent},
+            headers={"User-Agent": app_config.other.user_agent},
+            transport=transport,
         )
+
+        if delay_seconds is None:
+            delay_seconds = app_config.pageviews.request_delay_seconds
+
+        self.delay_seconds = delay_seconds
 
     async def aclose(self) -> None:
         """
@@ -116,7 +133,7 @@ class PageviewsRepository:
     @retry(
         retry=retry_if_exception(_is_retryable),
         wait=_retry_wait,
-        stop=stop_after_attempt(config.pageviews.max_retry_attempts),
+        stop=stop_after_attempt(app_config.pageviews.max_retry_attempts),
         after=lambda retry_state: retry_state.args[0]._log_retry(retry_state),
         reraise=True,
     )
@@ -125,7 +142,9 @@ class PageviewsRepository:
         # page titles may contain &, /, ?, #, +, % etc.; without encoding the URL is
         # malformed and the API returns no data (silently counted as 0 pageviews).
         encoded_article = quote(article, safe="")
-        url = f"{config.pageviews.endpoint_url}/{self.domain}/all-access/user/{encoded_article}/monthly/{start}/{end}"
+        url = (
+            f"{app_config.pageviews.endpoint_url}/{self.domain}/all-access/user/{encoded_article}/monthly/{start}/{end}"
+        )
         logger.debug("GET %s", url)
         response = await self._client.get(url)
         response.raise_for_status()
@@ -173,28 +192,6 @@ class PageviewsRepository:
 
         return pageviews
 
-    async def get_title_views(self, titles: list[str], start: str, end: str) -> dict[str, int]:
-        """
-        Fetch total pageviews for each of the given titles, once each.
-
-        Unlike :meth:`get_pageviews`, this does *not* deal with target/redirect
-        grouping; it simply returns ``{title: total_views}`` for every title
-        requested. Callers (e.g. the cross-project :class:`PageviewsCache`)
-        are responsible for summing a target with its redirects.
-
-        :param titles: Page titles (spaces) to query, deduplicated by caller.
-        :param start: Start date in YYYYMMDD00 format.
-        :param end: End date in YYYYMMDD00 format.
-        :return: Dict mapping each requested title -> total pageviews (0 if
-            missing / errored).
-        """
-
-        # gather returns a list of tuples: [(title, views_count), (title, views_count), ...]
-        results = await asyncio.gather(*(self._fetch_title_views(t, start, end) for t in titles))
-
-        # Convert list of tuples to a dict.
-        return dict(results)
-
     async def _fetch_title_views(self, title: str, start: str, end: str) -> tuple[str, int]:
         """
         Fetch the total monthly pageviews for a single title.
@@ -205,7 +202,7 @@ class PageviewsRepository:
         error occurs; only 429/5xx-style retryable failures are retried by the
         tenacity wrapper on :meth:`_get`.
         """
-        await asyncio.sleep(config.pageviews.request_delay_seconds)
+        await asyncio.sleep(self.delay_seconds)
         article = title.replace(" ", "_")
         try:
             response = await self._get(article, start, end)
@@ -243,8 +240,32 @@ class PageviewsRepository:
             total_views += int(item["views"])
             article = item["article"].replace("_", " ")
 
-        logger.debug("Processed %d item(s) for '%s': %d total views", len(items), article, total_views)
         return article, total_views
+
+    # ---------------------------------------------------
+    # Public Methods
+    # ---------------------------------------------------
+    async def get_title_views(self, titles: list[str], start: str, end: str) -> dict[str, int]:
+        """
+        Fetch total pageviews for each of the given titles, once each.
+
+        Unlike :meth:`get_pageviews`, this does *not* deal with target/redirect
+        grouping; it simply returns ``{title: total_views}`` for every title
+        requested. Callers (e.g. the cross-project :class:`PageviewsCache`)
+        are responsible for summing a target with its redirects.
+
+        :param titles: Page titles (spaces) to query, deduplicated by caller.
+        :param start: Start date in YYYYMMDD00 format.
+        :param end: End date in YYYYMMDD00 format.
+        :return: Dict mapping each requested title -> total pageviews (0 if
+            missing / errored).
+        """
+
+        # gather returns a list of tuples: [(title, views_count), (title, views_count), ...]
+        results = await asyncio.gather(*(self._fetch_title_views(t, start, end) for t in titles))
+
+        # Convert list of tuples to a dict.
+        return dict(results)
 
 
 __all__ = [
