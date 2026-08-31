@@ -198,7 +198,7 @@ class TestGetMonthlyPageviewsAndAssessments:
             return {target: len(titles) for target, titles in batch.items()}
 
         repo.pageviews_repo = MagicMock(get_pageviews=AsyncMock(side_effect=fake_get_pageviews))
-
+        # _fetch_title_views
         counts = await repo.get_monthly_pageviews_and_assessments(
             {"Foo bar": ["Redir A", "Redir B"], "Baz qux": []},
             "2026010100",
@@ -212,6 +212,36 @@ class TestGetMonthlyPageviewsAndAssessments:
         assert requested["Baz qux"] == ["Baz qux"]
         # Result is keyed by target and includes each target's own views.
         assert set(counts) == {"Foo bar", "Baz qux"}
+
+    @pytest.mark.asyncio
+    async def test_1(self):
+        """
+        Regression: each target's own title must be queried, not just its
+        redirects -- otherwise the live-API path undercounts pageviews and
+        diverges from the cache path.
+        """
+        repo = WikiRepository.__new__(WikiRepository)
+        repo.wiki = "en.wikipedia"
+
+        async def fake_fetch_title_views(title: str, start: str, end: str) -> tuple[str, int]:
+            views = {
+                "Foo bar": 100,
+                "Redir A": 10,
+                "Redir B": 20,
+            }
+            # Mimic real get_pageviews: return target -> sum of its titles' views.
+            return (title, views[title])
+
+        # repo.pageviews_repo = AsyncMock(_fetch_title_views=AsyncMock(side_effect=fake_fetch_title_views))
+        repo.pageviews_repo._fetch_title_views = fake_fetch_title_views
+        # _fetch_title_views
+        counts = await repo.get_monthly_pageviews_and_assessments(
+            {"Foo bar": ["Redir A", "Redir B"]},
+            "2026010100",
+            "2026013100",
+        )
+
+        assert counts["Foo bar"] == 130
 
 
 class TestWikiRepositoryPureMethodsSkipped:
