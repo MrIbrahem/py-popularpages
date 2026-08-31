@@ -191,6 +191,9 @@ class ReportUpdater:
                 config.Limit,
             )
 
+        logger.info("[%s] Pageviews fetch complete", self.wiki)
+        logger.info("Pageviews fetch complete: %d total pageviews", total_views)
+
         _elapsed = time.perf_counter() - _t0
         logger.info(
             "took %.4f s for %d page(s), limit: %d",
@@ -426,10 +429,6 @@ class ReportUpdater:
             if redir:
                 batches[target].append(redir)
 
-        # Bio-like projects can have >900,000 titles. A per-target
-        # `get_views` call would mean >900,000 separate SQLite queries; instead
-        # resolve every unique title across all targets + batches in a few
-        # chunked queries that share one session, then aggregate back per target.
         counts = cache.db.get_views_many(list(out), batches)
 
         total_pageviews = 0
