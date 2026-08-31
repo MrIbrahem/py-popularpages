@@ -9,15 +9,14 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
 
 from jinja2 import Environment, FileSystemLoader
 
 from ..config import app_config
 from ..logger import log_to_file
-from ..mapping import WikiProjectConfig
+from ..mapping import MonthDate, WikiProjectConfig
 from ..pageviews.pageviews_cache import PageviewsCache
-from ..utils import format_date, previous_month_range, uc_first
+from ..utils import format_date, uc_first
 from ..wiki_repository import WikiRepository
 
 logger = logging.getLogger(__name__)
@@ -39,10 +38,7 @@ class ReportUpdater:
         self.i18n = self.wiki_repository.i18n
         logger.info("ReportUpdater initialized for wiki '%s' (dry_run=%s)", wiki, dry_run)
 
-        # Dates for the previous month, mirroring PHP's
-        # strtotime('first day of previous month') / ('last day of previous month').
-        # NOTE: dont use date.today(), use datetime.now(timezone.utc).date() instead to avoid timezone issues.
-        self.start, self.end = previous_month_range(datetime.now(timezone.utc).date())
+        self.month_date = MonthDate.load()
 
         self.env = Environment(loader=FileSystemLoader(str(app_config.paths.views_dir)))
         self._register_template_helpers()
@@ -140,8 +136,8 @@ class ReportUpdater:
         if cache is not None:
             data, total_views = await self._views_for_project_from_cache(page_rows, config.Limit, cache)
         else:
-            start_date = self.start.strftime("%Y%m%d00")
-            end_date = self.end.strftime("%Y%m%d00")
+            start_date = self.month_date.start.strftime("%Y%m%d00")
+            end_date = self.month_date.end.strftime("%Y%m%d00")
             logger.debug("Pageviews window: start=%s end=%s", start_date, end_date)
 
             data, total_views = await self.wiki_repository.get_monthly_pageviews_and_assessments(
@@ -151,10 +147,8 @@ class ReportUpdater:
                 config.Limit,
             )
 
-        days_in_month = (self.end - self.start).days + 1
-
         # Add in averages.
-        self.populate_assessment_categories(data, days_in_month)
+        self.populate_assessment_categories(data)
 
         has_lead_section = self.wiki_repository.has_lead_section(config.Report)
         logger.debug("Report has lead section: %s", has_lead_section)
@@ -163,8 +157,8 @@ class ReportUpdater:
         render_argv = {
             "hasLeadSection": has_lead_section,
             "wiki": self.wiki,
-            "start": self.start,
-            "end": self.end,
+            "start": self.month_date.start,
+            "end": self.month_date.end,
             "project": project,
             "pages": data,
             "totalViews": total_views,
@@ -181,7 +175,9 @@ class ReportUpdater:
             section_number=section_number,
         )
 
-    def populate_assessment_categories(self, data: dict[str, dict], days_in_month) -> dict[str, dict]:
+    def populate_assessment_categories(self, data: dict[str, dict]) -> dict[str, dict]:
+        days_in_month = self.month_date.days_in_month
+
         for datum in data.values():
             datum["avgPageviews"] = datum["pageviews"] // days_in_month
 
@@ -190,11 +186,20 @@ class ReportUpdater:
         # not make network requests). `get_assessment_config()` is fetched once
         # and cached on the WikiRepository, so this is a single network call per
         # run, reused across every page and project.
+
         assessment_cfg = self.wiki_repository.get_assessment_config()
 
         for datum in data.values():
-            datum["class_assessment"] = self._resolve_assessment(assessment_cfg, "class", datum["class"])
-            datum["importance_assessment"] = self._resolve_assessment(assessment_cfg, "importance", datum["importance"])
+            datum["class_assessment"] = self._resolve_assessment(
+                assessment_cfg,
+                "class",
+                datum["class"],
+            )
+            datum["importance_assessment"] = self._resolve_assessment(
+                assessment_cfg,
+                "importance",
+                datum["importance"],
+            )
 
         return data
 
@@ -242,8 +247,8 @@ class ReportUpdater:
         """
         cache = PageviewsCache(
             self.wiki,
-            self.start,
-            self.end,
+            self.month_date.start,
+            self.month_date.end,
             self.wiki_repository.pageviews_repo,
         )
 

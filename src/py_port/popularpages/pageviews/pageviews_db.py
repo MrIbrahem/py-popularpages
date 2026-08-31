@@ -12,7 +12,6 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, sessionmaker
 
-from ..config import app_config
 from .pageviews_models import Base, PageView
 
 logger = logging.getLogger(__name__)
@@ -29,20 +28,17 @@ class PageviewsDb:
         self,
         wiki: str,
         year_month: str,
-        path_dir: Path | None = None,
+        db_file_path: Path,
     ) -> None:
         """
         :param wiki: Wiki domain, e.g. 'en.wikipedia'.
         :param year_month: Month key, e.g. '2024-01'.
         """
         self.wiki = wiki
-
-        _path_dir: Path = path_dir or app_config.data_paths.views_data_dir
-        self.path: Path = _path_dir / wiki / f"{year_month}.sqlite3"
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.db_file_path = db_file_path
 
         # SQLite creates the file on first connection if it doesn't exist yet.
-        self._engine = create_engine(f"sqlite:///{self.path}", future=True)
+        self._engine = create_engine(f"sqlite:///{self.db_file_path}", future=True)
         Base.metadata.create_all(self._engine)
         self._Session: sessionmaker[Session] = sessionmaker(bind=self._engine, future=True)
 
@@ -52,7 +48,7 @@ class PageviewsDb:
     def close_db(self) -> None:
         """Dispose of the underlying SQLite engine/connection pool."""
         self._engine.dispose()
-        logger.debug("Closed pageviews cache %s", self.path)
+        logger.debug("Closed pageviews cache %s", self.db_file_path)
 
     # ----------------------------------------------------------------
     # Internal helpers
@@ -101,7 +97,7 @@ class PageviewsDb:
             session.execute(stmt)
             session.commit()
 
-        logger.debug("Upserted %d title(s) into %s", len(title_views), self.path)
+        logger.debug("Upserted %d title(s) into %s", len(title_views), self.db_file_path)
 
     # ----------------------------------------------------------------
     # Lookup

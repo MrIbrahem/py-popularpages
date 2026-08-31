@@ -5,9 +5,39 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class MonthDate:
+    start: date
+    end: date
+
+    @property
+    def year_month(self):
+        return self.start.strftime("%Y-%m")
+
+    @property
+    def days_in_month(self) -> int:
+        return (self.end - self.start).days + 1
+
+    @classmethod
+    def from_today(cls, today: date) -> MonthDate:
+        end = today.replace(day=1) - timedelta(days=1)
+        start = end.replace(day=1)
+        return cls(
+            start=start,
+            end=end,
+        )
+
+    @classmethod
+    def load(cls) -> MonthDate:
+        # NOTE: dont use date.today(), use datetime.now(timezone.utc).date() instead to avoid timezone issues.
+        today = datetime.now(timezone.utc).date()
+        return cls.from_today(today)
 
 
 @dataclass
@@ -72,5 +102,6 @@ class WikiProjectConfig:
 
 
 __all__ = [
+    "MonthDate",
     "WikiProjectConfig",
 ]

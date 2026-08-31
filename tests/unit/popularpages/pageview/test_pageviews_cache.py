@@ -7,6 +7,7 @@ lookup behavior of the new SQLAlchemy-backed cache.
 """
 
 import sqlite3
+from pathlib import Path
 
 import pytest
 
@@ -30,16 +31,13 @@ class FakeRepo:
 
 
 @pytest.fixture
-def cache_config(tmp_path, monkeypatch):
+def cache_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> cfg.AppConfig:
     """Redirect the persisted cache directory to a temp path."""
     monkeypatch.setenv("POPULAR_PAGES_MAIN_DIR", str(tmp_path))
     new_cfg = cfg.app_config.load()
 
     monkeypatch.setattr("src.py_port.popularpages.pageviews.pageviews_cache.app_config", new_cfg)
     monkeypatch.setattr(cache_module, "app_config", new_cfg)
-
-    monkeypatch.setattr("src.py_port.popularpages.pageviews.pageviews_db.app_config", new_cfg)
-    # monkeypatch.setattr(cache_module, "app_config", new_cfg)
     return new_cfg
 
 

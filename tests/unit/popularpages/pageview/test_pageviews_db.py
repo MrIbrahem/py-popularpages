@@ -11,20 +11,11 @@ import sqlite3
 
 import pytest
 
-import src.py_port.popularpages.config as cfg
 import src.py_port.popularpages.pageviews.pageviews_db as cache_module
+from src.py_port.popularpages.pageviews import PageviewsCache
 from src.py_port.popularpages.pageviews.pageviews_db import PageviewsDb
 
 pytestmark = pytest.mark.asyncio
-
-
-@pytest.fixture
-def db_config(tmp_path, monkeypatch):
-    """Redirect the persisted data directory to a temp path."""
-    monkeypatch.setenv("POPULAR_PAGES_MAIN_DIR", str(tmp_path))
-    new_cfg = cfg.app_config.load()
-    monkeypatch.setattr("src.py_port.popularpages.pageviews.pageviews_db.app_config", new_cfg)
-    return new_cfg
 
 
 @pytest.fixture
@@ -41,7 +32,10 @@ def db_factory(db_dir):
     created: list[PageviewsDb] = []
 
     def _make(wiki: str = "en.wikipedia", year_month: str = "2024-01") -> PageviewsDb:
-        db = PageviewsDb(wiki, year_month, path_dir=db_dir)
+
+        db_file_path = PageviewsCache.build_db_file_path(wiki, year_month, db_dir)
+
+        db = PageviewsDb(wiki, year_month, db_file_path=db_file_path)
         created.append(db)
         return db
 
@@ -67,7 +61,7 @@ class TestDbGet:
     """Tests for PageviewsDb.get_views summing target and redirects."""
 
     async def test_get_sums_target_and_redirects(self, db_factory):
-        db = db_factory()
+        db: PageviewsDb = db_factory()
         db.upsert_many({"A": 10, "A redir": 5})
 
         assert db.get_views("A", ["A redir"]) == 15
@@ -82,14 +76,14 @@ class TestDbUpsert:
     """Tests that re-fetching a title overwrites rather than duplicates."""
 
     async def test_re_fetch_overwrites_existing_row(self, db_factory) -> None:
-        db = db_factory()
+        db: PageviewsDb = db_factory()
         db.upsert_many({"A": 10})
 
         # Re-upserting the same title with a new view count must overwrite the
         # existing row (primary-key conflict), never duplicate it.
         db.upsert_many({"A": 999})
 
-        path = db.path
+        path = db.db_file_path
         assert _rows(path) == {"A": 999}  # exactly one row, value overwritten
         assert db.get_views("A", []) == 999
 
@@ -101,14 +95,14 @@ class TestDbGetViewsMany:
     """Tests for PageviewsDb.get_views_many bulk lookup."""
 
     async def test_get_views_many_sums_target_and_redirects(self, db_factory):
-        db = db_factory()
+        db: PageviewsDb = db_factory()
         db.upsert_many({"A": 10, "A redir": 5, "B": 20})
 
         counts = db.get_views_many(["A", "B"], {"A": ["A redir"], "B": []})
         assert counts == {"A": 15, "B": 20}
 
     async def test_get_views_many_unknown_is_zero(self, db_factory):
-        db = db_factory()
+        db: PageviewsDb = db_factory()
         db.upsert_many({"A": 10})
 
         counts = db.get_views_many(["A", "Unknown"], {"A": [], "Unknown": ["Also missing"]})
@@ -125,7 +119,7 @@ class TestDbGetViewsMany:
 
         n = 250
         mapping = {f"T{i}": i for i in range(n)}
-        db = db_factory("en.wikipedia", "2024-03")
+        db: PageviewsDb = db_factory("en.wikipedia", "2024-03")
         db.upsert_many(mapping)
 
         targets = [f"T{i}" for i in range(n)]
@@ -134,7 +128,7 @@ class TestDbGetViewsMany:
 
     async def test_get_views_many_shared_redirect_resolves_once(self, db_factory):
         """A redirect referenced by two targets is looked up once but counted for both."""
-        db = db_factory()
+        db: PageviewsDb = db_factory()
         db.upsert_many({"A": 1, "B": 2, "shared redir": 9})
 
         counts = db.get_views_many(["A", "B"], {"A": ["shared redir"], "B": ["shared redir"]})
@@ -148,7 +142,7 @@ class TestDbLifecycle:
     """Tests for the sync close() lifecycle method."""
 
     async def test_close_is_idempotent_and_safe(self, db_factory):
-        db = db_factory("en.wikipedia", "2024-01")
+        db: PageviewsDb = db_factory("en.wikipedia", "2024-01")
         db.upsert_many({"A": 10})
 
         # close() must be callable and safe to call more than once.
@@ -156,4 +150,4 @@ class TestDbLifecycle:
         db.close_db()
 
         # The on-disk data survives disposal.
-        assert _rows(db.path) == {"A": 10}
+        assert _rows(db.db_file_path) == {"A": 10}

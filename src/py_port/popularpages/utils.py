@@ -8,7 +8,9 @@ page templates.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
+
+from .mapping import MonthDate
 
 logger = logging.getLogger(__name__)
 
@@ -30,19 +32,14 @@ def previous_month_range(today: date) -> tuple[date, date]:
     Python has no ``strtotime('first day of previous month')`` equivalent,
     so compute it manually. Verified against year boundaries.
     """
-    first_of_this_month = today.replace(day=1)
-    last_day_of_prev_month = first_of_this_month - timedelta(days=1)
-    first_day_of_prev_month = last_day_of_prev_month.replace(day=1)
-    # TODO: Check diffrent
-    # end = last_day_of_prev_month.replace()
-    # return first_day_of_prev_month, end
+    obj = MonthDate.from_today(today)
     logger.debug(
-        "previous_month_range(%s) -> (%s, %s)",
+        "%s -> (%s, %s)",
         today,
-        first_day_of_prev_month,
-        last_day_of_prev_month,
+        obj.start,
+        obj.end,
     )
-    return first_day_of_prev_month, last_day_of_prev_month
+    return obj.start, obj.end
 
 
 # -- Module-level helpers ---------------------------------------------------

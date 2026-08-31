@@ -74,7 +74,18 @@ class PageviewsCache:
         self.year_month = self.start.strftime("%Y-%m")
         self.repo = pageviews_repo
 
-        self.db = PageviewsDb(wiki, self.year_month, path_dir=path_dir)
+        db_file_path = self.build_db_file_path(wiki, self.year_month, path_dir)
+
+        self.db = PageviewsDb(wiki, self.year_month, db_file_path=db_file_path)
+
+    @staticmethod
+    def build_db_file_path(wiki: str, year_month: str, path_dir: Path | None = None) -> Path:
+        _path_dir: Path = path_dir or app_config.data_paths.views_data_dir
+
+        db_file_path: Path = _path_dir / wiki / f"{year_month}.sqlite3"
+        db_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        return db_file_path
 
     def _find_missing(self, titles: set[str]) -> list[str]:
         """
