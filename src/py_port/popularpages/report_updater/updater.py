@@ -136,19 +136,9 @@ class ReportUpdater:
             logger.info("[%s] Error: %s is too large. Skipping.", self.wiki, project)
             return
 
-        if cache is not None:
-            data, total_views = await self._views_for_project_from_cache(page_rows, config.Limit, cache)
-        else:
-            start_date = self.month_date.start.strftime("%Y%m%d00")
-            end_date = self.month_date.end.strftime("%Y%m%d00")
-            logger.debug("Pageviews window: start=%s end=%s", start_date, end_date)
+        data, total_views = await self.load_data_and_total_views(config, cache, page_rows)
 
-            data, total_views = await self.wiki_repository.get_monthly_pageviews_and_assessments(
-                page_rows,
-                start_date,
-                end_date,
-                config.Limit,
-            )
+        data = self.wiki_repository._sort_and_truncate_pages_list(data, config.Limit)
 
         # Add in averages.
         self.populate_assessment_categories(data)
@@ -178,6 +168,28 @@ class ReportUpdater:
             section_number=section_number,
             file_name=f"{config.Name}.wikitext",
         )
+
+    async def load_data_and_total_views(
+        self,
+        config: WikiProjectConfig,
+        cache: PageviewsCache | None,
+        page_rows: list[dict],
+    ) -> tuple[dict[str, dict], int]:
+        if cache is not None:
+            data, total_views = await self._views_for_project_from_cache(page_rows, config.Limit, cache)
+        else:
+            start_date = self.month_date.start.strftime("%Y%m%d00")
+            end_date = self.month_date.end.strftime("%Y%m%d00")
+            logger.debug("Pageviews window: start=%s end=%s", start_date, end_date)
+
+            data, total_views = await self.wiki_repository.get_monthly_pageviews_and_assessments(
+                page_rows,
+                start_date,
+                end_date,
+                config.Limit,
+            )
+
+        return data, total_views
 
     def populate_assessment_categories(self, data: dict[str, dict]) -> dict[str, dict]:
         days_in_month = self.month_date.days_in_month
@@ -258,71 +270,6 @@ class ReportUpdater:
 
         await cache.ensure(all_titles)
         return cache
-
-    async def _views_for_project_from_cache(
-        self,
-        rows: list[dict],
-        limit: int,
-        cache: PageviewsCache,
-    ) -> tuple[dict[str, dict], int]:
-        """
-        Compute per-project pageviews from the shared :class:`PageviewsCache`.
-
-        Mirrors the sort/truncate/total semantics of
-        ``WikiRepository.get_monthly_pageviews_and_assessments``, but reads
-        already-fetched (and persisted) view counts from ``cache`` instead of
-        hitting the Pageviews API. A shared article is therefore counted once
-        per project that references it while having been fetched only once for
-        the whole wiki (or read back from the on-disk cache if a previously
-        processed project in this run already fetched it).
-
-        :param rows: Rows as returned by ``get_project_pages()``.
-        :param limit: Max number of pages to include in the final report.
-        :param cache: The shared pageviews cache.
-        :return: (pages_dict, total_pageviews).
-        """
-        _t0 = time.perf_counter()
-
-        logger.info("Fetching pageviews for %d page(s), limit: %d", len(rows), limit)
-        unknown_msg = self.i18n.msg("unknown")
-
-        out: dict[str, dict] = {}
-        redirects: dict[str, list[str]] = {}
-        total_pageviews = 0
-
-        for row in rows:
-            target = (row["page_title"] or "").replace("_", " ")
-            redir = (row["redir_title"] or "").replace("_", " ")
-            if target not in out:
-                out[target] = {
-                    "pageviews": 0,
-                    "class": row["pa_class"] or unknown_msg,
-                    "importance": row["pa_importance"] or unknown_msg,
-                }
-                redirects[target] = []
-            if redir:
-                redirects[target].append(redir)
-
-        # Bio-like projects can have >900,000 titles. A per-target
-        # `get_views` call would mean >900,000 separate SQLite queries; instead
-        # resolve every unique title across all targets + redirects in a few
-        # chunked queries that share one session, then aggregate back per target.
-        counts = cache.db.get_views_many(list(out), redirects)
-
-        for target, count in counts.items():
-            out[target]["pageviews"] = count
-            total_pageviews += count
-
-        out = self.wiki_repository._sort_and_truncate_pages_list(out, limit)
-
-        _elapsed = time.perf_counter() - _t0
-        logger.info(
-            "took %.4f s for %d page(s), limit: %d",
-            _elapsed,
-            len(rows),
-            limit,
-        )
-        return out, total_pageviews
 
     # ---------------------------------------------------
     # Public Methods
@@ -422,6 +369,72 @@ class ReportUpdater:
 
             # Release the per-run Pageviews HTTP client (async context).
             await self.wiki_repository.pageviews_repo.aclose()
+
+    async def _views_for_project_from_cache(
+        self,
+        rows: list[dict],
+        limit: int,
+        cache: PageviewsCache,
+    ) -> tuple[dict[str, dict], int]:
+        """
+        Compute per-project pageviews from the shared :class:`PageviewsCache`.
+
+        Mirrors the sort/truncate/total semantics of
+        ``WikiRepository.get_monthly_pageviews_and_assessments``, but reads
+        already-fetched (and persisted) view counts from ``cache`` instead of
+        hitting the Pageviews API. A shared article is therefore counted once
+        per project that references it while having been fetched only once for
+        the whole wiki (or read back from the on-disk cache if a previously
+        processed project in this run already fetched it).
+
+        :param rows: Rows as returned by ``get_project_pages()``.
+        :param limit: Max number of pages to include in the final report.
+        :param cache: The shared pageviews cache.
+        """
+        _t0 = time.perf_counter()
+        len_rows = len(rows)
+
+        logger.info("[%s] Fetching monthly pageviews", self.wiki)
+        logger.info("Fetching pageviews for %d page(s), limit: %d", len_rows, limit)
+        unknown_msg = self.i18n.msg("unknown")
+
+        out: dict[str, dict] = {}
+        redirects: dict[str, list[str]] = {}
+        total_pageviews = 0
+
+        for row in rows:
+            target = (row["page_title"] or "").replace("_", " ")
+            redir = (row["redir_title"] or "").replace("_", " ")
+
+            if target not in out:
+                out[target] = {
+                    "pageviews": 0,
+                    "class": row["pa_class"] or unknown_msg,
+                    "importance": row["pa_importance"] or unknown_msg,
+                }
+
+                redirects[target] = []
+            if redir:
+                redirects[target].append(redir)
+
+        # Bio-like projects can have >900,000 titles. A per-target
+        # `get_views` call would mean >900,000 separate SQLite queries; instead
+        # resolve every unique title across all targets + redirects in a few
+        # chunked queries that share one session, then aggregate back per target.
+        counts = cache.db.get_views_many(list(out), redirects)
+
+        for target, count in counts.items():
+            out[target]["pageviews"] = count
+            total_pageviews += count
+
+        _elapsed = time.perf_counter() - _t0
+        logger.info(
+            "took %.4f s for %d page(s), limit: %d",
+            _elapsed,
+            len_rows,
+            limit,
+        )
+        return out, total_pageviews
 
 
 __all__ = [

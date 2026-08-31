@@ -146,7 +146,9 @@ class PageviewsDb:
 
         result: dict[str, int] = {}
         for target in targets:
-            views_data = [views_by_title.get(title, 0) for title in (target, *redirects_by_target.get(target, [])) if title]
+            views_data = [
+                views_by_title.get(title, 0) for title in (target, *redirects_by_target.get(target, [])) if title
+            ]
 
             result[target] = sum(views_data)
 

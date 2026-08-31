@@ -259,69 +259,6 @@ class WikiRepository:
         logger.debug("Loaded assessment config for '%s.org'", self.wiki)
         return self._assessment_config  # pyright: ignore[reportReturnType]
 
-    # ---------------------------------------------------
-    # Pageviews + assessments (batched)
-    async def get_monthly_pageviews_and_assessments(
-        self,
-        rows: list[dict],
-        start: str,
-        end: str,
-        limit: int,
-    ) -> tuple[dict[str, dict], int]:
-        """
-        Get monthly pageviews for the given pages and their redirects.
-
-        :param rows: Rows as returned by get_project_pages().
-        :param start: Start date, in YYYYMMDD00 format.
-        :param end: End date, in YYYYMMDD00 format.
-        :param limit: Max number of pages to include in the final report.
-        :return: (pages_dict, total_pageviews), where pages_dict maps page
-            title -> {'pageviews', 'class', 'importance'}.
-        """
-        logger.info("[%s] Fetching monthly pageviews", self.wiki)
-        logger.info("Fetching monthly pageviews for %d row(s) (limit=%d)", len(rows), limit)
-
-        out: dict[str, dict] = {}
-        batch: dict[str, list[str]] = {}
-        batch_count = 0
-        total_pageviews = 0
-        num_results = len(rows)
-
-        for index, row in enumerate(rows, start=1):
-            target = row["page_title"].replace("_", " ")
-            redir = (row["redir_title"] or "").replace("_", " ")
-
-            if target not in out:
-                unknown_msg = self.i18n.msg("unknown")
-                out[target] = {
-                    "pageviews": 0,
-                    "class": row["pa_class"] or unknown_msg,
-                    "importance": row["pa_importance"] or unknown_msg,
-                }
-
-            if target not in batch:
-                batch[target] = [target, redir]
-            else:
-                batch[target].append(redir)
-
-            # The $batchCount represents how many pages (incl. redirects) are
-            # queued. The 60 is arbitrary (see T-plan notes): we keep batches
-            # close to the API's ~100 req/sec limit without a hard cap.
-            batch_count += 1
-            if batch_count > app_config.pageviews.batch_size_threshold:
-                logger.info("[%s] Processing page %d of %d", self.wiki, index, num_results)
-                total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
-                batch_count = 0
-
-        # Finish processing any leftover pages.
-        total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
-
-        logger.info("[%s] Pageviews fetch complete", self.wiki)
-        logger.info("Pageviews fetch complete: %d total pageviews", total_pageviews)
-
-        out = self._sort_and_truncate_pages_list(out, limit)
-        return out, total_pageviews
-
     async def _process_batch(
         self,
         batch: dict[str, list[str]],
@@ -508,6 +445,77 @@ class WikiRepository:
         stale = [x for x in _config if x.project_main_page not in to_pop]
         logger.info("Found %d stale project(s) of %d", len(stale), len(_config))
         return stale
+
+    # ---------------------------------------------------
+    # Pageviews + assessments (batched)
+    async def get_monthly_pageviews_and_assessments(
+        self,
+        rows: list[dict],
+        start: str,
+        end: str,
+        limit: int,
+    ) -> tuple[dict[str, dict], int]:
+        """
+        Get monthly pageviews for the given pages and their redirects.
+
+        :param rows: Rows as returned by get_project_pages().
+        :param start: Start date, in YYYYMMDD00 format.
+        :param end: End date, in YYYYMMDD00 format.
+        :param limit: Max number of pages to include in the final report.
+        :return: (pages_dict, total_pageviews), where pages_dict maps page
+            title -> {'pageviews', 'class', 'importance'}.
+        """
+        _t0 = time.perf_counter()
+        len_rows = len(rows)
+
+        logger.info("[%s] Fetching monthly pageviews", self.wiki)
+        logger.info("Fetching pageviews for %d page(s), limit: %d", len_rows, limit)
+        unknown_msg = self.i18n.msg("unknown")
+
+        out: dict[str, dict] = {}
+        batch: dict[str, list[str]] = {}
+        batch_count = 0
+        total_pageviews = 0
+
+        for index, row in enumerate(rows, start=1):
+            target = (row["page_title"] or "").replace("_", " ")
+            redir = (row["redir_title"] or "").replace("_", " ")
+
+            if target not in out:
+                out[target] = {
+                    "pageviews": 0,
+                    "class": row["pa_class"] or unknown_msg,
+                    "importance": row["pa_importance"] or unknown_msg,
+                }
+
+            if target not in batch:
+                batch[target] = [target, redir]
+            else:
+                batch[target].append(redir)
+
+            # The $batchCount represents how many pages (incl. redirects) are
+            # queued. The 60 is arbitrary (see T-plan notes): we keep batches
+            # close to the API's ~100 req/sec limit without a hard cap.
+            batch_count += 1
+            if batch_count > app_config.pageviews.batch_size_threshold:
+                logger.info("[%s] Processing page %d of %d", self.wiki, index, len_rows)
+                total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
+                batch_count = 0
+
+        # Finish processing any leftover pages.
+        total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
+
+        logger.info("[%s] Pageviews fetch complete", self.wiki)
+        logger.info("Pageviews fetch complete: %d total pageviews", total_pageviews)
+
+        _elapsed = time.perf_counter() - _t0
+        logger.info(
+            "took %.4f s for %d page(s), limit: %d",
+            _elapsed,
+            len_rows,
+            limit,
+        )
+        return out, total_pageviews
 
 
 __all__ = [
