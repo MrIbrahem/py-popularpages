@@ -146,11 +146,10 @@ class PageviewsDb:
 
         result: dict[str, int] = {}
         for target in targets:
-            views_data = [
-                views_by_title.get(title, 0) for title in (target, *redirects_by_target.get(target, [])) if title
-            ]
+            result[target] = views_by_title.get(target, 0)
 
-            result[target] = sum(views_data)
+            for title in redirects_by_target.get(target, []):
+                result[target] += views_by_title.get(title, 0)
 
         return result
 
