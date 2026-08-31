@@ -70,7 +70,7 @@ class TestGetBotLastEditDate:
         assert result1 == "2026-08-04"
 
 
-class TestWriteDryRunText:
+class TestWriteWikiText:
     """Tests for `_write_wikitext` dry-run persistence."""
 
     def test_writes_file_with_sanitized_title(self, tmp_path, monkeypatch):

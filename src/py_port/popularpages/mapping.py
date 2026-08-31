@@ -54,8 +54,10 @@ class WikiProjectConfig:
     """
 
     project_main_page: str
-    Report: str
     report_without_ns: str
+
+    # These keys with the same name as the JSON keys from "Wikipedia:WikiProject/Popular pages config.json"
+    Report: str
     Limit: int
     Name: str
     Updated: str | None = None

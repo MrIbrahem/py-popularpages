@@ -21,8 +21,8 @@ See docs/pageviews-persistence-and-dedup-plan.md.
 
 from __future__ import annotations
 
-import sys
 import logging
+import sys
 from datetime import date
 from pathlib import Path
 

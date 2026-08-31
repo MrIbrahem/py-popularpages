@@ -365,6 +365,7 @@ class WikiRepository:
         text: str,
         summary: str | None = None,
         section_number: int | None = None,
+        file_name: str | None = None,
     ) -> dict | None:
         """
         Update a wiki page with the given text.
@@ -386,7 +387,7 @@ class WikiRepository:
 
         summary = summary or self.i18n.msg("edit-summary")
 
-        self._write_wikitext(page_title, text)
+        self._write_wikitext(page_title, text, file=file_name)
 
         if self.dry_run:
             logger.info(
@@ -426,7 +427,7 @@ class WikiRepository:
 
         return result
 
-    def _write_wikitext(self, page_title: str, text: str) -> None:
+    def _write_wikitext(self, page_title: str, text: str, file: str | None = None) -> None:
         """
         Persist the rendered wikitext to the logs folder when in dry-run mode.
 
@@ -435,9 +436,11 @@ class WikiRepository:
         The page title is sanitized so it is safe as a filename (colons and
         slashes in wiki titles are common).
         """
-        safe_title = re.sub(r"[^\w.\-]+", "_", page_title)
+        if not file:
+            safe_title = re.sub(r"[^\w.\-]+", "_", page_title)
+            file = f"dryrun-{self.wiki}-{safe_title}.wikitext"
 
-        out_path = self.log_dir / f"dryrun-{self.wiki}-{safe_title}.wikitext"
+        out_path = self.log_dir / file
 
         text_with_header = f"Title: [[{page_title}]]\n\n{text}"
         out_path.write_text(text_with_header, encoding="utf-8")
