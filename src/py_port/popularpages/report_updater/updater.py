@@ -372,6 +372,8 @@ class ReportUpdater:
                     # only (instead of accumulating titles across all stale
                     # projects before fetching anything).
                     titles = self._titles_for_pages(page_rows)
+                    logger.info(f"Fetching pageviews for {len(titles):,} titles in project: %s:%s", self.wiki, project.Name)
+
                     cache = await self._build_views_cache(titles)
 
                     logger.info("Processing project '%s'", project.Name)
