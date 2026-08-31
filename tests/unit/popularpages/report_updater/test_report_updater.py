@@ -179,8 +179,7 @@ class TestProcessProject:
         self, updater: tuple[ReportUpdater, MagicMock]
     ) -> None:
         u, repo = updater
-        repo.get_monthly_pageviews_and_assessments = AsyncMock(
-            return_value={"Foo bar": 7})
+        repo.get_monthly_pageviews_and_assessments = AsyncMock(return_value={"Foo bar": 7})
         page_rows = [
             {
                 "page_title": "Foo_bar",

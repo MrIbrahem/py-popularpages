@@ -403,6 +403,7 @@ class ReportUpdater:
             # Release the per-run Pageviews HTTP client (async context).
             await self.wiki_repository.pageviews_repo.aclose()
 
+
 __all__ = [
     "ReportUpdater",
 ]
