@@ -25,7 +25,6 @@ import wikitextparser as wtp
 
 from ..config import app_config
 from ..i18n import I18n
-from ..logger import log_to_file
 from ..mapping import WikiProjectConfig
 from ..pageviews.pageviews_repository import PageviewsRepository
 from ..utils import first_of_this_month_timestamp, mediawiki_timestamp_to_epoch
@@ -279,7 +278,7 @@ class WikiRepository:
         :return: (pages_dict, total_pageviews), where pages_dict maps page
             title -> {'pageviews', 'class', 'importance'}.
         """
-        log_to_file("Fetching monthly pageviews", self.wiki)
+        logger.info("[%s] Fetching monthly pageviews", self.wiki)
         logger.info("Fetching monthly pageviews for %d row(s) (limit=%d)", len(rows), limit)
 
         out: dict[str, dict] = {}
@@ -310,14 +309,14 @@ class WikiRepository:
             # close to the API's ~100 req/sec limit without a hard cap.
             batch_count += 1
             if batch_count > app_config.pageviews.batch_size_threshold:
-                log_to_file(f"Processing page {index} of {num_results}", self.wiki)
+                logger.info("[%s] Processing page %d of %d", self.wiki, index, num_results)
                 total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
                 batch_count = 0
 
         # Finish processing any leftover pages.
         total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
 
-        log_to_file("Pageviews fetch complete", self.wiki)
+        logger.info("[%s] Pageviews fetch complete", self.wiki)
         logger.info("Pageviews fetch complete: %d total pageviews", total_pageviews)
 
         return self._sort_and_truncate_pages_list(out, limit), total_pageviews
@@ -380,7 +379,7 @@ class WikiRepository:
         logger.info(
             "set_text: attempting to update '%s' (section=%s, dry_run=%s)", page_title, section_number, self.dry_run
         )
-        log_to_file(f'Attempting to update "{page_title}"', self.wiki)
+        logger.info('[%s] Attempting to update "%s"', self.wiki, page_title)
 
         if not self.site.logged_in:
             self.login()
@@ -398,6 +397,7 @@ class WikiRepository:
                     "bot": True,
                 }
             )
+
             return None
 
         page = self.site.pages[page_title]
@@ -423,7 +423,7 @@ class WikiRepository:
         msg = f'"{page_title}" updated' if result else f'"{page_title}" could not be updated'
         logger.info("set_text: %s", msg)
 
-        log_to_file(msg, self.wiki)
+        logger.info("[%s] %s", self.wiki, msg)
 
         return result
 
@@ -478,7 +478,7 @@ class WikiRepository:
 
         :return: Config for WikiProjects not updated so far this month.
         """
-        log_to_file("Checking for stale projects", self.wiki)
+        logger.info("[%s] Checking for stale projects", self.wiki)
         logger.info("Checking for stale projects on '%s'", self.wiki)
 
         _config = self.get_config()

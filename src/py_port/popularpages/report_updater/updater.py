@@ -13,7 +13,6 @@ import time
 from jinja2 import Environment, FileSystemLoader
 
 from ..config import app_config
-from ..logger import log_to_file
 from ..mapping import MonthDate, WikiProjectConfig
 from ..pageviews.pageviews_cache import PageviewsCache
 from ..utils import format_date, uc_first
@@ -125,12 +124,12 @@ class ReportUpdater:
         logger.debug("Fetched %d page(s) for project '%s'", len(page_rows), config.Name)
 
         if not page_rows:
-            log_to_file(f'No pages found for "{project}"', self.wiki)
+            logger.info('[%s] No pages found for "%s"', self.wiki, project)
             return
 
         # See T164178: guard against runaway memory for very large projects.
         if len(page_rows) > app_config.wiki.max_project_size:
-            log_to_file(f"Error: {project} is too large. Skipping.", self.wiki)
+            logger.info("[%s] Error: %s is too large. Skipping.", self.wiki, project)
             return
 
         if cache is not None:
@@ -216,22 +215,22 @@ class ReportUpdater:
             config = WikiProjectConfig.from_json(project, data=config)
 
         if config.is_incomplete():
-            log_to_file(f"Error: Incomplete data in config for {config.project_main_page}. Skipping.", self.wiki)
+            logger.info("[%s] Error: Incomplete data in config for %s. Skipping.", self.wiki, config.project_main_page)
             return False
 
         # Don't allow writing the report to the main namespace. There's no easy way to grab the namespace ID here
         # so just reject titles that don't have a colon in them (matches the PHP heuristic).
         if ":" not in config.Report:
-            log_to_file(
-                f"Error: {config.project_main_page} is configured to write to the mainspace. Skipping.", self.wiki
+            logger.info(
+                "[%s] Error: %s is configured to write to the mainspace. Skipping.", self.wiki, config.project_main_page
             )
             return False
 
-        log_to_file(f"Beginning to process: {config.Name}", self.wiki)
+        logger.info("[%s] Beginning to process: %s", self.wiki, config.Name)
 
         # Check the project exists.
         if not self.wiki_repository.does_title_exist(config.project_main_page):
-            log_to_file(f"Error: Project page for {config.Name} does not exist! Skipping.", self.wiki)
+            logger.info("[%s] Error: Project page for %s does not exist! Skipping.", self.wiki, config.Name)
             return False
 
         return True
@@ -341,7 +340,7 @@ class ReportUpdater:
         """
         # Make sure config isn't empty.
         if not config:
-            log_to_file("Error: Invalid config. Aborting!", self.wiki)
+            logger.info("[%s] Error: Invalid config. Aborting!", self.wiki)
             return
 
         try:
@@ -357,13 +356,13 @@ class ReportUpdater:
 
                 page_rows = self.wiki_repository.db.get_project_pages(project.Name)
                 if not page_rows:
-                    log_to_file(f'No pages found for "{project.project_main_page}"', self.wiki)
+                    logger.info('[%s] No pages found for "%s"', self.wiki, project.project_main_page)
                     skipped += 1
                     continue
 
                 # See T164178: guard against runaway memory for very large projects.
                 if len(page_rows) > app_config.wiki.max_project_size:
-                    log_to_file(f"Error: {project.project_main_page} is too large. Skipping.", self.wiki)
+                    logger.info("[%s] Error: %s is too large. Skipping.", self.wiki, project.project_main_page)
                     skipped += 1
                     continue
 
@@ -382,14 +381,14 @@ class ReportUpdater:
                         cache=cache,
                         page_rows=page_rows,
                     )
-                    log_to_file(f"Finished processing: {project.Name}", self.wiki)
+                    logger.info("[%s] Finished processing: %s", self.wiki, project.Name)
                     processed += 1
                 except Exception as exc:
                     # One project failing must not abort the whole run (mirrors
                     # the per-wiki isolation in check_reports.py, but at the
                     # per-project level).
                     logger.exception("Error processing project '%s': %s", project.Name, exc)
-                    log_to_file(f"Error processing {project.Name}: {exc}", self.wiki)
+                    logger.info("[%s] Error processing %s: %s", self.wiki, project.Name, exc)
                     skipped += 1
                 finally:
                     # Close the per-project SQLite cache so its engine/file

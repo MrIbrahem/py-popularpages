@@ -129,7 +129,6 @@ def _wire(
     repo.get_json_config = MagicMock(return_value=json_config)
     repo.db.get_projects_timestamps.return_value = db_rows
     monkeypatch.setattr(repository, "first_of_this_month_timestamp", lambda *a, **k: FIRST_OF_MONTH)
-    monkeypatch.setattr(repository, "log_to_file", lambda *a, **k: None)
 
 
 # -- Comparison tests ---------------------------------------------------
