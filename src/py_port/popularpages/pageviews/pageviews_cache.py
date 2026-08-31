@@ -21,6 +21,7 @@ See docs/pageviews-persistence-and-dedup-plan.md.
 
 from __future__ import annotations
 
+import sys
 import logging
 from datetime import date
 from pathlib import Path
@@ -141,7 +142,7 @@ class PageviewsCache:
 
         batches = range(0, len(missing), self.fetch_batch)
 
-        for i in tqdm(batches, desc=f"Fetching pageviews for {len(missing):,} titles"):
+        for i in tqdm(batches, desc=f"Fetching pageviews for {len(missing):,} titles", disable=not sys.stderr.isatty()):
             chunk = missing[i : i + self.fetch_batch]
             views = await self.repo.get_title_views(chunk, start_date, end_date)
 
