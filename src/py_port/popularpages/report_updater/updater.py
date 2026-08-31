@@ -177,19 +177,40 @@ class ReportUpdater:
     ) -> tuple[dict[str, dict], int]:
         _t0 = time.perf_counter()
 
+        out: dict[str, dict] = {}
+        unknown_msg = self.i18n.msg("unknown")
+
+        for row in page_rows:
+            target = (row["page_title"] or "").replace("_", " ")
+            redir = (row["redir_title"] or "").replace("_", " ")
+
+            if target not in out:
+                out[target] = {
+                    "pageviews": 0,
+                    "class": row["pa_class"] or unknown_msg,
+                    "importance": row["pa_importance"] or unknown_msg,
+                    "redirects": [],
+                }
+
+            if redir and redir not in out[target]["redirects"]:
+                out[target]["redirects"].append(redir)
+
+        batches = {target: data["redirects"] for target, data in out.items()}
+
         if cache is not None:
-            data, total_views = await self._views_for_project_from_cache(page_rows, config.Limit, cache)
+            counts = cache.db.get_views_many(batches)
+
         else:
             start_date = self.month_date.start.strftime("%Y%m%d00")
             end_date = self.month_date.end.strftime("%Y%m%d00")
             logger.debug("Pageviews window: start=%s end=%s", start_date, end_date)
 
-            data, total_views = await self.wiki_repository.get_monthly_pageviews_and_assessments(
-                page_rows,
-                start_date,
-                end_date,
-                config.Limit,
-            )
+            counts = await self.wiki_repository.get_monthly_pageviews_and_assessments(batches, start_date, end_date)
+
+        total_views = 0
+        for target, count in counts.items():
+            out[target]["pageviews"] += count
+            total_views += count
 
         logger.info("[%s] Pageviews fetch complete", self.wiki)
         logger.info("Pageviews fetch complete: %d total pageviews", total_views)
@@ -201,7 +222,7 @@ class ReportUpdater:
             len(page_rows),
             config.Limit,
         )
-        return data, total_views
+        return out, total_views
 
     def populate_assessment_categories(self, data: dict[str, dict]) -> dict[str, dict]:
         days_in_month = self.month_date.days_in_month
@@ -381,64 +402,6 @@ class ReportUpdater:
 
             # Release the per-run Pageviews HTTP client (async context).
             await self.wiki_repository.pageviews_repo.aclose()
-
-    # ---------------------------------------------------
-    # Pageviews + assessments (batched)
-    async def _views_for_project_from_cache(
-        self,
-        rows: list[dict],
-        limit: int,
-        cache: PageviewsCache,
-    ) -> tuple[dict[str, dict], int]:
-        """
-        Compute per-project pageviews from the shared :class:`PageviewsCache`.
-
-        Mirrors the sort/truncate/total semantics of
-        ``WikiRepository.get_monthly_pageviews_and_assessments``, but reads
-        already-fetched (and persisted) view counts from ``cache`` instead of
-        hitting the Pageviews API. A shared article is therefore counted once
-        per project that references it while having been fetched only once for
-        the whole wiki (or read back from the on-disk cache if a previously
-        processed project in this run already fetched it).
-
-        :param rows: Rows as returned by ``get_project_pages()``.
-        :param limit: Max number of pages to include in the final report.
-        :param cache: The shared pageviews cache.
-        """
-        len_rows = len(rows)
-
-        logger.info("[%s] Fetching monthly pageviews", self.wiki)
-        logger.info("Fetching pageviews for %d page(s), limit: %d", len_rows, limit)
-        unknown_msg = self.i18n.msg("unknown")
-
-        out: dict[str, dict] = {}
-
-        for row in rows:
-            target = (row["page_title"] or "").replace("_", " ")
-            redir = (row["redir_title"] or "").replace("_", " ")
-
-            if target not in out:
-                out[target] = {
-                    "pageviews": 0,
-                    "class": row["pa_class"] or unknown_msg,
-                    "importance": row["pa_importance"] or unknown_msg,
-                    "redirects": [],
-                }
-
-            if redir and redir not in out[target]["redirects"]:
-                out[target]["redirects"].append(redir)
-
-        batches = {target: data["redirects"] for target, data in out.items()}
-
-        counts = cache.db.get_views_many(batches)
-
-        total_pageviews = 0
-        for target, count in counts.items():
-            out[target]["pageviews"] += count
-            total_pageviews += count
-
-        return out, total_pageviews
-
 
 __all__ = [
     "ReportUpdater",

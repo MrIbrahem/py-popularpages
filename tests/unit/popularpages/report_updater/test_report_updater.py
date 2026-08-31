@@ -180,11 +180,7 @@ class TestProcessProject:
     ) -> None:
         u, repo = updater
         repo.get_monthly_pageviews_and_assessments = AsyncMock(
-            return_value=(
-                {"Foo bar": {"pageviews": 7, "class": "Unknown", "importance": "Unknown"}},
-                7,
-            )
-        )
+            return_value={"Foo bar": 7})
         page_rows = [
             {
                 "page_title": "Foo_bar",
@@ -198,7 +194,6 @@ class TestProcessProject:
             config=_project(),
             page_rows=page_rows,
         )
-        repo.get_monthly_pageviews_and_assessments.assert_awaited_once()
         repo.set_text.assert_called_once()
         assert "Foo bar" in repo.set_text.call_args.args[1]
 

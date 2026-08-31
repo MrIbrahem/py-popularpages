@@ -128,47 +128,28 @@ class PageviewsDb:
         across all targets and their redirects in a handful of chunked
         ``SELECT ... WHERE title IN (...)`` queries that reuse a single
         session, then aggregates the per-title views back to each target.
+
         """
-        targets = list(targets_to_redirects.keys())
-        title_to_targets = self.map_titles_to_targets(targets, targets_to_redirects)
+        # 1. Collect all unique titles (targets + redirects) directly into a set
+        all_titles = {
+            title
+            for target, redirects in targets_to_redirects.items()
+            for title in (target, *redirects)
+            if title
+        }
 
-        views_by_title = self._query_views_by_title(list(title_to_targets))
+        # 2. Fetch view counts for all unique titles in a single batch query
+        views_by_title = self._query_views_by_title(list(all_titles))
 
+        # 3. Aggregate view counts back to each main target
         result: dict[str, int] = {}
-        for target in targets:
-            result[target] = views_by_title.get(target, 0)
-
-            for title in targets_to_redirects.get(target, []):
-                result[target] += views_by_title.get(title, 0)
+        for target, redirects in targets_to_redirects.items():
+            total_views = views_by_title.get(target, 0)
+            for redirect in redirects:
+                total_views += views_by_title.get(redirect, 0)
+            result[target] = total_views
 
         return result
-
-    def map_titles_to_targets(self, targets, redirects_by_target) -> dict[str, list[str]]:
-        """
-        Maps canonical targets and their associated redirect titles back to the original targets.
-
-        This method iterates through a collection of targets and their corresponding
-        redirect titles. It constructs a dictionary where each key is a title (either
-        a target itself or one of its redirects), and the corresponding value is a
-        list of original targets that the title maps to or redirects to.
-
-        Args:
-            targets (Iterable[str]): A collection of canonical target strings.
-            redirects_by_target (dict[str, list[str]]): A dictionary mapping a target
-                string to a list of its redirect titles.
-
-        Returns:
-            dict[str, list[str]]: A dictionary mapping each title (target or redirect)
-                to a list of original targets it is associated with.
-        """
-        t2t: dict[str, list[str]] = {}
-        for target in targets:
-            for title in (target, *redirects_by_target.get(target, [])):
-                if title:
-                    t2t.setdefault(title, []).append(target)
-
-        return t2t
-
 
 __all__ = [
     "PageviewsDb",

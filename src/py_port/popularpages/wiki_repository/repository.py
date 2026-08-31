@@ -423,7 +423,7 @@ class WikiRepository:
         logger.info("Found %d stale project(s) of %d", len(stale), len(_config))
         return stale
 
-    async def _process_batches(
+    async def get_monthly_pageviews_and_assessments(
         self,
         batches: dict[str, Any],
         start: str,
@@ -459,59 +459,6 @@ class WikiRepository:
                 views_by_title[title] += count
 
         return views_by_title
-
-    # ---------------------------------------------------
-    # Pageviews + assessments (batched)
-    async def get_monthly_pageviews_and_assessments(
-        self,
-        rows: list[dict],
-        start: str,
-        end: str,
-        limit: int,
-    ) -> tuple[dict[str, dict], int]:
-        """
-        Get monthly pageviews for the given pages and their redirects.
-
-        :param rows: Rows as returned by get_project_pages().
-        :param start: Start date, in YYYYMMDD00 format.
-        :param end: End date, in YYYYMMDD00 format.
-        :param limit: Max number of pages to include in the final report.
-        :return: (pages_dict, total_pageviews), where pages_dict maps page
-            title -> {'pageviews', 'class', 'importance'}.
-        """
-        len_rows = len(rows)
-
-        logger.info("[%s] Fetching monthly pageviews", self.wiki)
-        logger.info("Fetching pageviews for %d page(s), limit: %d", len_rows, limit)
-        unknown_msg = self.i18n.msg("unknown")
-
-        out: dict[str, dict] = {}
-
-        for row in rows:
-            target = (row["page_title"] or "").replace("_", " ")
-            redir = (row["redir_title"] or "").replace("_", " ")
-
-            if target not in out:
-                out[target] = {
-                    "pageviews": 0,
-                    "class": row["pa_class"] or unknown_msg,
-                    "importance": row["pa_importance"] or unknown_msg,
-                    "redirects": [],
-                }
-
-            if redir and redir not in out[target]["redirects"]:
-                out[target]["redirects"].append(redir)
-
-        batches = {target: data["redirects"] for target, data in out.items()}
-
-        counts = await self._process_batches(batches, start, end)
-
-        total_pageviews = 0
-        for target, count in counts.items():
-            out[target]["pageviews"] += count
-            total_pageviews += count
-
-        return out, total_pageviews
 
 
 __all__ = [
