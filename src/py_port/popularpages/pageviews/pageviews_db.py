@@ -113,12 +113,11 @@ class PageviewsDb:
         :param redirects: Redirect titles (spaces) associated with the target.
         :return: Sum of cached views across target + redirects.
         """
-        return self.get_views_many([target], {target: redirects}).get(target, 0)
+        return self.get_views_many({target: redirects}).get(target, 0)
 
     def get_views_many(
         self,
-        targets: list[str],
-        redirects_by_target: dict[str, list[str]],
+        targets_to_redirects: dict[str, list[str]],
     ) -> dict[str, int]:
         """
         Bulk variant of :meth:`get_views` for many targets at once.
@@ -130,55 +129,24 @@ class PageviewsDb:
         ``SELECT ... WHERE title IN (...)`` queries that reuse a single
         session, then aggregates the per-title views back to each target.
 
-        :param targets: Target page titles (spaces).
-        :param redirects_by_target: Map of target -> its redirect titles.
-        :return: Map of target -> total views (target + redirects).
         """
-        # Map every unique title to the targets that reference it (as the
-        # target itself or as one of its redirects). A title may be referenced
-        # by more than one target, so keep a list.
-        title_to_targets = self.map_titles_to_targets(targets, redirects_by_target)
+        # 1. Collect all unique titles (targets + redirects) directly into a set
+        all_titles = {
+            title for target, redirects in targets_to_redirects.items() for title in (target, *redirects) if title
+        }
 
-        if not title_to_targets:
-            return dict.fromkeys(targets, 0)
+        # 2. Fetch view counts for all unique titles in a single batch query
+        views_by_title = self._query_views_by_title(list(all_titles))
 
-        views_by_title = self._query_views_by_title(list(title_to_targets))
-
+        # 3. Aggregate view counts back to each main target
         result: dict[str, int] = {}
-        for target in targets:
-            views_data = [
-                views_by_title.get(title, 0) for title in (target, *redirects_by_target.get(target, [])) if title
-            ]
-
-            result[target] = sum(views_data)
+        for target, redirects in targets_to_redirects.items():
+            total_views = views_by_title.get(target, 0)
+            for redirect in redirects:
+                total_views += views_by_title.get(redirect, 0)
+            result[target] = total_views
 
         return result
-
-    def map_titles_to_targets(self, targets, redirects_by_target) -> dict[str, list[str]]:
-        """
-        Maps canonical targets and their associated redirect titles back to the original targets.
-
-        This method iterates through a collection of targets and their corresponding
-        redirect titles. It constructs a dictionary where each key is a title (either
-        a target itself or one of its redirects), and the corresponding value is a
-        list of original targets that the title maps to or redirects to.
-
-        Args:
-            targets (Iterable[str]): A collection of canonical target strings.
-            redirects_by_target (dict[str, list[str]]): A dictionary mapping a target
-                string to a list of its redirect titles.
-
-        Returns:
-            dict[str, list[str]]: A dictionary mapping each title (target or redirect)
-                to a list of original targets it is associated with.
-        """
-        t2t: dict[str, list[str]] = {}
-        for target in targets:
-            for title in (target, *redirects_by_target.get(target, [])):
-                if title:
-                    t2t.setdefault(title, []).append(target)
-
-        return t2t
 
 
 __all__ = [

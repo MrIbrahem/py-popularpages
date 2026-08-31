@@ -178,45 +178,48 @@ class TestGetViews:
 # ---------------------------------------------------
 class TestGetViewsMany:
     def test_empty_targets_returns_empty_dict(self, load_db):
-        assert load_db.get_views_many([], {}) == {}
+        assert load_db.get_views_many({}) == {}
 
     def test_no_matching_titles_returns_zero_for_each_target(self, load_db):
-        result = load_db.get_views_many(["A", "B"], {})
-        assert result == {"A": 0, "B": 0}
+        result2 = load_db.get_views_many({"A": [], "B": []})
+        assert result2 == {"A": 0, "B": 0}
 
     def test_aggregates_target_plus_redirects_per_target(self, load_db):
         load_db.upsert_many({"Cairo": 10, "Al-Qahira": 5, "Alexandria": 20})
-        result = load_db.get_views_many(
-            ["Cairo", "Alexandria"],
+
+        result2 = load_db.get_views_many(
             {"Cairo": ["Al-Qahira"], "Alexandria": []},
         )
-        assert result == {"Cairo": 15, "Alexandria": 20}
+        assert result2 == {"Cairo": 15, "Alexandria": 20}
 
     def test_unknown_target_with_missing_redirects_is_zero(self, load_db):
         load_db.upsert_many({"A": 10})
-        result = load_db.get_views_many(["A", "Unknown"], {"A": [], "Unknown": ["Also missing"]})
-        assert result == {"A": 10, "Unknown": 0}
+
+        result2 = load_db.get_views_many({"A": [], "Unknown": ["Also missing"]})
+        assert result2 == {"A": 10, "Unknown": 0}
 
     def test_shared_redirect_counts_for_each_referencing_target(self, load_db):
         """A redirect referenced by two targets is looked up once but its
         views are counted independently towards each target's total."""
         load_db.upsert_many({"Shared": 9, "TargetA": 1, "TargetB": 2})
-        result = load_db.get_views_many(
-            ["TargetA", "TargetB"],
+
+        result2 = load_db.get_views_many(
             {"TargetA": ["Shared"], "TargetB": ["Shared"]},
         )
-        assert result == {"TargetA": 10, "TargetB": 11}
+        assert result2 == {"TargetA": 10, "TargetB": 11}
 
     def test_matches_get_views_for_single_target(self, load_db):
         load_db.upsert_many({"Cairo": 10, "Al-Qahira": 5})
         single = load_db.get_views("Cairo", ["Al-Qahira"])
-        many = load_db.get_views_many(["Cairo"], {"Cairo": ["Al-Qahira"]})
-        assert many["Cairo"] == single
+
+        many2 = load_db.get_views_many({"Cairo": ["Al-Qahira"]})
+        assert many2["Cairo"] == single
 
     def test_target_missing_from_redirects_by_target_defaults_to_no_redirects(self, load_db):
         load_db.upsert_many({"Cairo": 10})
-        result = load_db.get_views_many(["Cairo"], {})
-        assert result == {"Cairo": 10}
+
+        result2 = load_db.get_views_many({"Cairo": []})
+        assert result2 == {"Cairo": 10}
 
 
 # ---------------------------------------------------
@@ -237,8 +240,9 @@ class TestChunking:
         db.upsert_many(mapping)
 
         targets = [f"T{i}" for i in range(n)]
-        counts = db.get_views_many(targets, {t: [] for t in targets})
-        assert counts == mapping
+
+        counts2 = db.get_views_many({t: [] for t in targets})
+        assert counts2 == mapping
 
     def test_query_titles_cache_beyond_chunk_size(self, load_db):
         # Default _SELECT_IN_CHUNK_SIZE is 500; use more than one chunk's worth.
@@ -252,8 +256,8 @@ class TestChunking:
         targets = [f"Target {i}" for i in range(1200)]
         load_db.upsert_many({t: i for i, t in enumerate(targets)})
 
-        result = load_db.get_views_many(targets, {})
-        assert all(result[f"Target {i}"] == i for i in range(1200))
+        result2 = load_db.get_views_many(dict.fromkeys(targets, []))
+        assert all(result2[f"Target {i}"] == i for i in range(1200))
 
     def test_upsert_many_large_batch(self, load_db):
         # Insert values in a single call spanning multiple chunks on read-back.

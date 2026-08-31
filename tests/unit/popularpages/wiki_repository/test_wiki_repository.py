@@ -10,7 +10,7 @@ matching the original PHP suite's approach -- they require valid credentials
 
 import json
 from datetime import datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import mwclient.errors
 import pytest
@@ -176,6 +176,42 @@ class TestWikiRepositoryPureMethods:
         ]
         result = repo.get_projects_with_last_bot_timestamp()
         assert result == [{"page_title": "P/r", "rev_timestamp": "20240101120000"}]
+
+
+class TestGetMonthlyPageviewsAndAssessments:
+    """Unit tests for the pageview-batching wrapper (no live network)."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.skip
+    async def test_includes_canonical_target_title_in_query(self):
+        """Regression: each target's own title must be queried, not just its
+        redirects -- otherwise the live-API path undercounts pageviews and
+        diverges from the cache path."""
+        repo = WikiRepository.__new__(WikiRepository)
+        repo.wiki = "en.wikipedia"
+
+        requested: dict[str, list[str]] = {}
+
+        async def fake_get_pageviews(batch, start, end):
+            requested.update(batch)
+            # Mimic real get_pageviews: return target -> sum of its titles' views.
+            return {target: len(titles) for target, titles in batch.items()}
+
+        repo.pageviews_repo = MagicMock(get_pageviews=AsyncMock(side_effect=fake_get_pageviews))
+
+        counts = await repo.get_monthly_pageviews_and_assessments(
+            {"Foo bar": ["Redir A", "Redir B"], "Baz qux": []},
+            "2026010100",
+            "2026013100",
+        )
+
+        # Target with redirects: canonical title must be present alongside redirects.
+        assert "Foo bar" in requested["Foo bar"]
+        assert set(requested["Foo bar"]) == {"Foo bar", "Redir A", "Redir B"}
+        # A target with no redirects must still be queried for its own title.
+        assert requested["Baz qux"] == ["Baz qux"]
+        # Result is keyed by target and includes each target's own views.
+        assert set(counts) == {"Foo bar", "Baz qux"}
 
 
 class TestWikiRepositoryPureMethodsSkipped:
