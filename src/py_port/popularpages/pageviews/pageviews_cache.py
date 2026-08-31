@@ -114,7 +114,7 @@ class PageviewsCache:
         end_date = self.end.strftime("%Y%m%d00")
 
         logger.info(
-            "Building pageviews cache for %d unique title(s) (window: %s-%s)",
+            "Building pageviews cache for %d unique titles (window: %s-%s)",
             len(titles),
             start_date,
             end_date,
@@ -123,19 +123,20 @@ class PageviewsCache:
         missing = self._find_missing(titles)
         if not missing:
             logger.info(
-                "Pageviews cache %s/%s: all %d title(s) already cached, nothing to fetch",
+                "Pageviews cache %s/%s: all %d titles already cached, nothing to fetch",
                 self.wiki,
                 self.year_month,
                 len(titles),
             )
             return
 
+        already_cached = len(titles) - len(missing)
         logger.info(
-            "Pageviews cache %s/%s: fetching %d new title(s) (%d requested)",
+            "Pageviews cache %s/%s: fetching %s new title (%s already cached)",
             self.wiki,
             self.year_month,
-            len(missing),
-            len(titles),
+            f"{len(missing):,}",
+            f"{already_cached:,}",
         )
 
         batches = range(0, len(missing), self.fetch_batch)

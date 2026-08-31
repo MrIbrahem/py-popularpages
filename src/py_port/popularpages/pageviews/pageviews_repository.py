@@ -171,7 +171,7 @@ class PageviewsRepository:
             all_titles.update(t for t in titles if t)
 
         logger.info(
-            "Fetching pageviews for %d target(s) across %d unique title(s) (start=%s, end=%s)",
+            "Fetching pageviews for %d target(s) across %d unique titles (start=%s, end=%s)",
             len(target_titles),
             len(all_titles),
             start,

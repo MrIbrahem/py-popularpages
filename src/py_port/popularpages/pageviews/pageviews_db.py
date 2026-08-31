@@ -90,7 +90,7 @@ class PageviewsDb:
             session.execute(stmt)
             session.commit()
 
-        logger.debug("Upserted %d title(s) into %s", len(title_views), self.db_file_path)
+        logger.debug("Upserted %d titles into %s", len(title_views), self.db_file_path)
 
     # ---------------------------------------------------
     # Lookup
