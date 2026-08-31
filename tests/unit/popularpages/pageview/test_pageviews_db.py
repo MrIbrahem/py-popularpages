@@ -3,9 +3,14 @@ Tests for src.py_port.popularpages.pageviews.pageviews_db.PageviewsDb.
 
 The SQLite-backed store is exercised directly (no PageviewsCache, no network):
 we upsert rows with ``upsert_many`` and assert on ``get_views`` /
-``get_views_many`` lookup behavior, conflict/overwrite semantics, and the
-``close`` lifecycle.
+``get_views_many`` / ``query_titles_cache`` lookup behavior, conflict/overwrite
+semantics, chunked-query safety, and the ``close_db`` lifecycle.
+
+Note: PageviewsDb's methods are synchronous, so all tests here are plain
+(non-async) functions/methods.
 """
+
+from __future__ import annotations
 
 import sqlite3
 
@@ -15,9 +20,10 @@ import src.py_port.popularpages.pageviews.pageviews_db as cache_module
 from src.py_port.popularpages.pageviews import PageviewsCache
 from src.py_port.popularpages.pageviews.pageviews_db import PageviewsDb
 
-pytestmark = pytest.mark.asyncio
 
-
+# ----------------------------------------------------------------
+# Fixtures
+# ----------------------------------------------------------------
 @pytest.fixture
 def db_dir(tmp_path):
     """A temp directory to host the SQLite cache files."""
@@ -28,13 +34,12 @@ def db_dir(tmp_path):
 
 @pytest.fixture
 def db_factory(db_dir):
-    """Create PageviewsDb instances and ensure they are closed on teardown."""
+    """Create PageviewsDb instances (optionally under a custom base dir) and
+    ensure they are all closed on teardown."""
     created: list[PageviewsDb] = []
 
-    def _make(wiki: str = "en.wikipedia", year_month: str = "2024-01") -> PageviewsDb:
-
-        db_file_path = PageviewsCache.build_db_file_path(wiki, year_month, db_dir)
-
+    def _make(wiki: str = "en.wikipedia", year_month: str = "2024-01", base_dir=None) -> PageviewsDb:
+        db_file_path = PageviewsCache.build_db_file_path(wiki, year_month, base_dir or db_dir)
         db = PageviewsDb(db_file_path)
         created.append(db)
         return db
@@ -44,8 +49,14 @@ def db_factory(db_dir):
         db.close_db()
 
 
+@pytest.fixture
+def load_db(db_factory) -> PageviewsDb:
+    """A single default PageviewsDb instance for tests that don't need custom params."""
+    return db_factory()
+
+
 def _rows(sqlite_path) -> dict[str, int]:
-    """Read title -> views rows from a SQLite cache file."""
+    """Read title -> views rows directly from a SQLite cache file."""
     con = sqlite3.connect(str(sqlite_path))
     try:
         cur = con.execute("SELECT title, views FROM pageviews ORDER BY title")
@@ -54,100 +65,200 @@ def _rows(sqlite_path) -> dict[str, int]:
         con.close()
 
 
-# ---------------------------------------------------------------
-# 1. Tests for get_views summing target and redirects.
-# ---------------------------------------------------------------
-class TestDbGet:
-    """Tests for PageviewsDb.get_views summing target and redirects."""
+# ----------------------------------------------------------------
+# Lifecycle / init
+# ----------------------------------------------------------------
+class TestInitAndClose:
+    def test_creates_sqlite_file_at_expected_path(self, db_factory, db_dir):
+        db = db_factory("en.wikipedia", "2024-01")
+        expected_path = db_dir / "en.wikipedia" / "2024-01.sqlite3"
+        assert db.db_file_path == expected_path
+        assert expected_path.exists()
 
-    async def test_get_sums_target_and_redirects(self, db_factory):
-        db: PageviewsDb = db_factory()
-        db.upsert_many({"A": 10, "A redir": 5})
+    def test_creates_parent_directories(self, db_factory, db_dir):
+        db = db_factory("ar.wiktionary", "2023-12")
+        assert (db_dir / "ar.wiktionary").is_dir()
 
-        assert db.get_views("A", ["A redir"]) == 15
-        assert db.get_views("A", []) == 10
-        assert db.get_views("Unknown", []) == 0
-
-
-# ---------------------------------------------------------------
-# 2. Tests for upsert/conflict behavior.
-# ---------------------------------------------------------------
-class TestDbUpsert:
-    """Tests that re-fetching a title overwrites rather than duplicates."""
-
-    async def test_re_fetch_overwrites_existing_row(self, db_factory) -> None:
-        db: PageviewsDb = db_factory()
+    def test_close_is_idempotent_and_safe(self, db_factory):
+        db = db_factory("en.wikipedia", "2024-01")
         db.upsert_many({"A": 10})
 
+        # close_db() must be callable and safe to call more than once.
+        db.close_db()
+        db.close_db()
+
+        # The on-disk data survives disposal.
+        assert _rows(db.db_file_path) == {"A": 10}
+
+    def test_reopening_same_path_reuses_data(self, db_factory):
+        db1 = db_factory("en.wikipedia", "2024-02")
+        db1.upsert_many({"Cairo": 100})
+        db1.close_db()
+
+        db2 = db_factory("en.wikipedia", "2024-02")
+        assert db2.get_views("Cairo", []) == 100
+
+
+# ----------------------------------------------------------------
+# upsert_many
+# ----------------------------------------------------------------
+class TestUpsertMany:
+    def test_empty_dict_is_a_noop(self, load_db):
+        load_db.upsert_many({})
+        assert load_db.query_titles_cache(["Cairo"]) == set()
+
+    def test_inserts_new_rows(self, load_db):
+        load_db.upsert_many({"Cairo": 10, "Alexandria": 20})
+        assert load_db.get_views("Cairo", []) == 10
+        assert load_db.get_views("Alexandria", []) == 20
+
+    def test_re_fetch_overwrites_existing_row_not_duplicates(self, load_db):
+        load_db.upsert_many({"Cairo": 10})
         # Re-upserting the same title with a new view count must overwrite the
         # existing row (primary-key conflict), never duplicate it.
-        db.upsert_many({"A": 999})
+        load_db.upsert_many({"Cairo": 999})
 
-        path = db.db_file_path
-        assert _rows(path) == {"A": 999}  # exactly one row, value overwritten
-        assert db.get_views("A", []) == 999
+        assert _rows(load_db.db_file_path) == {"Cairo": 999}  # exactly one row
+        assert load_db.get_views("Cairo", []) == 999
+        assert load_db.query_titles_cache(["Cairo"]) == {"Cairo"}
+
+    def test_mixed_insert_and_update_in_one_call(self, load_db):
+        load_db.upsert_many({"Cairo": 10})
+        load_db.upsert_many({"Cairo": 50, "Giza": 5})
+        assert load_db.get_views("Cairo", []) == 50
+        assert load_db.get_views("Giza", []) == 5
 
 
-# ---------------------------------------------------------------
-# 3. Tests for get_views_many (bulk lookup used by large projects).
-# ---------------------------------------------------------------
-class TestDbGetViewsMany:
-    """Tests for PageviewsDb.get_views_many bulk lookup."""
+# ----------------------------------------------------------------
+# query_titles_cache
+# ----------------------------------------------------------------
+class TestQueryTitlesCache:
+    def test_empty_wanted_returns_empty_set(self, load_db):
+        assert load_db.query_titles_cache([]) == set()
 
-    async def test_get_views_many_sums_target_and_redirects(self, db_factory):
-        db: PageviewsDb = db_factory()
-        db.upsert_many({"A": 10, "A redir": 5, "B": 20})
+    def test_returns_only_cached_titles(self, load_db):
+        load_db.upsert_many({"Cairo": 10, "Alexandria": 20})
+        result = load_db.query_titles_cache(["Cairo", "Alexandria", "Luxor"])
+        assert result == {"Cairo", "Alexandria"}
 
-        counts = db.get_views_many(["A", "B"], {"A": ["A redir"], "B": []})
-        assert counts == {"A": 15, "B": 20}
+    def test_none_cached_returns_empty_set(self, load_db):
+        result = load_db.query_titles_cache(["Unknown 1", "Unknown 2"])
+        assert result == set()
 
-    async def test_get_views_many_unknown_is_zero(self, db_factory):
-        db: PageviewsDb = db_factory()
-        db.upsert_many({"A": 10})
 
-        counts = db.get_views_many(["A", "Unknown"], {"A": [], "Unknown": ["Also missing"]})
-        assert counts == {"A": 10, "Unknown": 0}
+# ----------------------------------------------------------------
+# get_views
+# ----------------------------------------------------------------
+class TestGetViews:
+    def test_target_with_no_redirects(self, load_db):
+        load_db.upsert_many({"Cairo": 42})
+        assert load_db.get_views("Cairo", []) == 42
 
-    async def test_get_views_many_chunks_large_title_set(self, db_factory, monkeypatch):
+    def test_sums_target_and_redirects(self, load_db):
+        load_db.upsert_many({"Cairo": 10, "Al-Qahira": 5, "Qahira": 3})
+        assert load_db.get_views("Cairo", ["Al-Qahira", "Qahira"]) == 18
+
+    def test_missing_title_returns_zero(self, load_db):
+        assert load_db.get_views("Nonexistent", []) == 0
+
+    def test_missing_redirect_is_ignored_not_erroring(self, load_db):
+        load_db.upsert_many({"Cairo": 10})
+        assert load_db.get_views("Cairo", ["Unknown Redirect"]) == 10
+
+    def test_falsy_titles_in_redirects_are_skipped(self, load_db):
+        load_db.upsert_many({"Cairo": 10})
+        assert load_db.get_views("Cairo", ["", None]) == 10  # type: ignore[list-item]
+
+    def test_empty_target_and_no_redirects_returns_zero(self, load_db):
+        assert load_db.get_views("", []) == 0
+
+
+# ----------------------------------------------------------------
+# get_views_many (bulk lookup used by large projects)
+# ----------------------------------------------------------------
+class TestGetViewsMany:
+    def test_empty_targets_returns_empty_dict(self, load_db):
+        assert load_db.get_views_many([], {}) == {}
+
+    def test_no_matching_titles_returns_zero_for_each_target(self, load_db):
+        result = load_db.get_views_many(["A", "B"], {})
+        assert result == {"A": 0, "B": 0}
+
+    def test_aggregates_target_plus_redirects_per_target(self, load_db):
+        load_db.upsert_many({"Cairo": 10, "Al-Qahira": 5, "Alexandria": 20})
+        result = load_db.get_views_many(
+            ["Cairo", "Alexandria"],
+            {"Cairo": ["Al-Qahira"], "Alexandria": []},
+        )
+        assert result == {"Cairo": 15, "Alexandria": 20}
+
+    def test_unknown_target_with_missing_redirects_is_zero(self, load_db):
+        load_db.upsert_many({"A": 10})
+        result = load_db.get_views_many(["A", "Unknown"], {"A": [], "Unknown": ["Also missing"]})
+        assert result == {"A": 10, "Unknown": 0}
+
+    def test_shared_redirect_counts_for_each_referencing_target(self, load_db):
+        """A redirect referenced by two targets is looked up once but its
+        views are counted independently towards each target's total."""
+        load_db.upsert_many({"Shared": 9, "TargetA": 1, "TargetB": 2})
+        result = load_db.get_views_many(
+            ["TargetA", "TargetB"],
+            {"TargetA": ["Shared"], "TargetB": ["Shared"]},
+        )
+        assert result == {"TargetA": 10, "TargetB": 11}
+
+    def test_matches_get_views_for_single_target(self, load_db):
+        load_db.upsert_many({"Cairo": 10, "Al-Qahira": 5})
+        single = load_db.get_views("Cairo", ["Al-Qahira"])
+        many = load_db.get_views_many(["Cairo"], {"Cairo": ["Al-Qahira"]})
+        assert many["Cairo"] == single
+
+    def test_target_missing_from_redirects_by_target_defaults_to_no_redirects(self, load_db):
+        load_db.upsert_many({"Cairo": 10})
+        result = load_db.get_views_many(["Cairo"], {})
+        assert result == {"Cairo": 10}
+
+
+# ----------------------------------------------------------------
+# Chunking behaviour (SQLite bound-variable limit safety)
+# ----------------------------------------------------------------
+class TestChunking:
+    def test_get_views_many_chunks_large_title_set(self, db_factory, monkeypatch):
         """A huge title set is queried in _SELECT_IN_CHUNK_SIZE-sized chunks.
 
-        Exercises the >900k-title code path: every unique title is resolved in a
-        few chunked SELECTs rather than one query per target.
+        Overrides the chunk size to exercise the chunked-query code path
+        without needing to insert an unwieldy number of rows.
         """
-        # Override the chunk size used by get_views_many to exercise chunking.
         monkeypatch.setattr(cache_module.PageviewsDb, "_SELECT_IN_CHUNK_SIZE", 100)
 
         n = 250
         mapping = {f"T{i}": i for i in range(n)}
-        db: PageviewsDb = db_factory("en.wikipedia", "2024-03")
+        db = db_factory("en.wikipedia", "2024-03")
         db.upsert_many(mapping)
 
         targets = [f"T{i}" for i in range(n)]
         counts = db.get_views_many(targets, {t: [] for t in targets})
         assert counts == mapping
 
-    async def test_get_views_many_shared_redirect_resolves_once(self, db_factory):
-        """A redirect referenced by two targets is looked up once but counted for both."""
-        db: PageviewsDb = db_factory()
-        db.upsert_many({"A": 1, "B": 2, "shared redir": 9})
+    def test_query_titles_cache_beyond_chunk_size(self, load_db):
+        # Default _SELECT_IN_CHUNK_SIZE is 500; use more than one chunk's worth.
+        titles = [f"Title {i}" for i in range(1200)]
+        load_db.upsert_many({t: i for i, t in enumerate(titles)})
 
-        counts = db.get_views_many(["A", "B"], {"A": ["shared redir"], "B": ["shared redir"]})
-        assert counts == {"A": 10, "B": 11}
+        cached = load_db.query_titles_cache(titles)
+        assert cached == set(titles)
 
+    def test_get_views_many_beyond_chunk_size(self, load_db):
+        targets = [f"Target {i}" for i in range(1200)]
+        load_db.upsert_many({t: i for i, t in enumerate(targets)})
 
-# ---------------------------------------------------------------
-# 4. Tests for lifecycle (close).
-# ---------------------------------------------------------------
-class TestDbLifecycle:
-    """Tests for the sync close() lifecycle method."""
+        result = load_db.get_views_many(targets, {})
+        assert all(result[f"Target {i}"] == i for i in range(1200))
 
-    async def test_close_is_idempotent_and_safe(self, db_factory):
-        db: PageviewsDb = db_factory("en.wikipedia", "2024-01")
-        db.upsert_many({"A": 10})
+    def test_upsert_many_large_batch(self, load_db):
+        # Insert values in a single call spanning multiple chunks on read-back.
+        title_views = {f"Bulk {i}": i * 2 for i in range(1000)}
+        load_db.upsert_many(title_views)
 
-        # close() must be callable and safe to call more than once.
-        db.close_db()
-        db.close_db()
-
-        # The on-disk data survives disposal.
-        assert _rows(db.db_file_path) == {"A": 10}
+        cached = load_db.query_titles_cache(list(title_views))
+        assert len(cached) == 1000

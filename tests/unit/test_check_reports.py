@@ -17,14 +17,21 @@ def patched(monkeypatch):
     Parameters:
         monkeypatch: Pytest monkeypatch fixture used to replace the report updater.
     """
-    # main() drives the coroutine with asyncio.run, which needs a real event
-    # loop (its self-pipe uses a socket). No real network occurs because the
-    # updater is fully mocked, so allowing the socket is safe here.
+    # main() drives everything via a single asyncio.run() call, which needs a
+    # real event loop (its self-pipe uses a socket). No real network occurs
+    # because the updater is fully mocked, so allowing the socket is safe here.
     enable_socket()
     updater = MagicMock()
     updater.wiki_repository.get_stale_projects.return_value = []
     updater.update_reports = AsyncMock()
     monkeypatch.setattr(cr_module, "ReportUpdater", lambda *a, **k: updater)  # type: ignore
+
+    # Avoid unrelated side effects (extra object construction, real file I/O)
+    # in each per-wiki iteration so the "all wikis" test isn't paying for
+    # work that isn't under test here.
+    monkeypatch.setattr(cr_module, "IndexUpdater", MagicMock())  # type: ignore
+    monkeypatch.setattr(cr_module, "log_to_file", MagicMock())  # type: ignore
+
     return updater
 
 
