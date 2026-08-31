@@ -42,6 +42,9 @@ class ReportUpdater:
         self.env = Environment(loader=FileSystemLoader(str(app_config.paths.views_dir)))
         self._register_template_helpers()
 
+        self.processed = 0
+        self.skipped = 0
+
     def _register_template_helpers(self) -> None:
         logger.debug("Registering template helpers (ucfirst, date, msg, assessments)")
         self.env.filters["ucfirst"] = uc_first
@@ -346,24 +349,21 @@ class ReportUpdater:
         try:
             logger.info("update_reports: processing %d project(s) sequentially", len(config))
 
-            processed = 0
-            skipped = 0
-
             for project in config:
                 if not self.validate_project_config(project.project_main_page, project):
-                    skipped += 1
+                    self.skipped += 1
                     continue
 
                 page_rows = self.wiki_repository.db.get_project_pages(project.Name)
                 if not page_rows:
                     logger.info('[%s] No pages found for "%s"', self.wiki, project.project_main_page)
-                    skipped += 1
+                    self.skipped += 1
                     continue
 
                 # See T164178: guard against runaway memory for very large projects.
                 if len(page_rows) > app_config.wiki.max_project_size:
                     logger.info("[%s] Error: %s is too large. Skipping.", self.wiki, project.project_main_page)
-                    skipped += 1
+                    self.skipped += 1
                     continue
 
                 cache = None
@@ -384,14 +384,14 @@ class ReportUpdater:
                         page_rows=page_rows,
                     )
                     logger.info("[%s] Finished processing: %s", self.wiki, project.Name)
-                    processed += 1
+                    self.processed += 1
                 except Exception as exc:
                     # One project failing must not abort the whole run (mirrors
                     # the per-wiki isolation in check_reports.py, but at the
                     # per-project level).
                     logger.exception("Error processing project '%s': %s", project.Name, exc)
                     logger.info("[%s] Error processing %s: %s", self.wiki, project.Name, exc)
-                    skipped += 1
+                    self.skipped += 1
                 finally:
                     # Close the per-project SQLite cache so its engine/file
                     # handle is released before the next iteration; otherwise
@@ -404,7 +404,7 @@ class ReportUpdater:
                     page_rows = None
                     cache = None
 
-            logger.info("update_reports: done (%d processed, %d skipped)", processed, skipped)
+            logger.info("update_reports: done (%d processed, %d skipped)", self.processed, self.skipped)
 
             # NOTE: update index moved into IndexUpdater
             # self.update_index()
