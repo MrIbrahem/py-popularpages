@@ -17,7 +17,6 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import Any
 
 import httpx
 import mwclient
@@ -425,14 +424,14 @@ class WikiRepository:
 
     async def get_monthly_pageviews_and_assessments(
         self,
-        batches: dict[str, Any],
+        batches: dict[str, list[str]],
         start: str,
         end: str,
     ) -> dict[str, int]:
         """
         Split the given target batches into chunks of at most
         `app_config.pageviews.batch_size_threshold` targets each, and fetch
-        pageviews for each chunk via `_process_batch`.
+        pageviews for each chunk via `PageviewsRepository.get_pageviews`.
         """
         chunk_size = app_config.pageviews.batch_size_threshold
         items = list(batches.items())
@@ -441,7 +440,12 @@ class WikiRepository:
         views_by_title: dict[str, int] = {}
 
         for chunk_start in range(0, len_items, chunk_size):
-            chunk = dict(items[chunk_start : chunk_start + chunk_size])
+            # `batches` maps each target to its *redirect* titles only, so the
+            # canonical target title must be prepended here; get_pageviews
+            # expects every queried title (target + redirects) for each target.
+            chunk = {
+                target: [target, *redirects] for target, redirects in items[chunk_start : chunk_start + chunk_size]
+            }
 
             logger.info(
                 "[%s] Processing page %d of %d",
