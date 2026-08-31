@@ -24,17 +24,10 @@ class PageviewsDb:
     # See: https://www.sqlite.org/limits.html#max_variable_number
     _SELECT_IN_CHUNK_SIZE = 500
 
-    def __init__(
-        self,
-        wiki: str,
-        year_month: str,
-        db_file_path: Path,
-    ) -> None:
+    def __init__(self, db_file_path: Path) -> None:
         """
-        :param wiki: Wiki domain, e.g. 'en.wikipedia'.
-        :param year_month: Month key, e.g. '2024-01'.
+        :param db_file_path: Path to the SQLite database file.
         """
-        self.wiki = wiki
         self.db_file_path = db_file_path
 
         # SQLite creates the file on first connection if it doesn't exist yet.

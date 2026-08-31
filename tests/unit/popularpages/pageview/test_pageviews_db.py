@@ -35,7 +35,7 @@ def db_factory(db_dir):
 
         db_file_path = PageviewsCache.build_db_file_path(wiki, year_month, db_dir)
 
-        db = PageviewsDb(wiki, year_month, db_file_path=db_file_path)
+        db = PageviewsDb(db_file_path)
         created.append(db)
         return db
 
