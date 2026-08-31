@@ -480,7 +480,7 @@ class WikiRepository:
         batch_count = 0
         total_pageviews = 0
 
-        for index, row in enumerate(rows, start=1):
+        for row in rows:
             target = (row["page_title"] or "").replace("_", " ")
             redir = (row["redir_title"] or "").replace("_", " ")
 
@@ -501,15 +501,11 @@ class WikiRepository:
             # close to the API's ~100 req/sec limit without a hard cap.
             batch_count += 1
             if batch_count > app_config.pageviews.batch_size_threshold:
-                logger.info("[%s] Processing page %d of %d", self.wiki, index, len_rows)
                 total_pageviews += await self._process_batch(batch, out, start, end)
                 batch_count = 0
 
         # Finish processing any leftover pages.
         total_pageviews += await self._process_batch(batch, out, start, end)
-
-        logger.info("[%s] Pageviews fetch complete", self.wiki)
-        logger.info("Pageviews fetch complete: %d total pageviews", total_pageviews)
 
         return out, total_pageviews
 
