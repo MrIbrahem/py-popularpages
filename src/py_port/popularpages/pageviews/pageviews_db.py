@@ -52,7 +52,7 @@ class PageviewsDb:
         for i in range(0, len(items), size):
             yield items[i : i + size]
 
-    def _query_views_by_title(self, session: Session, titles: list[str]) -> dict[str, int]:
+    def _query_views_by_title(self, titles: list[str]) -> dict[str, int]:
         """
         Resolve title -> views for many titles, reusing a single session and
         querying in chunks to stay under SQLite's bound-variable limit.
@@ -64,10 +64,11 @@ class PageviewsDb:
         """
         views_by_title: dict[str, int] = {}
 
-        for chunk in self._chunked(titles, self._SELECT_IN_CHUNK_SIZE):
-            query = select(PageView.title, PageView.views).where(PageView.title.in_(chunk))
-            for title, views in session.execute(query).all():
-                views_by_title[title] = views
+        with self._Session() as session:
+            for chunk in self._chunked(titles, self._SELECT_IN_CHUNK_SIZE):
+                query = select(PageView.title, PageView.views).where(PageView.title.in_(chunk))
+                for title, views in session.execute(query).all():
+                    views_by_title[title] = views
 
         return views_by_title
 
@@ -90,7 +91,7 @@ class PageviewsDb:
             session.execute(stmt)
             session.commit()
 
-        logger.debug("Upserted %d title(s) into %s", len(title_views), self.db_file_path)
+        logger.debug("Upserted %d titles into %s", len(title_views), self.db_file_path)
 
     # ---------------------------------------------------
     # Lookup
@@ -100,8 +101,7 @@ class PageviewsDb:
         if not wanted:
             return set()
 
-        with self._Session() as session:
-            views_by_title = self._query_views_by_title(session, wanted)
+        views_by_title = self._query_views_by_title(wanted)
 
         return set(views_by_title)
 
@@ -137,25 +137,48 @@ class PageviewsDb:
         # Map every unique title to the targets that reference it (as the
         # target itself or as one of its redirects). A title may be referenced
         # by more than one target, so keep a list.
-        title_to_targets: dict[str, list[str]] = {}
-        for target in targets:
-            for title in (target, *redirects_by_target.get(target, [])):
-                if title:
-                    title_to_targets.setdefault(title, []).append(target)
+        title_to_targets = self.map_titles_to_targets(targets, redirects_by_target)
 
         if not title_to_targets:
             return dict.fromkeys(targets, 0)
 
-        with self._Session() as session:
-            views_by_title = self._query_views_by_title(session, list(title_to_targets))
+        views_by_title = self._query_views_by_title(list(title_to_targets))
 
         result: dict[str, int] = {}
         for target in targets:
-            result[target] = sum(
+            views_data = [
                 views_by_title.get(title, 0) for title in (target, *redirects_by_target.get(target, [])) if title
-            )
+            ]
+
+            result[target] = sum(views_data)
 
         return result
+
+    def map_titles_to_targets(self, targets, redirects_by_target) -> dict[str, list[str]]:
+        """
+        Maps canonical targets and their associated redirect titles back to the original targets.
+
+        This method iterates through a collection of targets and their corresponding
+        redirect titles. It constructs a dictionary where each key is a title (either
+        a target itself or one of its redirects), and the corresponding value is a
+        list of original targets that the title maps to or redirects to.
+
+        Args:
+            targets (Iterable[str]): A collection of canonical target strings.
+            redirects_by_target (dict[str, list[str]]): A dictionary mapping a target
+                string to a list of its redirect titles.
+
+        Returns:
+            dict[str, list[str]]: A dictionary mapping each title (target or redirect)
+                to a list of original targets it is associated with.
+        """
+        t2t: dict[str, list[str]] = {}
+        for target in targets:
+            for title in (target, *redirects_by_target.get(target, [])):
+                if title:
+                    t2t.setdefault(title, []).append(target)
+
+        return t2t
 
 
 __all__ = [

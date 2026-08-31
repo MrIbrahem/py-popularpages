@@ -30,7 +30,6 @@ def patched(monkeypatch):
     # in each per-wiki iteration so the "all wikis" test isn't paying for
     # work that isn't under test here.
     monkeypatch.setattr(cr_module, "IndexUpdater", MagicMock())  # type: ignore
-    monkeypatch.setattr(cr_module, "log_to_file", MagicMock())  # type: ignore
 
     return updater
 

@@ -81,14 +81,18 @@ class TestResolveWiki:
         f = tmp_path / "wikimap.json"
         _write_fresh_map(f)
         maps = WikiReplicaMaps(file_name=str(f))
-        assert maps.resolve_wiki("enwiki")["dbname"] == "enwiki"
+        wiki_map = maps.resolve_wiki("enwiki")
+        assert wiki_map is not None
+        assert wiki_map["dbname"] == "enwiki"
 
     def test_resolve_wiki_with_wiki_suffix(self, tmp_path, no_db, reset_singleton):
         f = tmp_path / "wikimap.json"
         _write_fresh_map(f)
         maps = WikiReplicaMaps(file_name=str(f))
         # "en" matches "enwiki".
-        assert maps.resolve_wiki("en")["dbname"] == "enwiki"
+        wiki_map = maps.resolve_wiki("en")
+        assert wiki_map is not None
+        assert wiki_map["dbname"] == "enwiki"
 
     def test_resolve_wiki_no_match(self, tmp_path, no_db, reset_singleton):
         f = tmp_path / "wikimap.json"

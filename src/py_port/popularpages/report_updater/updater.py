@@ -13,7 +13,6 @@ import time
 from jinja2 import Environment, FileSystemLoader
 
 from ..config import app_config
-from ..logger import log_to_file
 from ..mapping import MonthDate, WikiProjectConfig
 from ..pageviews.pageviews_cache import PageviewsCache
 from ..utils import format_date, uc_first
@@ -42,6 +41,9 @@ class ReportUpdater:
 
         self.env = Environment(loader=FileSystemLoader(str(app_config.paths.views_dir)))
         self._register_template_helpers()
+
+        self.processed = 0
+        self.skipped = 0
 
     def _register_template_helpers(self) -> None:
         logger.debug("Registering template helpers (ucfirst, date, msg, assessments)")
@@ -101,6 +103,7 @@ class ReportUpdater:
 
     async def process_project(
         self,
+        *,
         project: str,
         config: dict | WikiProjectConfig,
         cache: PageviewsCache | None = None,
@@ -125,27 +128,17 @@ class ReportUpdater:
         logger.debug("Fetched %d page(s) for project '%s'", len(page_rows), config.Name)
 
         if not page_rows:
-            log_to_file(f'No pages found for "{project}"', self.wiki)
+            logger.info('[%s] No pages found for "%s"', self.wiki, project)
             return
 
         # See T164178: guard against runaway memory for very large projects.
         if len(page_rows) > app_config.wiki.max_project_size:
-            log_to_file(f"Error: {project} is too large. Skipping.", self.wiki)
+            logger.info("[%s] Error: %s is too large. Skipping.", self.wiki, project)
             return
 
-        if cache is not None:
-            data, total_views = await self._views_for_project_from_cache(page_rows, config.Limit, cache)
-        else:
-            start_date = self.month_date.start.strftime("%Y%m%d00")
-            end_date = self.month_date.end.strftime("%Y%m%d00")
-            logger.debug("Pageviews window: start=%s end=%s", start_date, end_date)
+        data, total_views = await self.load_data_and_total_views(config, cache, page_rows)
 
-            data, total_views = await self.wiki_repository.get_monthly_pageviews_and_assessments(
-                page_rows,
-                start_date,
-                end_date,
-                config.Limit,
-            )
+        data = self.wiki_repository._sort_and_truncate_pages_list(data, config.Limit)
 
         # Add in averages.
         self.populate_assessment_categories(data)
@@ -173,7 +166,42 @@ class ReportUpdater:
             output,
             self.i18n.msg("edit-summary"),
             section_number=section_number,
+            file_name=f"{config.Name}.wikitext",
         )
+
+    async def load_data_and_total_views(
+        self,
+        config: WikiProjectConfig,
+        cache: PageviewsCache | None,
+        page_rows: list[dict],
+    ) -> tuple[dict[str, dict], int]:
+        _t0 = time.perf_counter()
+
+        if cache is not None:
+            data, total_views = await self._views_for_project_from_cache(page_rows, config.Limit, cache)
+        else:
+            start_date = self.month_date.start.strftime("%Y%m%d00")
+            end_date = self.month_date.end.strftime("%Y%m%d00")
+            logger.debug("Pageviews window: start=%s end=%s", start_date, end_date)
+
+            data, total_views = await self.wiki_repository.get_monthly_pageviews_and_assessments(
+                page_rows,
+                start_date,
+                end_date,
+                config.Limit,
+            )
+
+        logger.info("[%s] Pageviews fetch complete", self.wiki)
+        logger.info("Pageviews fetch complete: %d total pageviews", total_views)
+
+        _elapsed = time.perf_counter() - _t0
+        logger.info(
+            "took %.4f s for %d page(s), limit: %d",
+            _elapsed,
+            len(page_rows),
+            config.Limit,
+        )
+        return data, total_views
 
     def populate_assessment_categories(self, data: dict[str, dict]) -> dict[str, dict]:
         days_in_month = self.month_date.days_in_month
@@ -215,22 +243,22 @@ class ReportUpdater:
             config = WikiProjectConfig.from_json(project, data=config)
 
         if config.is_incomplete():
-            log_to_file(f"Error: Incomplete data in config for {config.project_main_page}. Skipping.", self.wiki)
+            logger.info("[%s] Error: Incomplete data in config for %s. Skipping.", self.wiki, config.project_main_page)
             return False
 
         # Don't allow writing the report to the main namespace. There's no easy way to grab the namespace ID here
         # so just reject titles that don't have a colon in them (matches the PHP heuristic).
         if ":" not in config.Report:
-            log_to_file(
-                f"Error: {config.project_main_page} is configured to write to the mainspace. Skipping.", self.wiki
+            logger.info(
+                "[%s] Error: %s is configured to write to the mainspace. Skipping.", self.wiki, config.project_main_page
             )
             return False
 
-        log_to_file(f"Beginning to process: {config.Name}", self.wiki)
+        logger.info("[%s] Beginning to process: %s", self.wiki, config.Name)
 
         # Check the project exists.
         if not self.wiki_repository.does_title_exist(config.project_main_page):
-            log_to_file(f"Error: Project page for {config.Name} does not exist! Skipping.", self.wiki)
+            logger.info("[%s] Error: Project page for %s does not exist! Skipping.", self.wiki, config.Name)
             return False
 
         return True
@@ -255,72 +283,59 @@ class ReportUpdater:
         await cache.ensure(all_titles)
         return cache
 
-    async def _views_for_project_from_cache(
-        self,
-        page_rows: list[dict],
-        limit: int,
-        cache: PageviewsCache,
-    ) -> tuple[dict[str, dict], int]:
-        """
-        Compute per-project pageviews from the shared :class:`PageviewsCache`.
-
-        Mirrors the sort/truncate/total semantics of
-        ``WikiRepository.get_monthly_pageviews_and_assessments``, but reads
-        already-fetched (and persisted) view counts from ``cache`` instead of
-        hitting the Pageviews API. A shared article is therefore counted once
-        per project that references it while having been fetched only once for
-        the whole wiki (or read back from the on-disk cache if a previously
-        processed project in this run already fetched it).
-
-        :param page_rows: Rows as returned by ``get_project_pages()``.
-        :param limit: Max number of pages to include in the final report.
-        :param cache: The shared pageviews cache.
-        :return: (pages_dict, total_pageviews).
-        """
-        _t0 = time.perf_counter()
-        logger.info("Fetching pageviews for %d page(s), limit: %d", len(page_rows), limit)
-        unknown_msg = self.i18n.msg("unknown")
-        out: dict[str, dict] = {}
-        redirects: dict[str, list[str]] = {}
-        total_pageviews = 0
-
-        for row in page_rows:
-            target = (row["page_title"] or "").replace("_", " ")
-            redir = (row["redir_title"] or "").replace("_", " ")
-            if target not in out:
-                out[target] = {
-                    "pageviews": 0,
-                    "class": row["pa_class"] or unknown_msg,
-                    "importance": row["pa_importance"] or unknown_msg,
-                }
-                redirects[target] = []
-            if redir:
-                redirects[target].append(redir)
-
-        # Bio-like projects can have >900,000 titles. A per-target
-        # `get_views` call would mean >900,000 separate SQLite queries; instead
-        # resolve every unique title across all targets + redirects in a few
-        # chunked queries that share one session, then aggregate back per target.
-        counts = cache.db.get_views_many(list(out), redirects)
-
-        for target, count in counts.items():
-            out[target]["pageviews"] = count
-            total_pageviews += count
-
-        out = self.wiki_repository._sort_and_truncate_pages_list(out, limit)
-
-        _elapsed = time.perf_counter() - _t0
-        logger.info(
-            "took %.4f s for %d page(s), limit: %d",
-            _elapsed,
-            len(page_rows),
-            limit,
-        )
-        return out, total_pageviews
-
     # ---------------------------------------------------
     # Public Methods
     # ---------------------------------------------------
+
+    async def update_one_report(self, project: WikiProjectConfig, cache: PageviewsCache) -> None:
+        """ """
+        if not self.validate_project_config(project.project_main_page, project):
+            self.skipped += 1
+            return
+
+        page_rows = self.wiki_repository.db.get_project_pages(project.Name)
+        if not page_rows:
+            logger.info('[%s] No pages found for "%s"', self.wiki, project.project_main_page)
+            self.skipped += 1
+            return
+
+        # See T164178: guard against runaway memory for very large projects.
+        if len(page_rows) > app_config.wiki.max_project_size:
+            logger.info("[%s] Error: %s is too large. Skipping.", self.wiki, project.project_main_page)
+            self.skipped += 1
+            return
+
+        try:
+            titles = self._titles_for_pages(page_rows)
+            logger.info(f"Fetching pageviews for {len(titles):,} titles in project: %s:%s", self.wiki, project.Name)
+
+            await cache.ensure(titles)
+
+            logger.info("Processing project '%s'", project.Name)
+
+            await self.process_project(
+                project=project.project_main_page,
+                config=project,
+                cache=cache,
+                page_rows=page_rows,
+            )
+
+            logger.info("[%s] Finished processing: %s", self.wiki, project.Name)
+            self.processed += 1
+
+        except Exception as exc:
+            # One project failing must not abort the whole run (mirrors
+            # the per-wiki isolation in check_reports.py, but at the
+            # per-project level).
+            logger.exception("Error processing project '%s': %s", project.Name, exc)
+            logger.info("[%s] Error processing %s: %s", self.wiki, project.Name, exc)
+            self.skipped += 1
+
+        finally:
+            # Drop references so this project's page/pageview data is
+            # eligible for GC before the next iteration allocates more,
+            # rather than living until the whole batch finishes.
+            page_rows = None
 
     async def update_reports(self, config: list[WikiProjectConfig]) -> None:
         """
@@ -340,75 +355,88 @@ class ReportUpdater:
         """
         # Make sure config isn't empty.
         if not config:
-            log_to_file("Error: Invalid config. Aborting!", self.wiki)
+            logger.info("[%s] Error: Invalid config. Aborting!", self.wiki)
             return
+
+        cache = PageviewsCache(
+            self.wiki,
+            self.month_date.start,
+            self.month_date.end,
+            self.wiki_repository.pageviews_repo,
+        )
 
         try:
             logger.info("update_reports: processing %d project(s) sequentially", len(config))
 
-            processed = 0
-            skipped = 0
-
             for project in config:
-                if not self.validate_project_config(project.project_main_page, project):
-                    skipped += 1
-                    continue
+                await self.update_one_report(project, cache)
 
-                page_rows = self.wiki_repository.db.get_project_pages(project.Name)
-                if not page_rows:
-                    log_to_file(f'No pages found for "{project.project_main_page}"', self.wiki)
-                    skipped += 1
-                    continue
-
-                # See T164178: guard against runaway memory for very large projects.
-                if len(page_rows) > app_config.wiki.max_project_size:
-                    log_to_file(f"Error: {project.project_main_page} is too large. Skipping.", self.wiki)
-                    skipped += 1
-                    continue
-
-                cache = None
-                try:
-                    # Build a pageviews cache scoped to *this project's* titles
-                    # only (instead of accumulating titles across all stale
-                    # projects before fetching anything).
-                    titles = self._titles_for_pages(page_rows)
-                    cache = await self._build_views_cache(titles)
-
-                    logger.info("Processing project '%s'", project.Name)
-                    await self.process_project(
-                        project=project.project_main_page,
-                        config=project,
-                        cache=cache,
-                        page_rows=page_rows,
-                    )
-                    log_to_file(f"Finished processing: {project.Name}", self.wiki)
-                    processed += 1
-                except Exception as exc:
-                    # One project failing must not abort the whole run (mirrors
-                    # the per-wiki isolation in check_reports.py, but at the
-                    # per-project level).
-                    logger.exception("Error processing project '%s': %s", project.Name, exc)
-                    log_to_file(f"Error processing {project.Name}: {exc}", self.wiki)
-                    skipped += 1
-                finally:
-                    # Close the per-project SQLite cache so its engine/file
-                    # handle is released before the next iteration; otherwise
-                    # open SQLite handles accumulate across project iterations.
-                    if cache is not None:
-                        cache.db.close_db()
-                    # Drop references so this project's page/pageview data is
-                    # eligible for GC before the next iteration allocates more,
-                    # rather than living until the whole batch finishes.
-                    page_rows = None
-                    cache = None
-
-            logger.info("update_reports: done (%d processed, %d skipped)", processed, skipped)
+            logger.info("update_reports: done (%d processed, %d skipped)", self.processed, self.skipped)
 
             # NOTE: update index moved into IndexUpdater
             # self.update_index()
         finally:
+            # Close the SQLite engine
+            cache.db.close_db()
+
             # Release the per-run Pageviews HTTP client (async context).
             await self.wiki_repository.pageviews_repo.aclose()
+
+    # ---------------------------------------------------
+    # Pageviews + assessments (batched)
+    async def _views_for_project_from_cache(
+        self,
+        rows: list[dict],
+        limit: int,
+        cache: PageviewsCache,
+    ) -> tuple[dict[str, dict], int]:
+        """
+        Compute per-project pageviews from the shared :class:`PageviewsCache`.
+
+        Mirrors the sort/truncate/total semantics of
+        ``WikiRepository.get_monthly_pageviews_and_assessments``, but reads
+        already-fetched (and persisted) view counts from ``cache`` instead of
+        hitting the Pageviews API. A shared article is therefore counted once
+        per project that references it while having been fetched only once for
+        the whole wiki (or read back from the on-disk cache if a previously
+        processed project in this run already fetched it).
+
+        :param rows: Rows as returned by ``get_project_pages()``.
+        :param limit: Max number of pages to include in the final report.
+        :param cache: The shared pageviews cache.
+        """
+        len_rows = len(rows)
+
+        logger.info("[%s] Fetching monthly pageviews", self.wiki)
+        logger.info("Fetching pageviews for %d page(s), limit: %d", len_rows, limit)
+        unknown_msg = self.i18n.msg("unknown")
+
+        out: dict[str, dict] = {}
+        batches: dict[str, list[str]] = {}
+
+        for row in rows:
+            target = (row["page_title"] or "").replace("_", " ")
+            redir = (row["redir_title"] or "").replace("_", " ")
+
+            if target not in out:
+                out[target] = {
+                    "pageviews": 0,
+                    "class": row["pa_class"] or unknown_msg,
+                    "importance": row["pa_importance"] or unknown_msg,
+                }
+
+                batches[target] = []
+            if redir:
+                batches[target].append(redir)
+
+        counts = cache.db.get_views_many(list(out), batches)
+
+        total_pageviews = 0
+        for target, count in counts.items():
+            out[target]["pageviews"] = count
+            total_pageviews += count
+
+        return out, total_pageviews
 
 
 __all__ = [

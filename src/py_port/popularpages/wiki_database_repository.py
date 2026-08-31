@@ -12,7 +12,6 @@ import logging
 from typing import Any
 
 from .db_analytics import WikiReplicaDB
-from .logger import log_to_file
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +108,7 @@ class WikiDatabaseRepository:
         :param titles: Mapping of db-key page title -> WikiProject name.
         :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
         """
-        log_to_file("Fetching timestamps of the bot's last edits", self.wiki)
+        logger.info("[%s] Fetching timestamps of the bot's last edits", self.wiki)
 
         rows = self._get_projects_timestamps(titles)
         logger.debug("Retrieved timestamps for %d project(s)", len(rows))
@@ -125,7 +124,7 @@ class WikiDatabaseRepository:
         :return: List of rows with page_title, pa_class, pa_importance, redir_title.
         """
         logger.debug("Fetching pages for project '%s'", project)
-        log_to_file(f"Fetching pages and assessments for project {project}", self.wiki)
+        logger.info("[%s] Fetching pages and assessments for project %s", self.wiki, project)
 
         rows = self._get_project_pages(project)
         logger.debug("Retrieved %d page(s) for project '%s'", len(rows), project)

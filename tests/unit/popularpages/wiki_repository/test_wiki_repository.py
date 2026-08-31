@@ -70,8 +70,8 @@ class TestGetBotLastEditDate:
         assert result1 == "2026-08-04"
 
 
-class TestWriteDryRunText:
-    """Tests for `_write_dry_run_text` dry-run persistence."""
+class TestWriteWikiText:
+    """Tests for `_write_wikitext` dry-run persistence."""
 
     def test_writes_file_with_sanitized_title(self, tmp_path, monkeypatch):
         repo = WikiRepository.__new__(WikiRepository)
@@ -81,13 +81,14 @@ class TestWriteDryRunText:
 
         title = "Wikipedia:WikiProject Medicine/Popular pages"
         text = "== List ==\n| A | B\n"
-        repo._write_dry_run_text(title, text)
+        repo._write_wikitext(title, text)
 
-        files = list(tmp_path.glob("*.wikitext"))
+        files = list(tmp_path.rglob("*.wikitext"))
         assert len(files) == 1
 
         # Colons and slashes in the title must be sanitized out of the filename.
         assert ":" not in files[0].name and "/" not in files[0].name
+
         # The dry-run writer prepends a 'Title:' header referencing the page.
         expected = f"Title: [[{title}]]\n\n{text}"
         assert files[0].read_text(encoding="utf-8") == expected
@@ -97,8 +98,10 @@ class TestWriteDryRunText:
         repo = WikiRepository.__new__(WikiRepository)
         repo.log_dir = tmp_path
         repo.wiki = "ar.wikipedia"
-        repo._write_dry_run_text("User:Foo/Bar", "x")
-        assert any("ar.wikipedia" in f.name for f in tmp_path.glob("*.wikitext"))
+        repo._write_wikitext("User:Foo/Bar", "x")
+        assert (tmp_path / "ar.wikipedia").is_dir()
+        files = list(tmp_path.rglob("*.wikitext"))
+        assert any("User_Foo_Bar.wikitext" == f.name for f in files)
 
 
 class TestWikiRepositoryPureMethods:

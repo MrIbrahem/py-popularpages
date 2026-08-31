@@ -15,13 +15,12 @@ partial run's progress is not lost).
 Backed by SQLite via SQLAlchemy (sync engine -- SQLite I/O is local and fast
 enough that async buys nothing here; only network calls to the Pageviews API,
 made through :class:`PageviewsRepository`, are ``async``).
-
-See docs/pageviews-persistence-and-dedup-plan.md.
 """
 
 from __future__ import annotations
 
 import logging
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -114,7 +113,7 @@ class PageviewsCache:
         end_date = self.end.strftime("%Y%m%d00")
 
         logger.info(
-            "Building pageviews cache for %d unique title(s) (window: %s-%s)",
+            "Building pageviews cache for %d unique titles (window: %s-%s)",
             len(titles),
             start_date,
             end_date,
@@ -123,24 +122,25 @@ class PageviewsCache:
         missing = self._find_missing(titles)
         if not missing:
             logger.info(
-                "Pageviews cache %s/%s: all %d title(s) already cached, nothing to fetch",
+                "Pageviews cache %s/%s: all %d titles already cached, nothing to fetch",
                 self.wiki,
                 self.year_month,
                 len(titles),
             )
             return
 
+        already_cached = len(titles) - len(missing)
         logger.info(
-            "Pageviews cache %s/%s: fetching %d new title(s) (%d requested)",
+            "Pageviews cache %s/%s: fetching %s new title (%s already cached)",
             self.wiki,
             self.year_month,
-            len(missing),
-            len(titles),
+            f"{len(missing):,}",
+            f"{already_cached:,}",
         )
 
         batches = range(0, len(missing), self.fetch_batch)
 
-        for i in tqdm(batches, desc=f"Fetching pageviews for {len(missing):,} titles"):
+        for i in tqdm(batches, desc=f"Fetching pageviews for {len(missing):,} titles", disable=not sys.stderr.isatty()):
             chunk = missing[i : i + self.fetch_batch]
             views = await self.repo.get_title_views(chunk, start_date, end_date)
 

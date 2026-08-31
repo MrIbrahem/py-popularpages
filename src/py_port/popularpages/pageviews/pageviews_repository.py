@@ -24,7 +24,6 @@ from tenacity import (
 )
 
 from ..config import app_config
-from ..logger import log_to_file
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +109,8 @@ class PageviewsRepository:
 
     async def aclose(self) -> None:
         """
-        Close the underlying HTTP client. Call when done with this repository."""
+        Close the underlying HTTP client. Call when done with this repository.
+        """
         logger.debug("Closing PageviewsRepository HTTP client for '%s'", self.domain)
         await self._client.aclose()
 
@@ -121,6 +121,7 @@ class PageviewsRepository:
             exc = outcome.exception()
             if isinstance(exc, httpx.HTTPStatusError):
                 status = str(exc.response.status_code)
+
         msg = (
             f"Attempt #{retry_state.attempt_number} to retry pageviews request. "
             f"Server responded with {status}. "
@@ -128,7 +129,7 @@ class PageviewsRepository:
             if retry_state.next_action
             else "Retrying pageviews request."
         )
-        log_to_file(msg, self.domain)
+        logger.info("[%s] %s", self.domain, msg)
 
     @retry(
         retry=retry_if_exception(_is_retryable),
@@ -171,7 +172,7 @@ class PageviewsRepository:
             all_titles.update(t for t in titles if t)
 
         logger.info(
-            "Fetching pageviews for %d target(s) across %d unique title(s) (start=%s, end=%s)",
+            "Fetching pageviews for %d target(s) across %d unique titles (start=%s, end=%s)",
             len(target_titles),
             len(all_titles),
             start,
@@ -179,7 +180,16 @@ class PageviewsRepository:
         )
 
         # gather returns a list of tuples: [(title, views_count), (title, views_count), ...]
-        results = await asyncio.gather(*(self._fetch_title_views(t, start, end) for t in all_titles))
+        results = await asyncio.gather(
+            *(
+                self._fetch_title_views(
+                    t,
+                    start,
+                    end,
+                )
+                for t in all_titles
+            )
+        )
 
         # Convert list of tuples to a dict.
         views_by_title = dict(results)
@@ -214,10 +224,10 @@ class PageviewsRepository:
             if exc.response.status_code == 404:
                 # No data available; okay to treat as 0 views.
                 return title, 0
-            log_to_file(f"Exception during pageviews request: {exc}", self.domain)
+            logger.error("[%s] Exception during pageviews request: %s", self.domain, exc)
             return title, 0
         except httpx.HTTPError as exc:
-            log_to_file(f"Exception during pageviews request: {exc}", self.domain)
+            logger.error("[%s] Exception during pageviews request: %s", self.domain, exc)
             return title, 0
 
     @staticmethod
@@ -262,7 +272,16 @@ class PageviewsRepository:
         """
 
         # gather returns a list of tuples: [(title, views_count), (title, views_count), ...]
-        results = await asyncio.gather(*(self._fetch_title_views(t, start, end) for t in titles))
+        results = await asyncio.gather(
+            *(
+                self._fetch_title_views(
+                    t,
+                    start,
+                    end,
+                )
+                for t in titles
+            )
+        )
 
         # Convert list of tuples to a dict.
         return dict(results)

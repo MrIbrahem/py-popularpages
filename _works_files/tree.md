@@ -6,6 +6,10 @@ src/
 ├── messages/
 │   ├── ar.json
 │   └── en.json
+├── popular_pages_dir/
+│   ├── data/
+│   │   └── views/
+│   └── logs/
 ├── py_port/
 │   ├── popularpages/
 │   │   ├── db_analytics/
@@ -16,9 +20,12 @@ src/
 │   │   ├── pageviews/
 │   │   │   ├── __init__.py
 │   │   │   ├── pageviews_cache.py
+│   │   │   ├── pageviews_db.py
+│   │   │   ├── pageviews_models.py
 │   │   │   └── pageviews_repository.py
 │   │   ├── report_updater/
 │   │   │   ├── __init__.py
+│   │   │   ├── index_updater.py
 │   │   │   └── updater.py
 │   │   ├── wiki_repository/
 │   │   │   ├── __init__.py
@@ -31,6 +38,9 @@ src/
 │   │   ├── mapping.py
 │   │   ├── utils.py
 │   │   └── wiki_database_repository.py
+│   ├── scripts/
+│   │   ├── __init__.py
+│   │   └── migrate_jsonl_to_sqlite.py
 │   ├── __init__.py
 │   ├── check_reports.py
 │   ├── generate_index.py

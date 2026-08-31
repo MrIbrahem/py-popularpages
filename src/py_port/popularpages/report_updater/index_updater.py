@@ -130,6 +130,7 @@ class IndexUpdater:
             page_title=wiki_config["index"],
             text=output,
             summary=self.i18n.msg("edit-summary"),
+            file_name="index.wikitext",
         )
 
 

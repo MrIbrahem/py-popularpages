@@ -8,10 +8,11 @@ tests/
 │   │   │   └── test_replica_db.py
 │   │   ├── pageview/
 │   │   │   ├── test_pageviews_cache.py
+│   │   │   ├── test_pageviews_db.py
 │   │   │   └── test_pageviews_repository.py
 │   │   ├── report_updater/
-│   │   │   ├── test_report_updater.py
-│   │   │   └── test_retrieve_project_updates_compare.py
+│   │   │   ├── test_index_updater.py
+│   │   │   └── test_report_updater.py
 │   │   ├── wiki_repository/
 │   │   │   ├── test_stale_projects_compare.py
 │   │   │   └── test_wiki_repository.py

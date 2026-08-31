@@ -17,7 +17,6 @@ import asyncio
 import logging
 
 from popularpages.config import app_config
-from popularpages.logger import log_to_file
 from popularpages.report_updater import IndexUpdater, ReportUpdater
 
 logger = logging.getLogger(__name__)
@@ -38,11 +37,11 @@ async def _process_wiki(wiki: str, *, dry_run: bool, update_index: bool) -> None
     logger.info("Starting cycle for wiki '%s'", wiki)
     try:
         updater = ReportUpdater(wiki, dry_run=dry_run)
-        log_to_file("Beginning new cycle", wiki)
+        logger.info("[%s] Beginning new cycle", wiki)
 
         stale_configs = updater.wiki_repository.get_stale_projects()
         logger.info("Wiki '%s': %d project(s) pending update", wiki, len(stale_configs))
-        log_to_file(f"Number of projects pending update: {len(stale_configs)}", wiki)
+        logger.info("[%s] Number of projects pending update: %d", wiki, len(stale_configs))
 
         await updater.update_reports(stale_configs)
 
@@ -55,7 +54,7 @@ async def _process_wiki(wiki: str, *, dry_run: bool, update_index: bool) -> None
 
     except Exception as exc:
         logger.exception("Error processing %s: %s", wiki, exc)
-        log_to_file(f"Error processing {wiki}: {exc}", wiki)
+        logger.error("[%s] Error processing %s: %s", wiki, wiki, exc)
 
 
 async def _run_all(wikis: list[str], *, dry_run: bool, update_index: bool) -> None:
