@@ -353,18 +353,28 @@ class PageviewsDumpLoader:
         aggregate totals for the configured wikis, and write them into the
         per-wiki/month SQLite cache.
 
-        :param year: Dump year, e.g. 2026.
-        :param month: Dump month, 1-12.
-        :param wanted_wiki_codes: Wiki codes to keep, e.g. the keys of
-            ``config/wikis.yaml`` (``{"en.wikipedia", "ar.wikipedia", ...}``).
-        :param wanted_titles_by_wiki: Optional per-wiki title allow-list; see
-            :meth:`_aggregate_dump`.
-        :return: ``{wiki_code: number_of_distinct_titles}`` for every wiki
-            that had at least one matching line in the dump (read back from
-            the SQLite cache after writing).
-        :raises DumpNotFoundError: if the dump for ``year``/``month`` isn't
-            present on disk yet -- callers should catch this and fall back to
-            the REST API path (``--source=api``) per the plan.
+        Resolves the dump path for the given month, streams and aggregates its
+        lines for the requested wiki codes (and optional title allow-list), and
+        returns the distinct-title counts read back from cache. Callers should
+        catch :class:`DumpNotFoundError` and fall back to the REST API path.
+
+        Args:
+            year (int): Dump year, e.g. 2026.
+            month (int): Dump month, 1-12.
+            wanted_wiki_codes (set[str]): Wiki codes to keep, e.g. the keys of
+                ``config/wikis.yaml`` (``{"en.wikipedia", "ar.wikipedia", ...}``).
+            wanted_titles_by_wiki (dict[str, set[str]] | None): Optional per-wiki title allow-list; see
+                :meth:`_aggregate_dump`.
+
+        Returns:
+            dict[str, int]: ``{wiki_code: number_of_distinct_titles}`` for every wiki
+                that had at least one matching line in the dump (read back from
+                the SQLite cache after writing).
+
+        Raises:
+            DumpNotFoundError: if the dump for ``year``/``month`` isn't
+                present on disk yet -- callers should catch this and fall back to
+                the REST API path (``--source=api``) per the plan.
         """
         dump_file = self._dump_path_for_month(year, month)
         logger.info("Loading pageviews dump for %04d-%02d from %s", year, month, dump_file)
