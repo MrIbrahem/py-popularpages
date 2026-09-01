@@ -99,6 +99,8 @@ class PageviewsDb:
         """
         views_by_title: dict[str, int] = {}
 
+        titles = [self._converte_underscore_to_space(x) for x in titles]
+
         with self._Session() as session:
             for chunk in self._chunked(titles, self._SELECT_IN_CHUNK_SIZE):
                 query = select(PageView.title, PageView.views).where(PageView.title.in_(chunk))
