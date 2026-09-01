@@ -164,7 +164,7 @@ class TestAggregateDump:
         db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
         try:
             # Main_Page: desktop(1000) + mobile-web(500) = 1500
-            assert db.get_views("Main Page", []) == 1500
+            assert db.one_title_views("Main Page") == 1500
         finally:
             db.close_db()
 
@@ -192,7 +192,7 @@ class TestAggregateDump:
 
         ar_db = PageviewsDb(views_dir / "ar.wikipedia" / "2026-08.sqlite3")
         try:
-            assert ar_db.get_views("!", []) == 12
+            assert ar_db.one_title_views("!") == 12
             # Only "!" was requested, so other ar titles must not be present.
             assert ar_db.one_title_views("!!") is None
         finally:
@@ -201,7 +201,7 @@ class TestAggregateDump:
         en_db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
         try:
             # en.wikipedia had no filter entry -> everything (valid) still aggregated.
-            assert en_db.get_views("Main Page", []) == 1500
+            assert en_db.one_title_views("Main Page") == 1500
         finally:
             en_db.close_db()
 
@@ -256,7 +256,7 @@ def test_load_dump_into_cache_end_to_end(tmp_path: Path):
 
     en_db = PageviewsDb(en_db_path)
     try:
-        assert en_db.get_views("Main Page", []) == 1500
+        assert en_db.one_title_views("Main Page") == 1500
         # The malformed line's title must simply not exist in the cache.
         assert en_db.one_title_views("Some_Page") is None
     finally:
@@ -337,6 +337,6 @@ def test_load_dump_into_cache_is_upsert_not_replace(tmp_path: Path):
 
     db = PageviewsDb(views_dir / "ar.wikipedia" / "2026-07.sqlite3")
     try:
-        assert db.get_views("!", []) == 12
+        assert db.one_title_views("!") == 12
     finally:
         db.close_db()

@@ -183,29 +183,12 @@ class PageviewsDb:
         with self._Session() as session:
             return int(session.scalar(select(func.count()).select_from(PageView)) or 0)
 
-    def get_views(self, target: str, redirects: list[str]) -> int:
-        """
-        Return the total views for a target page plus its redirects.
-
-        Looks up the cached view counts for the target title and each of its
-        redirect titles, then sums them. A thin convenience wrapper around
-        :meth:`get_views_many` for the single-target case.
-
-        Args:
-            target (str): Target page title (spaces).
-            redirects (list[str]): Redirect titles (spaces) associated with the target.
-
-        Returns:
-            int: Sum of cached views across target + redirects.
-        """
-        return self.get_views_many({target: redirects}).get(target, 0)
-
     def get_views_many(
         self,
         targets_to_redirects: dict[str, list[str]],
     ) -> dict[str, int]:
         """
-        Bulk variant of :meth:`get_views` for many targets at once.
+        Bulk variant for many targets at once.
 
         Instead of one SQLite query per target -- which, for projects with
         hundreds of thousands of titles, means hundreds of thousands of

@@ -2,9 +2,6 @@
 Tests for src.py_port.popularpages.pageviews.pageviews_db.PageviewsDb.
 
 The SQLite-backed store is exercised directly (no PageviewsCache, no network):
-we upsert rows with ``upsert_many`` and assert on ``get_views`` /
-``get_views_many`` / ``query_titles_cache`` lookup behavior, conflict/overwrite
-semantics, chunked-query safety, and the ``close_db`` lifecycle.
 
 Note: PageviewsDb's methods are synchronous, so all tests here are plain
 (non-async) functions/methods.
@@ -106,7 +103,7 @@ class TestInitAndClose:
         db1.close_db()
 
         db2 = db_factory("en.wikipedia", "2024-02")
-        assert db2.get_views("Cairo", []) == 100
+        assert db2.one_title_views("Cairo") == 100
 
 
 # ---------------------------------------------------
@@ -119,8 +116,8 @@ class TestUpsertMany:
 
     def test_inserts_new_rows(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10, "Alexandria": 20})
-        assert load_db.get_views("Cairo", []) == 10
-        assert load_db.get_views("Alexandria", []) == 20
+        assert load_db.one_title_views("Cairo") == 10
+        assert load_db.one_title_views("Alexandria") == 20
 
     def test_re_fetch_overwrites_existing_row_not_duplicates(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10})
@@ -129,14 +126,14 @@ class TestUpsertMany:
         load_db.upsert_many({"Cairo": 999})
 
         assert _rows(load_db.db_file_path) == {"Cairo": 999}  # exactly one row
-        assert load_db.get_views("Cairo", []) == 999
+        assert load_db.one_title_views("Cairo") == 999
         assert load_db.query_titles_cache(["Cairo"]) == {"Cairo"}
 
     def test_mixed_insert_and_update_in_one_call(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10})
         load_db.upsert_many({"Cairo": 50, "Giza": 5})
-        assert load_db.get_views("Cairo", []) == 50
-        assert load_db.get_views("Giza", []) == 5
+        assert load_db.one_title_views("Cairo") == 50
+        assert load_db.one_title_views("Giza") == 5
 
 
 # ---------------------------------------------------
@@ -157,36 +154,12 @@ class TestQueryTitlesCache:
 
 
 # ---------------------------------------------------
-# get_views
-# ---------------------------------------------------
-class TestGetViews:
-    def test_target_with_no_redirects(self, load_db: PageviewsDb):
-        load_db.upsert_many({"Cairo": 42})
-        assert load_db.get_views("Cairo", []) == 42
-
-    def test_sums_target_and_redirects(self, load_db: PageviewsDb):
-        load_db.upsert_many({"Cairo": 10, "Al-Qahira": 5, "Qahira": 3})
-        assert load_db.get_views("Cairo", ["Al-Qahira", "Qahira"]) == 18
-
-    def test_missing_title_returns_zero(self, load_db: PageviewsDb):
-        assert load_db.one_title_views("Nonexistent") is None
-
-    def test_missing_redirect_is_ignored_not_erroring(self, load_db: PageviewsDb):
-        load_db.upsert_many({"Cairo": 10})
-        assert load_db.get_views("Cairo", ["Unknown Redirect"]) == 10
-
-    def test_falsy_titles_in_redirects_are_skipped(self, load_db: PageviewsDb):
-        load_db.upsert_many({"Cairo": 10})
-        assert load_db.get_views("Cairo", ["", None]) == 10  # type: ignore[list-item]
-
-    def test_empty_target_and_no_redirects_returns_zero(self, load_db: PageviewsDb):
-        assert load_db.one_title_views("") is None
-
-
-# ---------------------------------------------------
 # one_title_views
 # ---------------------------------------------------
 class TestOneTitleViews:
+
+    def test_empty_target_and_no_redirects_returns_zero(self, load_db: PageviewsDb):
+        assert load_db.one_title_views("") is None
 
     def test_with_underscore(self, load_db: PageviewsDb):
         load_db.upsert_many({"test_ye": 15_000})
@@ -235,13 +208,6 @@ class TestGetViewsMany:
             {"TargetA": ["Shared"], "TargetB": ["Shared"]},
         )
         assert result2 == {"TargetA": 10, "TargetB": 11}
-
-    def test_matches_get_views_for_single_target(self, load_db: PageviewsDb):
-        load_db.upsert_many({"Cairo": 10, "Al-Qahira": 5})
-        single = load_db.get_views("Cairo", ["Al-Qahira"])
-
-        many2 = load_db.get_views_many({"Cairo": ["Al-Qahira"]})
-        assert many2["Cairo"] == single
 
     def test_target_missing_from_redirects_by_target_defaults_to_no_redirects(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10})
@@ -325,8 +291,8 @@ class TestUpsertManyChunks:
         """A batch smaller than the chunk_size takes the early-return path
         straight to ``upsert_many``."""
         load_db.upsert_many_chunks({"Cairo": 10, "Giza": 5})
-        assert load_db.get_views("Cairo", []) == 10
-        assert load_db.get_views("Giza", []) == 5
+        assert load_db.one_title_views("Cairo") == 10
+        assert load_db.one_title_views("Giza") == 5
 
     def test_large_batch_is_split_into_chunks(self, load_db: PageviewsDb, monkeypatch):
         """Force the small SQLite bound limit so a modest batch still exercises
@@ -339,7 +305,7 @@ class TestUpsertManyChunks:
         # Every title was written despite spanning 3 chunks (900 + 900 + 700).
         assert load_db.count_titles() == n
         assert load_db.one_title_views("Bulk 0") == 0
-        assert load_db.get_views(f"Bulk {n - 1}", []) == n - 1
+        assert load_db.one_title_views(f"Bulk {n - 1}") == n - 1
 
     def test_large_batch_preserves_values_across_chunks(self, load_db: PageviewsDb, monkeypatch):
         monkeypatch.setattr("sqlite3.sqlite_version_info", (3, 31, 0))
@@ -359,13 +325,13 @@ class TestUnderscoreNormalization:
         # The stored key uses spaces, so the underscore form is not found...
         assert load_db.one_title_views("New_York_City") is None
         # ...and the space form is.
-        assert load_db.get_views("New York City", []) == 100
+        assert load_db.one_title_views("New York City") == 100
         assert _rows(load_db.db_file_path) == {"New York City": 100}
 
     def test_mixed_underscore_and_space_titles(self, load_db: PageviewsDb):
         load_db.upsert_many({"Los_Angeles": 5, "San Francisco": 7})
-        assert load_db.get_views("Los Angeles", []) == 5
-        assert load_db.get_views("San Francisco", []) == 7
+        assert load_db.one_title_views("Los Angeles") == 5
+        assert load_db.one_title_views("San Francisco") == 7
         assert set(_rows(load_db.db_file_path)) == {"Los Angeles", "San Francisco"}
 
     def test_normalization_applies_in_chunked_upsert(self, load_db: PageviewsDb, monkeypatch):
@@ -374,7 +340,7 @@ class TestUnderscoreNormalization:
 
         assert load_db.one_title_views("Title 0") == 0
 
-        assert load_db.get_views("Title 1999", []) == 1999
+        assert load_db.one_title_views("Title 1999") == 1999
         assert "Title 0" in _rows(load_db.db_file_path)
         assert "Title_0" not in _rows(load_db.db_file_path)
 
@@ -386,15 +352,15 @@ class TestNoUnderscoreConversion:
     def test_underscores_preserved_on_upsert(self, load_db_no_underscore_converte: PageviewsDb):
         load_db_no_underscore_converte.upsert_many({"New_York_City": 100})
         # Underscores are kept as-is, so the underscore form IS found...
-        assert load_db_no_underscore_converte.get_views("New_York_City", []) == 100
+        assert load_db_no_underscore_converte.one_title_views("New_York_City") == 100
         # ...and the space form is NOT.
         assert load_db_no_underscore_converte.one_title_views("New York City") is None
         assert _rows(load_db_no_underscore_converte.db_file_path) == {"New_York_City": 100}
 
     def test_mixed_titles_kept_verbatim(self, load_db_no_underscore_converte: PageviewsDb):
         load_db_no_underscore_converte.upsert_many({"Los_Angeles": 5, "San Francisco": 7})
-        assert load_db_no_underscore_converte.get_views("Los_Angeles", []) == 5
-        assert load_db_no_underscore_converte.get_views("San Francisco", []) == 7
+        assert load_db_no_underscore_converte.one_title_views("Los_Angeles") == 5
+        assert load_db_no_underscore_converte.one_title_views("San Francisco") == 7
         assert set(_rows(load_db_no_underscore_converte.db_file_path)) == {
             "Los_Angeles",
             "San Francisco",
@@ -404,7 +370,7 @@ class TestNoUnderscoreConversion:
         monkeypatch.setattr("sqlite3.sqlite_version_info", (3, 31, 0))
         load_db_no_underscore_converte.upsert_many_chunks({f"Title_{i}": i for i in range(2000)})
         assert load_db_no_underscore_converte.one_title_views("Title_0") == 0
-        assert load_db_no_underscore_converte.get_views("Title_1999", []) == 1999
+        assert load_db_no_underscore_converte.one_title_views("Title_1999") == 1999
         assert "Title_0" in _rows(load_db_no_underscore_converte.db_file_path)
         assert "Title 0" not in _rows(load_db_no_underscore_converte.db_file_path)
 

@@ -139,7 +139,6 @@ class TestProcessProject:
         u, repo = updater
         cache = MagicMock()
         # The updater reads already-fetched counts via `get_views_many`
-        # (per-title `get_views` would mean one query per page).
         cache.db.get_views_many.return_value = {"Foo bar": 42}
         page_rows = [
             {
