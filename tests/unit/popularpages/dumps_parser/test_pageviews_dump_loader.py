@@ -174,7 +174,7 @@ class TestAggregateDump:
         db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
         try:
             # "Some_Page" had a non-numeric daily_total and must not appear at all.
-            assert db.get_views("Some_Page", []) == 0
+            assert db.one_title_views("Some_Page") is None
 
             assert db.get_views_many({"Some_Page": []}) == {"Some_Page": 0}
         finally:
@@ -194,7 +194,7 @@ class TestAggregateDump:
         try:
             assert ar_db.get_views("!", []) == 12
             # Only "!" was requested, so other ar titles must not be present.
-            assert ar_db.get_views("!!", []) == 0
+            assert ar_db.one_title_views("!!") is None
         finally:
             ar_db.close_db()
 
@@ -258,7 +258,7 @@ def test_load_dump_into_cache_end_to_end(tmp_path: Path):
     try:
         assert en_db.get_views("Main Page", []) == 1500
         # The malformed line's title must simply not exist in the cache.
-        assert en_db.get_views("Some_Page", []) == 0
+        assert en_db.one_title_views("Some_Page") is None
     finally:
         en_db.close_db()
 

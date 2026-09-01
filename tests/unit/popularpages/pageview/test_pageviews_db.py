@@ -169,7 +169,7 @@ class TestGetViews:
         assert load_db.get_views("Cairo", ["Al-Qahira", "Qahira"]) == 18
 
     def test_missing_title_returns_zero(self, load_db: PageviewsDb):
-        assert load_db.get_views("Nonexistent", []) == 0
+        assert load_db.one_title_views("Nonexistent") is None
 
     def test_missing_redirect_is_ignored_not_erroring(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10})
@@ -180,7 +180,7 @@ class TestGetViews:
         assert load_db.get_views("Cairo", ["", None]) == 10  # type: ignore[list-item]
 
     def test_empty_target_and_no_redirects_returns_zero(self, load_db: PageviewsDb):
-        assert load_db.get_views("", []) == 0
+        assert load_db.one_title_views("") is None
 
 
 # ---------------------------------------------------
@@ -338,7 +338,7 @@ class TestUpsertManyChunks:
 
         # Every title was written despite spanning 3 chunks (900 + 900 + 700).
         assert load_db.count_titles() == n
-        assert load_db.get_views("Bulk 0", []) == 0
+        assert load_db.one_title_views("Bulk 0") == 0
         assert load_db.get_views(f"Bulk {n - 1}", []) == n - 1
 
     def test_large_batch_preserves_values_across_chunks(self, load_db: PageviewsDb, monkeypatch):
@@ -357,7 +357,7 @@ class TestUnderscoreNormalization:
     def test_underscores_converted_to_spaces_on_upsert(self, load_db: PageviewsDb):
         load_db.upsert_many({"New_York_City": 100})
         # The stored key uses spaces, so the underscore form is not found...
-        assert load_db.get_views("New_York_City", []) == 0
+        assert load_db.one_title_views("New_York_City") is None
         # ...and the space form is.
         assert load_db.get_views("New York City", []) == 100
         assert _rows(load_db.db_file_path) == {"New York City": 100}
@@ -373,7 +373,6 @@ class TestUnderscoreNormalization:
         load_db.upsert_many_chunks({f"Title_{i}": i for i in range(2000)})
 
         assert load_db.one_title_views("Title 0") == 0
-        assert load_db.get_views("Title 0", []) == 0
 
         assert load_db.get_views("Title 1999", []) == 1999
         assert "Title 0" in _rows(load_db.db_file_path)
@@ -389,7 +388,7 @@ class TestNoUnderscoreConversion:
         # Underscores are kept as-is, so the underscore form IS found...
         assert load_db_no_underscore_converte.get_views("New_York_City", []) == 100
         # ...and the space form is NOT.
-        assert load_db_no_underscore_converte.get_views("New York City", []) == 0
+        assert load_db_no_underscore_converte.one_title_views("New York City") is None
         assert _rows(load_db_no_underscore_converte.db_file_path) == {"New_York_City": 100}
 
     def test_mixed_titles_kept_verbatim(self, load_db_no_underscore_converte: PageviewsDb):
@@ -404,7 +403,7 @@ class TestNoUnderscoreConversion:
     def test_no_conversion_in_chunked_upsert(self, load_db_no_underscore_converte: PageviewsDb, monkeypatch):
         monkeypatch.setattr("sqlite3.sqlite_version_info", (3, 31, 0))
         load_db_no_underscore_converte.upsert_many_chunks({f"Title_{i}": i for i in range(2000)})
-        assert load_db_no_underscore_converte.get_views("Title_0", []) == 0
+        assert load_db_no_underscore_converte.one_title_views("Title_0") == 0
         assert load_db_no_underscore_converte.get_views("Title_1999", []) == 1999
         assert "Title_0" in _rows(load_db_no_underscore_converte.db_file_path)
         assert "Title 0" not in _rows(load_db_no_underscore_converte.db_file_path)

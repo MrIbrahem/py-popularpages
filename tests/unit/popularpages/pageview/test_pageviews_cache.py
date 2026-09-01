@@ -143,7 +143,7 @@ class TestCacheLoadReuse:
         # The SQLite file is created at construction (schema initialized).
         path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2099-12.sqlite3"
         assert path.exists()
-        assert cache.db.get_views("A", []) == 0
+        assert cache.db.one_title_views("A") is None
 
 
 # ---------------------------------------------------
