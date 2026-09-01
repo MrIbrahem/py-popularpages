@@ -62,6 +62,13 @@ class PageviewsDb:
 
     def one_title_views(self, title: str) -> int | None:
         """
+        Retrieve the total number of page views for a specific title.
+
+        Args:
+            title (str): The title of the page to query views for.
+
+        Returns:
+            int | None: The number of views for the given title, or None if the title does not exist.
         """
         with self._Session() as session:
             query = select(PageView.title, PageView.views).where(PageView.title == title)

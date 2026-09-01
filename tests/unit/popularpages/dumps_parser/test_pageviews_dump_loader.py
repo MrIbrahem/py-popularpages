@@ -304,8 +304,8 @@ def test_aggregate_dump_zero_daily_total_reaches_branch(tmp_path: Path):
 
         # The zero-total one is skipped when the continue is uncommented.
         assert db.query_titles_cache(["Zero Total Page", "Real Page"]) == {"Real Page"}
-        assert db.get_views("Zero Total Page", []) == 0
-        assert db.get_views("Real Page", []) == 500
+        assert db.one_title_views("Zero Total Page") is None
+        assert db.one_title_views("Real Page") == 500
     finally:
         db.close_db()
 
