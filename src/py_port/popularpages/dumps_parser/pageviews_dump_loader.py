@@ -113,11 +113,13 @@ def _aggregate_dump(
     totals: dict[str, dict[str, int]] = {}
     malformed_count = 0
     line_count = 0
+    valid_lines_count = 0
 
     for line in lines:
         line_count += 1
         if line_count % _PROGRESS_LOG_EVERY == 0:
             logger.info("Processed %s dump lines so far...", f"{line_count:,}")
+            logger.info("malformed_count: %s, valid_lines_count: %s", f"{malformed_count:,}", f"{valid_lines_count:,}")
 
         # Cheap pre-filter before doing any real parsing work: every line
         # starts with "wiki_code ", so we can reject the vast majority of
@@ -142,12 +144,13 @@ def _aggregate_dump(
             if wanted_titles is not None and parsed.title not in wanted_titles:
                 continue
 
+        valid_lines_count += 1
         wiki_totals = totals.setdefault(parsed.wiki_code, {})
         wiki_totals[parsed.title] = wiki_totals.get(parsed.title, 0) + parsed.daily_total
 
     if malformed_count:
         logger.warning("Skipped %d malformed line(s) while processing dump.", malformed_count)
-    logger.info("Finished processing %s total dump lines.", f"{line_count:,}")
+    logger.info("Finished processing %s total dump lines., valid_lines_count: %s", f"{line_count:,}", f"{valid_lines_count:,}")
 
     return totals
 
