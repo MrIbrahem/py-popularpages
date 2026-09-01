@@ -28,6 +28,7 @@ import logging
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
+from ..config import app_config
 from ..pageviews.pageviews_db import PageviewsDb
 from .bz2_dump_parser import MalformedLineError, ParsedPageview
 
@@ -200,7 +201,7 @@ def load_dump_into_cache(
     year: int,
     month: int,
     wanted_wiki_codes: set[str],
-    views_dir: Path,
+    views_dir: Path = app_config.paths.views_dir,
     dumps_root: Path = DUMPS_ROOT,
     wanted_titles_by_wiki: dict[str, set[str]] | None = None,
 ) -> dict[str, int]:

@@ -22,7 +22,6 @@ Usage examples
     # Point at a different wikis.yaml / dumps root / views dir (e.g. for
     # local testing away from the real Toolforge NFS mount):
     python -m src.load_pageviews_dump --year 2026 --month 7 \\
-        --wikis-yaml /path/to/wikis.yaml \\
         --dumps-root /path/to/fake/dumps \\
         --views-dir /path/to/data/views
 

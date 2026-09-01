@@ -157,6 +157,15 @@ class DataPathsConfig:
 
         return data
 
+    def build_db_file_path(self, wiki: str, year_month: str, path_dir: Path | None = None) -> Path:
+        """"""
+        _path_dir: Path = path_dir or self.views_data_dir
+
+        _path: Path = _path_dir / wiki / f"{year_month}.sqlite3"
+        _path.parent.mkdir(parents=True, exist_ok=True)
+
+        return _path
+
 
 @dataclass(frozen=True)
 class CredentialsConfig:
