@@ -306,26 +306,6 @@ class ReportUpdater:
 
         return True
 
-    async def _build_views_cache(self, all_titles: set[str]) -> PageviewsCache:
-        """
-        Build a :class:`PageviewsCache` for this wiki's reporting month and fetch
-        every unique title across ``projects`` exactly once.
-
-        Results are persisted to ``data/views/<wiki>/<YYYY-MM>.jsonl`` (see the
-        plan doc), so titles fetched in a previous run -- or by a previously
-        processed project earlier in this same run -- are reused and not
-        dropped when the task finishes.
-        """
-        cache = PageviewsCache(
-            self.wiki,
-            self.month_date.start,
-            self.month_date.end,
-            self.wiki_repository.pageviews_repo,
-        )
-
-        await cache.ensure(all_titles)
-        return cache
-
     # ---------------------------------------------------
     # Public Methods
     # ---------------------------------------------------
