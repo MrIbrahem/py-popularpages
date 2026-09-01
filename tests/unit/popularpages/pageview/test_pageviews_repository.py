@@ -32,7 +32,7 @@ def _make_mock_repo(handler=_unused_handler) -> PageviewsRepository:
     is immediately discarded — this was previously the dominant cost of each
     test in this file.
 
-    Parameters:
+    Args:
         handler: A callable that handles requests made by the repository's mock transport.
 
     Returns:

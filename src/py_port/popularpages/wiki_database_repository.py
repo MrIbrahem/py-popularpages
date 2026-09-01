@@ -24,10 +24,18 @@ class WikiDatabaseRepository:
 
     def __init__(self, wiki: str, wiki_config: dict, username: str):
         """
-        :param wiki: Wiki in the form lang.project, e.g. 'en.wikipedia'.
-        :param wiki_config: This wiki's config (index/config/category/database).
-        :param username: Bot username (without the @clientname suffix), used
-            to look up the bot's own edits.
+        Initialize replica-database access for a single wiki.
+
+        Stores the wiki identity, its config, and the bot username, then opens a
+        connection to the wiki's replica database (the ``_p`` suffix is stripped
+        from the configured database name). All subsequent queries run through
+        this connection.
+
+        Args:
+            wiki (str): Wiki in the form lang.project, e.g. 'en.wikipedia'.
+            wiki_config (dict): This wiki's config (index/config/category/database).
+            username (str): Bot username (without the @clientname suffix), used
+                to look up the bot's own edits.
         """
         self.wiki = wiki
         self.wiki_config = wiki_config
@@ -43,12 +51,25 @@ class WikiDatabaseRepository:
         """
         Get timestamps of the bot's last edits for the given WikiProjects.
 
-        :param projects: Mapping of db-key page title -> WikiProject name.
-        :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
+        Runs a SQL query against the replica database that finds, for each
+        requested page title, the most recent revision authored by the bot in
+        the Project namespace (namespace 4) and returns its timestamp.
+
+        Args:
+            titles (list[str]): Mapping of db-key page title -> WikiProject name.
+
+        Returns:
+            list[dict[str, Any]]: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
         """
 
         placeholders = ", ".join(["%s"] * len(titles))
         logger.debug("Fetching timestamps for %d project(s)", len(titles))
+
+        # The replica DB stores page_title with underscores, but callers pass
+        # display-form titles (spaces). Convert back to DB form for the lookup,
+        # and normalise the returned page_title to spaces at the DB boundary so
+        # no downstream consumer has to.
+        db_titles = [t.replace(" ", "_") for t in titles]
 
         rows = self.db.select(
             f"""
@@ -64,8 +85,12 @@ class WikiDatabaseRepository:
             AND page_namespace = 4 -- FIXME: assumes reports are in the Project namespace
             GROUP BY page_title
             """,
-            (self.username, *titles),
+            (self.username, *db_titles),
         )
+
+        for row in rows:
+            # Normalise db-key underscores to display spaces.
+            row["page_title"] = (row["page_title"] or "").replace("_", " ")
 
         return rows  # pyright: ignore[reportReturnType]
 
@@ -73,8 +98,15 @@ class WikiDatabaseRepository:
         """
         Get titles & assessments for all pages in a WikiProject.
 
-        :param project: Name of the project, e.g. 'Medicine'.
-        :return: List of rows with page_title, pa_class, pa_importance, redir_title.
+        Queries the replica database for every page in the given project's
+        namespace, returning its page title, assessment class/importance, and
+        the title of its redirect (if any).
+
+        Args:
+            project (str): Name of the project, e.g. 'Medicine'.
+
+        Returns:
+            list[dict[str, Any]]: List of rows with page_title, pa_class, pa_importance, redir_title.
         """
 
         logger.debug("Fetching pages and assessments for project '%s'", project)
@@ -97,6 +129,12 @@ class WikiDatabaseRepository:
         """
         rows = self.db.select_safe(query, (project,))
 
+        # MediaWiki stores titles with underscores; normalise to display spaces
+        # at the DB boundary so every consumer receives titles without '_'.
+        for row in rows:
+            row["page_title"] = (row["page_title"] or "").replace("_", " ")
+            row["redir_title"] = (row["redir_title"] or "").replace("_", " ")
+
         return rows
 
     # -- Queries ---------------------------------------------------
@@ -105,8 +143,15 @@ class WikiDatabaseRepository:
         """
         Get timestamps of the bot's last edits for the given WikiProjects.
 
-        :param titles: Mapping of db-key page title -> WikiProject name.
-        :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
+        Public wrapper around :meth:`_get_projects_timestamps` that runs the
+        query and returns the raw rows (binary columns already resolved by
+        ``db.select``).
+
+        Args:
+            titles (list[str]): Mapping of db-key page title -> WikiProject name.
+
+        Returns:
+            list[dict[str, Any]]: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
         """
         logger.info("[%s] Fetching timestamps of the bot's last edits", self.wiki)
 
@@ -120,8 +165,14 @@ class WikiDatabaseRepository:
         """
         Get titles & assessments for all pages in a WikiProject.
 
-        :param project: Name of the project, e.g. 'Medicine'.
-        :return: List of rows with page_title, pa_class, pa_importance, redir_title.
+        Public wrapper around :meth:`_get_project_pages` that runs the query and
+        returns the raw rows for the given project.
+
+        Args:
+            project (str): Name of the project, e.g. 'Medicine'.
+
+        Returns:
+            list[dict[str, Any]]: List of rows with page_title, pa_class, pa_importance, redir_title.
         """
         logger.debug("Fetching pages for project '%s'", project)
         logger.info("[%s] Fetching pages and assessments for project %s", self.wiki, project)

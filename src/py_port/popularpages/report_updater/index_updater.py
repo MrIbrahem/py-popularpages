@@ -28,9 +28,17 @@ class IndexUpdater:
 
     def __init__(self, wiki: str = "en.wikipedia", dry_run: bool = False):
         """
-        :param wiki: Target wiki, e.g. 'en.wikipedia'.
-        :param dry_run: Passed through to WikiRepository -- if True, prints
-            instead of saving edits to the wiki.
+        Initialize the index updater for a single wiki.
+
+        Constructs the :class:`WikiRepository`, configures the Jinja environment
+        with the project's template helpers, and records the wiki/i18n context.
+        ``dry_run`` is forwarded to the repository so edits are printed rather
+        than saved.
+
+        Args:
+            wiki (str): Target wiki, e.g. 'en.wikipedia'.
+            dry_run (bool): Passed through to WikiRepository -- if True, prints
+                instead of saving edits to the wiki.
         """
         self.wiki_repository = WikiRepository(wiki, dry_run)
         self.wiki = wiki
@@ -93,7 +101,7 @@ class IndexUpdater:
         # attach each timestamp to the right WikiProjectConfig. Without this
         # mapping every `Updated` stayed `None` and rendered as the literal
         # string "None" in the index table.
-        report_to_project = {x.report_without_ns: x.project_main_page for x in list_config_obj}
+        report_to_project = {x.report_title: x.project_main_page for x in list_config_obj}
 
         last_edits_times = {
             report_to_project[row["page_title"]]: row["rev_timestamp"]
@@ -117,7 +125,12 @@ class IndexUpdater:
     def update_index(self) -> None:
         """
         Update the index page listing each WikiProject, its report,
-        and when it was last updated."""
+        and when it was last updated.
+
+        Retrieves the latest project configurations and timestamps, renders the
+        index template with that data, and saves the result back to the wiki's
+        configured index page (or writes it to disk in dry-run mode).
+        """
         logger.info("Updating index page for wiki '%s'", self.wiki)
 
         list_config_obj = self.retrieve_project_updates()

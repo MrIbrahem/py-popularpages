@@ -98,7 +98,7 @@ def test_cli_happy_path_writes_all_configured_wikis(project):
 
     db = PageviewsDb(ar_db)
     try:
-        assert db.get_views("!", []) == 12
+        assert db.one_title_views("!") == 12
     finally:
         db.close_db()
 
@@ -169,6 +169,6 @@ def test_cli_rerun_is_idempotent(project):
 
     db = PageviewsDb(project["views_dir"] / "ar.wikipedia" / "2026-07.sqlite3")
     try:
-        assert db.get_views("!", []) == 12
+        assert db.one_title_views("!") == 12
     finally:
         db.close_db()

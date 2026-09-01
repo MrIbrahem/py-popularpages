@@ -25,11 +25,24 @@ class PageviewsDb:
     # See: https://www.sqlite.org/limits.html#max_variable_number
     _SELECT_IN_CHUNK_SIZE = 500
 
-    def __init__(self, db_file_path: Path) -> None:
+    def __init__(
+        self,
+        db_file_path: Path,
+        converte_underscore_to_space: bool = True,
+    ) -> None:
         """
-        :param db_file_path: Path to the SQLite database file.
+        Open (creating if needed) the SQLite pageviews cache at the given path.
+
+        The SQLAlchemy engine and session factory are initialized here, and the
+        ``PageView`` table schema is created on first connection. The file is
+        created by SQLite automatically if it does not already exist.
+
+        Args:
+            db_file_path (Path): Path to the SQLite database file.
+            converte_underscore_to_space (bool): Whether to convert underscores to spaces in titles.
         """
         self.db_file_path = db_file_path
+        self.converte_underscore_to_space = converte_underscore_to_space
 
         # SQLite creates the file on first connection if it doesn't exist yet.
         self._engine = create_engine(f"sqlite:///{self.db_file_path}", future=True)
@@ -45,8 +58,52 @@ class PageviewsDb:
         logger.debug("Closed pageviews cache %s", self.db_file_path)
 
     # ---------------------------------------------------
+    # Generic services
+    # ---------------------------------------------------
+    def one_title_views(self, title: str) -> int | None:
+        """
+        Retrieve the total number of page views for a specific title.
+
+        Args:
+            title (str): The title of the page to query views for.
+
+        Returns:
+            int | None: The number of views for the given title, or None if the title does not exist.
+        """
+        with self._Session() as session:
+            query = select(PageView.title, PageView.views).where(PageView.title == title)
+            result = session.execute(query).first()
+            return result.views if result else None
+
+    def _chunk_views(self, session, chunk: Sequence[str]):
+        query = select(PageView.title, PageView.views).where(PageView.title.in_(chunk))
+        query_results = session.execute(query).all()
+        return query_results
+
+    def _upsert_data(self, data: list[dict[str, str | int]]) -> None:
+        with self._Session() as session:
+            stmt = sqlite_insert(PageView).values(data)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[PageView.title],
+                set_={"views": stmt.excluded.views},
+            )
+            session.execute(stmt)
+            session.commit()
+
+    def count_titles(self) -> int:
+        """Return the number of distinct titles currently cached in this file."""
+        with self._Session() as session:
+            return int(session.scalar(select(func.count()).select_from(PageView)) or 0)
+
+    # ---------------------------------------------------
     # Internal helpers
     # ---------------------------------------------------
+    def _converte_underscore_to_space(self, title: str) -> str:
+        if not self.converte_underscore_to_space:
+            return title
+
+        return title.replace("_", " ")
+
     @staticmethod
     def _chunked(items: Sequence[str], size: int) -> Iterator[Sequence[str]]:
         """Yield successive chunks of ``items`` of at most ``size`` elements."""
@@ -65,10 +122,12 @@ class PageviewsDb:
         """
         views_by_title: dict[str, int] = {}
 
+        titles = [self._converte_underscore_to_space(x) for x in titles]
+
         with self._Session() as session:
             for chunk in self._chunked(titles, self._SELECT_IN_CHUNK_SIZE):
-                query = select(PageView.title, PageView.views).where(PageView.title.in_(chunk))
-                for title, views in session.execute(query).all():
+                query_results = self._chunk_views(session, chunk)
+                for title, views in query_results:
                     views_by_title[title] = views
 
         return views_by_title
@@ -113,16 +172,12 @@ class PageviewsDb:
         if not title_views:
             return
 
-        with self._Session() as session:
-            stmt = sqlite_insert(PageView).values(
-                [{"title": title, "views": views} for title, views in title_views.items()]
-            )
-            stmt = stmt.on_conflict_do_update(
-                index_elements=[PageView.title],
-                set_={"views": stmt.excluded.views},
-            )
-            session.execute(stmt)
-            session.commit()
+        # Store titles without underscores (display form) from the moment they
+        # enter the cache, so lookups never have to guess at the title format.
+        title_views = {self._converte_underscore_to_space(title): views for title, views in title_views.items()}
+        upsert_data = [{"title": title, "views": views} for title, views in title_views.items()]
+
+        self._upsert_data(upsert_data)
 
         logger.debug("Upserted %d titles into %s", len(title_views), self.db_file_path)
 
@@ -138,27 +193,12 @@ class PageviewsDb:
 
         return set(views_by_title)
 
-    def count_titles(self) -> int:
-        """Return the number of distinct titles currently cached in this file."""
-        with self._Session() as session:
-            return int(session.scalar(select(func.count()).select_from(PageView)) or 0)
-
-    def get_views(self, target: str, redirects: list[str]) -> int:
-        """
-        Return the total views for a target page plus its redirects.
-
-        :param target: Target page title (spaces).
-        :param redirects: Redirect titles (spaces) associated with the target.
-        :return: Sum of cached views across target + redirects.
-        """
-        return self.get_views_many({target: redirects}).get(target, 0)
-
     def get_views_many(
         self,
         targets_to_redirects: dict[str, list[str]],
     ) -> dict[str, int]:
         """
-        Bulk variant of :meth:`get_views` for many targets at once.
+        Bulk variant for many targets at once.
 
         Instead of one SQLite query per target -- which, for projects with
         hundreds of thousands of titles, means hundreds of thousands of
@@ -169,9 +209,10 @@ class PageviewsDb:
 
         """
         # 1. Collect all unique titles (targets + redirects) directly into a set
-        all_titles = {
-            title for target, redirects in targets_to_redirects.items() for title in (target, *redirects) if title
-        }
+        all_titles = set()
+        for key, redirects in targets_to_redirects.items():
+            all_titles.add(key)
+            all_titles.update(t for t in redirects if t)
 
         # 2. Fetch view counts for all unique titles in a single batch query
         views_by_title = self._query_views_by_title(list(all_titles))

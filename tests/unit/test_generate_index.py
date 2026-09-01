@@ -13,7 +13,7 @@ def patched(monkeypatch):
     """
     Provide a mocked report updater and replace the module's report updater constructor for a test.
 
-    Parameters:
+    Args:
         monkeypatch: Pytest monkeypatch fixture used to replace `IndexUpdater`.
 
     Returns:

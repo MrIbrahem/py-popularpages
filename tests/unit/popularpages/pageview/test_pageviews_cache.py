@@ -132,9 +132,9 @@ class TestCacheLoadReuse:
         # Only the previously-missing title "C" is fetched.
         assert repo2.calls == [["C"]]
         # Values come from disk (10/20), not the fake's 999.
-        assert cache2.db.get_views("A", []) == 10
-        assert cache2.db.get_views("B", []) == 20
-        assert cache2.db.get_views("C", []) == 999
+        assert cache2.db.one_title_views("A") == 10
+        assert cache2.db.one_title_views("B") == 20
+        assert cache2.db.one_title_views("C") == 999
 
     async def test_missing_file_creates_empty_sqlite(self, cache_config, cache_factory):
         """A wiki/month with no cache file gets an empty .sqlite3 created."""
@@ -143,7 +143,7 @@ class TestCacheLoadReuse:
         # The SQLite file is created at construction (schema initialized).
         path = cache_config.data_paths.views_data_dir / "en.wikipedia" / "2099-12.sqlite3"
         assert path.exists()
-        assert cache.db.get_views("A", []) == 0
+        assert cache.db.one_title_views("A") is None
 
 
 # ---------------------------------------------------

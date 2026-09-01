@@ -48,6 +48,7 @@ FIXTURE_LINES = [
     "en.wikipedia Main_Page 15580374 mobile-web 500 A50B50",
     # Malformed (non-numeric daily_total) -> must be skipped, not crash the run.
     "en.wikipedia Some_Page 999 desktop NOTANUMBER A1",
+    "de.wikipedia page_zero_total_count 0 desktop 0 A1",
 ]
 
 WANTED_WIKI_CODES = {"ar.wikipedia", "en.wikipedia"}
@@ -102,22 +103,23 @@ def test_iter_dump_lines_streams_real_bz2_file(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# _aggregate_dump
+# _process_dump_lines
 # ---------------------------------------------------------------------------
 
 
 def test_aggregate_dump_filters_unwanted_wikis(tmp_path: Path):
     views_dir = tmp_path / "views"
     loader = PageviewsDumpLoader(views_dir=views_dir, dumps_root=tmp_path / "dumps")
-    totals = loader._aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
+    totals = loader._process_dump_lines(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
     assert "aa.wikipedia" not in totals
     assert set(totals.keys()) == {"ar.wikipedia", "en.wikipedia"}
+    assert totals == {"ar.wikipedia": 4, "en.wikipedia": 1}
 
 
 class TestAggregateDump:
     """Aggregation behavior, verified through the real SQLite cache read path.
 
-    ``_aggregate_dump`` streams aggregated titles into the SQLite cache in
+    ``_process_dump_lines`` streams aggregated titles into the SQLite cache in
     bounded-memory batches instead of returning them in memory, so these tests
     run the aggregation against a fixture and read the upserted totals back via
     :class:`PageviewsDb` (the same interface downstream code uses).
@@ -132,7 +134,7 @@ class TestAggregateDump:
         return PageviewsDumpLoader(views_dir=views_dir, dumps_root=tmp_path / "dumps")
 
     def test_aggregate_dump_sums_across_agents_and_page_ids(self, loader: PageviewsDumpLoader, views_dir: Path):
-        loader._aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
+        loader._process_dump_lines(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
 
         db = PageviewsDb(views_dir / "ar.wikipedia" / "2026-08.sqlite3")
         try:
@@ -157,29 +159,31 @@ class TestAggregateDump:
         assert views['"W" تشير الى المنتهي'] == 9
 
     def test_aggregate_dump_sums_across_agents_for_en_wikipedia(self, loader: PageviewsDumpLoader, views_dir: Path):
-        loader._aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
+        loader._process_dump_lines(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
 
         db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
         try:
             # Main_Page: desktop(1000) + mobile-web(500) = 1500
-            assert db.get_views("Main Page", []) == 1500
+            assert db.one_title_views("Main Page") == 1500
         finally:
             db.close_db()
 
     def test_aggregate_dump_skips_malformed_line_without_crashing(self, loader: PageviewsDumpLoader, views_dir: Path):
-        loader._aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
+        loader._process_dump_lines(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
 
         db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
         try:
             # "Some_Page" had a non-numeric daily_total and must not appear at all.
-            assert db.get_views("Some_Page", []) == 0
+            assert db.one_title_views("Some_Page") is None
+
+            assert db.get_views_many({"Some_Page": []}) == {"Some_Page": 0}
         finally:
             db.close_db()
 
     def test_aggregate_dump_title_filtering_optimization(self, loader: PageviewsDumpLoader, views_dir: Path):
         # Only keep "!" for ar.wikipedia; en.wikipedia unfiltered (no entry).
         wanted_titles = {"ar.wikipedia": {"!"}}
-        loader._aggregate_dump(
+        loader._process_dump_lines(
             FIXTURE_LINES,
             WANTED_WIKI_CODES,
             "2026-08",
@@ -188,16 +192,16 @@ class TestAggregateDump:
 
         ar_db = PageviewsDb(views_dir / "ar.wikipedia" / "2026-08.sqlite3")
         try:
-            assert ar_db.get_views("!", []) == 12
+            assert ar_db.one_title_views("!") == 12
             # Only "!" was requested, so other ar titles must not be present.
-            assert ar_db.get_views("!!", []) == 0
+            assert ar_db.one_title_views("!!") is None
         finally:
             ar_db.close_db()
 
         en_db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
         try:
             # en.wikipedia had no filter entry -> everything (valid) still aggregated.
-            assert en_db.get_views("Main Page", []) == 1500
+            assert en_db.one_title_views("Main Page") == 1500
         finally:
             en_db.close_db()
 
@@ -252,9 +256,9 @@ def test_load_dump_into_cache_end_to_end(tmp_path: Path):
 
     en_db = PageviewsDb(en_db_path)
     try:
-        assert en_db.get_views("Main Page", []) == 1500
+        assert en_db.one_title_views("Main Page") == 1500
         # The malformed line's title must simply not exist in the cache.
-        assert en_db.get_views("Some_Page", []) == 0
+        assert en_db.one_title_views("Some_Page") is None
     finally:
         en_db.close_db()
 
@@ -270,6 +274,40 @@ def test_load_dump_into_cache_missing_dump_raises(tmp_path: Path):
             month=1,
             wanted_wiki_codes=WANTED_WIKI_CODES,
         )
+
+
+def test_aggregate_dump_zero_daily_total_reaches_branch(tmp_path: Path):
+    """
+    Covers the ``if parsed.daily_total == 0:`` branch in
+    :meth:`_process_dump_lines` (lines 293-294). The zero-total line must be on
+    a *wanted* wiki -- the shared ``FIXTURE_LINES`` has a zero-total line too,
+    but it's on ``de.wikipedia`` (unwanted) and is filtered out by the wiki
+    prefix check before this branch is ever reached.
+
+    With the ``# continue`` on line 295 currently commented, the zero-total
+    title is still aggregated (with 0 views). If that ``continue`` is ever
+    uncommented, this assertion flips: the title would be skipped and
+    ``query_titles_cache`` would no longer contain it.
+    """
+    views_dir = tmp_path / "views"
+    loader = PageviewsDumpLoader(views_dir=views_dir, dumps_root=tmp_path / "dumps")
+    lines = [
+        "en.wikipedia Real_Page 1 desktop 500 A1",
+        "en.wikipedia Zero_Total_Page 0 desktop 0 A1",  # wanted wiki, daily_total == 0
+    ]
+    loader._process_dump_lines(lines, {"en.wikipedia"}, "2026-08")
+
+    db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
+    try:
+        # Both titles are present; the zero-total one has 0 views.
+        # assert db.query_titles_cache(["Zero Total Page", "Real Page"]) == {"Zero Total Page", "Real Page"}
+
+        # The zero-total one is skipped when the continue is uncommented.
+        assert db.query_titles_cache(["Zero Total Page", "Real Page"]) == {"Real Page"}
+        assert db.one_title_views("Zero Total Page") is None
+        assert db.one_title_views("Real Page") == 500
+    finally:
+        db.close_db()
 
 
 def test_load_dump_into_cache_is_upsert_not_replace(tmp_path: Path):
@@ -299,6 +337,6 @@ def test_load_dump_into_cache_is_upsert_not_replace(tmp_path: Path):
 
     db = PageviewsDb(views_dir / "ar.wikipedia" / "2026-07.sqlite3")
     try:
-        assert db.get_views("!", []) == 12
+        assert db.one_title_views("!") == 12
     finally:
         db.close_db()

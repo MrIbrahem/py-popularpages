@@ -83,13 +83,21 @@ class PageviewsRepository:
         transport: httpx.AsyncBaseTransport | None = None,
     ):
         """
-        :param domain: The wiki domain, e.g. 'en.wikipedia'.
-        :param delay_seconds: Override for the per-request rate-limit delay
-            (defaults to ``app_config.pageviews.request_delay_seconds``).
-        :param transport: Optional custom transport (e.g. ``httpx.MockTransport``
-            in tests). When omitted, the real default transport is used, which
-            builds a genuine TLS/SSL context — pass a transport explicitly in
-            tests to skip that cost and avoid any real network capability.
+        Initialize the Pageviews REST API client for a wiki.
+
+        Creates the async HTTP client with the configured timeouts and
+        user-agent, and applies the per-request rate-limit delay. An optional
+        custom transport can be supplied (used in tests to avoid real network
+        calls).
+
+        Args:
+            domain (str): The wiki domain, e.g. 'en.wikipedia'.
+            delay_seconds (float | None): Override for the per-request rate-limit delay
+                (defaults to ``app_config.pageviews.request_delay_seconds``).
+            transport (httpx.AsyncBaseTransport | None): Optional custom transport (e.g. ``httpx.MockTransport``
+                in tests). When omitted, the real default transport is used, which
+                builds a genuine TLS/SSL context — pass a transport explicitly in
+                tests to skip that cost and avoid any real network capability.
         """
         self.domain = domain
         logger.debug("PageviewsRepository initialized for domain '%s'", domain)
@@ -156,12 +164,20 @@ class PageviewsRepository:
         """
         Get the combined pageviews of the given articles.
 
-        :param batch: Keys are target page names, values are lists of the
-            target page + its redirects (page titles as they should be
-            queried for, i.e. with underscores replaced by spaces upstream).
-        :param start: Start date in YYYYMMDD00 format.
-        :param end: End date in YYYYMMDD00 format.
-        :return: Dict mapping target page name -> total pageviews.
+        For each target page in the batch, fetches the monthly views of the
+        target and all of its redirects, then sums them so the caller receives
+        one total per target. Redirects are handled internally via the batched
+        mapping.
+
+        Args:
+            batch (dict[str, list[str]]): Keys are target page names, values are lists of the
+                target page + its redirects (page titles as they should be
+                queried for, i.e. with underscores replaced by spaces upstream).
+            start (str): Start date in YYYYMMDD00 format.
+            end (str): End date in YYYYMMDD00 format.
+
+        Returns:
+            dict[str, int]: Dict mapping target page name -> total pageviews.
         """
         target_titles = list(batch.keys())
         pageviews: dict[str, int] = dict.fromkeys(target_titles, 0)
@@ -236,9 +252,16 @@ class PageviewsRepository:
         """
         Parse a Pageviews API response, returning (article, total views).
 
-        :param response: Parsed JSON body from the API.
-        :return: (article name with underscores replaced by spaces, total
-            pageviews) or None if there were no pageviews.
+        Sums the per-month ``views`` across all items in the response and returns
+        the canonical article name (with underscores replaced by spaces). Returns
+        ``(None, None)`` when the response contains no items.
+
+        Args:
+            response (dict): Parsed JSON body from the API.
+
+        Returns:
+            tuple[Any | None, int | None]: (article name with underscores replaced by spaces, total
+                pageviews) or None if there were no pageviews.
         """
         items = response.get("items")
         if not items:
@@ -265,11 +288,14 @@ class PageviewsRepository:
         requested. Callers (e.g. the cross-project :class:`PageviewsCache`)
         are responsible for summing a target with its redirects.
 
-        :param titles: Page titles (spaces) to query, deduplicated by caller.
-        :param start: Start date in YYYYMMDD00 format.
-        :param end: End date in YYYYMMDD00 format.
-        :return: Dict mapping each requested title -> total pageviews (0 if
-            missing / errored).
+        Args:
+            titles (list[str]): Page titles (spaces) to query, deduplicated by caller.
+            start (str): Start date in YYYYMMDD00 format.
+            end (str): End date in YYYYMMDD00 format.
+
+        Returns:
+            dict[str, int]: Dict mapping each requested title -> total pageviews (0 if
+                missing / errored).
         """
 
         # gather returns a list of tuples: [(title, views_count), (title, views_count), ...]

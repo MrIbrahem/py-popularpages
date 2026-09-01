@@ -22,7 +22,7 @@ from src.py_port.popularpages.wiki_repository import WikiRepository
 def updater(monkeypatch) -> tuple[ReportUpdater, MagicMock]:
     """Create a configured `ReportUpdater` and mocked wiki repository for tests.
 
-    Parameters:
+    Args:
         monkeypatch: Pytest fixture used to replace repository and configuration dependencies.
 
     Returns:
@@ -139,11 +139,10 @@ class TestProcessProject:
         u, repo = updater
         cache = MagicMock()
         # The updater reads already-fetched counts via `get_views_many`
-        # (per-title `get_views` would mean one query per page).
         cache.db.get_views_many.return_value = {"Foo bar": 42}
         page_rows = [
             {
-                "page_title": "Foo_bar",
+                "page_title": "Foo bar",
                 "redir_title": "",
                 "pa_class": "Unknown",
                 "pa_importance": "Unknown",
@@ -182,7 +181,7 @@ class TestProcessProject:
         repo.get_monthly_pageviews_and_assessments = AsyncMock(return_value={"Foo bar": 7})
         page_rows = [
             {
-                "page_title": "Foo_bar",
+                "page_title": "Foo bar",
                 "redir_title": "",
                 "pa_class": "Unknown",
                 "pa_importance": "Unknown",
@@ -203,7 +202,7 @@ class TestProcessProject:
         cache.db.get_views_many.return_value = {}
         page_rows = [
             {
-                "page_title": "Foo_bar",
+                "page_title": "Foo bar",
                 "redir_title": "",
                 "pa_class": "",
                 "pa_importance": "",
@@ -229,7 +228,7 @@ class TestUpdateReports:
         u, repo = updater
         page_rows = [
             {
-                "page_title": "Foo_bar",
+                "page_title": "Foo bar",
                 "redir_title": "",
                 "pa_class": "Unknown",
                 "pa_importance": "Unknown",

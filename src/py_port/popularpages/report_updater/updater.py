@@ -28,9 +28,17 @@ class ReportUpdater:
 
     def __init__(self, wiki: str = "en.wikipedia", dry_run: bool = False):
         """
-        :param wiki: Target wiki, e.g. 'en.wikipedia'.
-        :param dry_run: Passed through to WikiRepository -- if True, prints
-            instead of saving edits to the wiki.
+        Initialize the report updater for a single wiki.
+
+        Constructs the :class:`WikiRepository`, sets up the Jinja environment
+        with the project's template helpers, and records the wiki/i18n context.
+        ``dry_run`` is forwarded to the repository so edits are printed rather
+        than saved.
+
+        Args:
+            wiki (str): Target wiki, e.g. 'en.wikipedia'.
+            dry_run (bool): Passed through to WikiRepository -- if True, prints
+                instead of saving edits to the wiki.
         """
         self.wiki_repository = WikiRepository(wiki, dry_run)
         self.wiki = wiki
@@ -93,8 +101,8 @@ class ReportUpdater:
         """
         titles: set[str] = set()
         for row in page_rows:
-            target = (row["page_title"] or "").replace("_", " ")
-            redir = (row["redir_title"] or "").replace("_", " ")
+            target = row["page_title"] or ""
+            redir = row["redir_title"] or ""
             if target:
                 titles.add(target)
             if redir:
@@ -112,7 +120,12 @@ class ReportUpdater:
         """
         Process a WikiProject and update its monthly popular-pages report.
 
-        Parameters:
+        Loads the project's page rows (titles, assessments, redirects), fetches
+        and aggregates pageviews, populates assessment categories and averages,
+        then renders the report template and saves it to the wiki (or writes it
+        to disk in dry-run mode).
+
+        Args:
             project (str): WikiProject key or title.
             config (dict | WikiProjectConfig): WikiProject report configuration.
             cache (PageviewsCache | None): Shared pageview cache, if available.
@@ -181,8 +194,8 @@ class ReportUpdater:
         unknown_msg = self.i18n.msg("unknown")
 
         for row in page_rows:
-            target = (row["page_title"] or "").replace("_", " ")
-            redir = (row["redir_title"] or "").replace("_", " ")
+            target = row["page_title"] or ""
+            redir = row["redir_title"] or ""
 
             if target not in out:
                 out[target] = {
@@ -257,7 +270,16 @@ class ReportUpdater:
         Validate a WikiProject config entry: required keys, target
         namespace, and target page existence.
 
-        :return: True if valid, else False (with the reason logged).
+        Checks that the config is complete, that the report target is not in the
+        main namespace, and that the project's main page exists on the wiki. Any
+        failure is logged with its reason.
+
+        Args:
+            project (str): WikiProject key or title.
+            config (dict | WikiProjectConfig): WikiProject report configuration.
+
+        Returns:
+            bool: True if valid, else False (with the reason logged).
         """
         logger.debug("Validating project config for '%s'", project)
         if isinstance(config, dict):
@@ -283,26 +305,6 @@ class ReportUpdater:
             return False
 
         return True
-
-    async def _build_views_cache(self, all_titles: set[str]) -> PageviewsCache:
-        """
-        Build a :class:`PageviewsCache` for this wiki's reporting month and fetch
-        every unique title across ``projects`` exactly once.
-
-        Results are persisted to ``data/views/<wiki>/<YYYY-MM>.jsonl`` (see the
-        plan doc), so titles fetched in a previous run -- or by a previously
-        processed project earlier in this same run -- are reused and not
-        dropped when the task finishes.
-        """
-        cache = PageviewsCache(
-            self.wiki,
-            self.month_date.start,
-            self.month_date.end,
-            self.wiki_repository.pageviews_repo,
-        )
-
-        await cache.ensure(all_titles)
-        return cache
 
     # ---------------------------------------------------
     # Public Methods
@@ -371,7 +373,7 @@ class ReportUpdater:
         to roughly one project's worth of data (itself capped by
         `app_config.wiki.max_project_size`).
 
-        Parameters:
+        Args:
             config (list[WikiProjectConfig]): WikiProject configurations to process. An empty list aborts the update.
         """
         # Make sure config isn't empty.

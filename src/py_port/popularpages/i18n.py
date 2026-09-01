@@ -47,10 +47,17 @@ class I18n:
         """
         Return the translated, variable-substituted message for `key`.
 
-        :param key: Message key, as defined in messages/{lang}.json.
-        :param variables: Positional values to substitute for $1, $2, ...
-        :return: The rendered message. Falls back to English, then to the
-            raw key itself, if no translation is found.
+        Loads the message map for the current language (falling back to English
+        and then to the raw key if missing), then substitutes each ``$1``,
+        ``$2``, ... placeholder with the corresponding value from ``variables``.
+
+        Args:
+            key (str): Message key, as defined in messages/{lang}.json.
+            variables (list[str] | None): Positional values to substitute for $1, $2, ...
+
+        Returns:
+            str: The rendered message. Falls back to English, then to the
+                raw key itself, if no translation is found.
         """
         variables = variables or []
         messages = self._load(self.lang)

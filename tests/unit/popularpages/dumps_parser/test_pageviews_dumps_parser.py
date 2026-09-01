@@ -13,28 +13,29 @@ from src.py_port.popularpages.dumps_parser.pageviews_dumps_parser import (
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 AR_SAMPLE_PATH = os.path.join(FIXTURES_DIR, "ar_wikipedia_sample.txt")
+SAMPLES_WITHOUT_PAGE_ID = os.path.join(FIXTURES_DIR, "samples_without_page_id.txt")
 
 # ---------------------------------------------------------------------------
 # 1. page_id variants: numeric vs "null"
 # ---------------------------------------------------------------------------
 
 
-def test_page_id_numeric():
-    line = "ar.wikipedia ! 199256 desktop 5 A1S1V1Y1^1"
-    result = ParsedPageview.parse(line)
-    assert result.page_id == "199256"
-    assert result.wiki_code == "ar.wikipedia"
-    assert result.title == "!"
-    assert result.agent == "desktop"
-    assert result.daily_total == 5
+class TestPageId:
+    def test_page_id_numeric(self):
+        line = "ar.wikipedia ! 199256 desktop 5 A1S1V1Y1^1"
+        result = ParsedPageview.parse(line)
+        assert result.page_id == 199256
+        assert result.wiki_code == "ar.wikipedia"
+        assert result.title == "!"
+        assert result.agent == "desktop"
+        assert result.daily_total == 5
 
-
-def test_page_id_null_string():
-    line = """ar.wikipedia "\\"_لفيرجينيا_وولف" null desktop 1 ]1"""
-    result = ParsedPageview.parse(line)
-    assert result.page_id == "null"
-    assert result.daily_total == 1
-    assert result.title == '"_لفيرجينيا_وولف'
+    def test_page_id_null_string(self):
+        line = """ar.wikipedia "\\"_لفيرجينيا_وولف" null desktop 1 ]1"""
+        result = ParsedPageview.parse(line)
+        assert result.page_id is None
+        assert result.daily_total == 1
+        assert result.title == '"_لفيرجينيا_وولف'
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +69,7 @@ def test_page_id_null_string():
 def test_leading_special_character_titles(line, expected_title, expected_page_id, expected_agent, expected_total):
     result = ParsedPageview.parse(line)
     assert result.title == expected_title
-    assert result.page_id == expected_page_id
+    assert result.page_id == int(expected_page_id)
     assert result.agent == expected_agent
     assert result.daily_total == expected_total
 
@@ -78,103 +79,106 @@ def test_leading_special_character_titles(line, expected_title, expected_page_id
 # ---------------------------------------------------------------------------
 
 
-def test_unescape_title_helper_directly():
-    # Bare titles (no outer wrapping quotes) pass through unchanged.
-    assert ParsedPageview.unescape_title("no_quotes_here") == "no_quotes_here"
-    assert ParsedPageview.unescape_title("!") == "!"
 
-    # Titles containing a literal quote are wrapped in an outer pair of
-    # unescaped quotes, with inner quotes escaped as \" — this wrapper
-    # must be stripped and the inner escaping undone.
-    assert ParsedPageview.unescape_title('"\\""') == '"'
-    assert ParsedPageview.unescape_title('"\\"W\\"_تشير_الى_المنتهي"') == '"W"_تشير_الى_المنتهي'
-    assert ParsedPageview.unescape_title('"\\"_\\""') == '"_"'
+class TestTitle:
+    def test_unescape_title_helper_directly(self):
+        # Bare titles (no outer wrapping quotes) pass through unchanged.
+        assert ParsedPageview.unescape_title("no_quotes_here") == "no_quotes_here"
+        assert ParsedPageview.unescape_title("!") == "!"
 
-
-def test_pure_quote_title():
-    # Raw dump line: title field is literally "\"" which represents a
-    # single-character title: "
-    line = 'ar.wikipedia "\\"" 3347002 desktop 26 C1D1L4Q1S1T1U1Y1Z2[6\\3^3_1'
-    result = ParsedPageview.parse(line)
-    assert result.title == '"'
-    assert result.page_id == "3347002"
-    assert result.daily_total == 26
+        # Titles containing a literal quote are wrapped in an outer pair of
+        # unescaped quotes, with inner quotes escaped as \" — this wrapper
+        # must be stripped and the inner escaping undone.
+        assert ParsedPageview.unescape_title('"\\""') == '"'
+        assert ParsedPageview.unescape_title('"\\"W\\"_تشير_الى_المنتهي"') == '"W"_تشير_الى_المنتهي'
+        assert ParsedPageview.unescape_title('"\\"_\\""') == '"_"'
 
 
-def test_pure_quote_title_different_page_id():
-    line = 'ar.wikipedia "\\"" 3371336 desktop 1 B1'
-    result = ParsedPageview.parse(line)
-    assert result.title == '"'
-    assert result.page_id == "3371336"
-    assert result.daily_total == 1
+    def test_pure_quote_title(self):
+        # Raw dump line: title field is literally "\"" which represents a
+        # single-character title: "
+        line = 'ar.wikipedia "\\"" 3347002 desktop 26 C1D1L4Q1S1T1U1Y1Z2[6\\3^3_1'
+        result = ParsedPageview.parse(line)
+        assert result.title == '"'
+        assert result.page_id == 3347002
+        assert result.daily_total == 26
 
 
-def test_mixed_quote_and_arabic_title():
-    line = 'ar.wikipedia "\\"W\\"_تشير_الى_المنتهي" 7858501 desktop 7 E1F1J1P1T1U1X1'
-    result = ParsedPageview.parse(line)
-    assert result.title == '"W"_تشير_الى_المنتهي'
-    assert result.page_id == "7858501"
-    assert result.daily_total == 7
+    def test_pure_quote_title_different_page_id(self):
+        line = 'ar.wikipedia "\\"" 3371336 desktop 1 B1'
+        result = ParsedPageview.parse(line)
+        assert result.title == '"'
+        assert result.page_id == 3371336
+        assert result.daily_total == 1
 
 
-def test_quote_underscore_quote_title():
-    # title field "\"_\"" -> unescaped: "_"
-    line = 'ar.wikipedia "\\"_\\"" 3347002 desktop 6 O1S1T1W1Y2'
-    result = ParsedPageview.parse(line)
-    assert result.title == '"_"'
-    assert result.page_id == "3347002"
-    assert result.daily_total == 6
+    def test_mixed_quote_and_arabic_title(self):
+        line = 'ar.wikipedia "\\"W\\"_تشير_الى_المنتهي" 7858501 desktop 7 E1F1J1P1T1U1X1'
+        result = ParsedPageview.parse(line)
+        assert result.title == '"W"_تشير_الى_المنتهي'
+        assert result.page_id == 7858501
+        assert result.daily_total == 7
 
 
-def test_quoted_english_title_with_internal_apostrophe():
-    # Confirms apostrophes inside an already-quoted title survive untouched
-    # (they are NOT escape sequences, just literal characters).
-    line = (
-        "ar.wikipedia \"\\\"Schumer_announces_'Maple_Tap_Act'_has_passed_the_Senate"
-        '_at_part_of_Farm_Bill\\"" null desktop 1 A1'
-    )
-    result = ParsedPageview.parse(line)
-    assert result.title == ("\"Schumer_announces_'Maple_Tap_Act'_has_passed_the_Senate_at_part_of_Farm_Bill\"")
-    assert result.page_id == "null"
-    assert result.daily_total == 1
+    def test_quote_underscore_quote_title(self):
+        # title field "\"_\"" -> unescaped: "_"
+        line = 'ar.wikipedia "\\"_\\"" 3347002 desktop 6 O1S1T1W1Y2'
+        result = ParsedPageview.parse(line)
+        assert result.title == '"_"'
+        assert result.page_id == 3347002
+        assert result.daily_total == 6
 
 
-def test_quote_prefix_no_suffix_arabic_title():
-    # title field "\"_لفيرجينيا_وولف (no closing internal quote in this one)
-    line = 'ar.wikipedia "\\"_لفيرجينيا_وولف" null desktop 1 ]1'
-    result = ParsedPageview.parse(line)
-    assert result.title == '"_لفيرجينيا_وولف'
-    assert result.page_id == "null"
-    assert result.daily_total == 1
+    def test_quoted_english_title_with_internal_apostrophe(self):
+        # Confirms apostrophes inside an already-quoted title survive untouched
+        # (they are NOT escape sequences, just literal characters).
+        line = (
+            "ar.wikipedia \"\\\"Schumer_announces_'Maple_Tap_Act'_has_passed_the_Senate"
+            '_at_part_of_Farm_Bill\\"" null desktop 1 A1'
+        )
+        result = ParsedPageview.parse(line)
+        assert result.title == ("\"Schumer_announces_'Maple_Tap_Act'_has_passed_the_Senate_at_part_of_Farm_Bill\"")
+        assert result.page_id is None
+        assert result.daily_total == 1
 
 
-def test_quoted_arabic_only_title():
-    line = 'ar.wikipedia "\\"أول_مكرر\\"" null mobile-web 1 E1'
-    result = ParsedPageview.parse(line)
-    assert result.title == '"أول_مكرر"'
-    assert result.page_id == "null"
-    assert result.agent == "mobile-web"
-    assert result.daily_total == 1
+    def test_quote_prefix_no_suffix_arabic_title(self):
+        # title field "\"_لفيرجينيا_وولف (no closing internal quote in this one)
+        line = 'ar.wikipedia "\\"_لفيرجينيا_وولف" null desktop 1 ]1'
+        result = ParsedPageview.parse(line)
+        assert result.title == '"_لفيرجينيا_وولف'
+        assert result.page_id is None
+        assert result.daily_total == 1
+
+
+    def test_quoted_arabic_only_title(self):
+        line = 'ar.wikipedia "\\"أول_مكرر\\"" null mobile-web 1 E1'
+        result = ParsedPageview.parse(line)
+        assert result.title == '"أول_مكرر"'
+        assert result.page_id is None
+        assert result.agent == "mobile-web"
+        assert result.daily_total == 1
 
 
 # ---------------------------------------------------------------------------
 # 4. hourly_counts is discarded regardless of its (absent/odd) content
 # ---------------------------------------------------------------------------
 
+class TestHourlyCounts:
 
-def test_hourly_counts_with_backslash_is_ignored_safely():
-    # hourly_counts here contains a literal backslash char - must not
-    # affect title/daily_total parsing since it's never inspected.
-    line = "ar.wikipedia !! 2481200 desktop 4 R1V1\\2"
-    result = ParsedPageview.parse(line)
-    assert result.title == "!!"
-    assert result.daily_total == 4
+    def test_hourly_counts_with_backslash_is_ignored_safely(self):
+        # hourly_counts here contains a literal backslash char - must not
+        # affect title/daily_total parsing since it's never inspected.
+        line = "ar.wikipedia !! 2481200 desktop 4 R1V1\\2"
+        result = ParsedPageview.parse(line)
+        assert result.title == "!!"
+        assert result.daily_total == 4
 
 
-def test_daily_total_parses_even_with_trailing_junk():
-    line = "ar.wikipedia !_(توضيح) 2481196 desktop 15 F2G1I1J2L1R1T1V1X1Y2]1_1"
-    result = ParsedPageview.parse(line)
-    assert result.daily_total == 15
+    def test_daily_total_parses_even_with_trailing_junk(self):
+        line = "ar.wikipedia !_(توضيح) 2481196 desktop 15 F2G1I1J2L1R1T1V1X1Y2]1_1"
+        result = ParsedPageview.parse(line)
+        assert result.daily_total == 15
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +194,7 @@ def test_same_page_id_different_titles_are_distinct():
     result_a = ParsedPageview.parse(line_a)  # title '"_"', page_id 3347002
     result_c = ParsedPageview.parse(line_c)  # title '"',   page_id 3347002
 
-    assert result_a.page_id == result_c.page_id == "3347002"
+    assert result_a.page_id == result_c.page_id == 3347002
     assert result_a.title != result_c.title
     # aggregation key must be title, not page_id
     assert (result_a.wiki_code, result_a.title) != (result_c.wiki_code, result_c.title)
@@ -199,7 +203,6 @@ def test_same_page_id_different_titles_are_distinct():
 # ---------------------------------------------------------------------------
 # 6. Malformed lines
 # ---------------------------------------------------------------------------
-
 
 def test_malformed_line_too_few_fields():
     with pytest.raises(MalformedLineError):
@@ -281,3 +284,77 @@ def test_full_fixture_aggregation_by_title_matches_expected_totals():
 
     # '"W"_تشير_الى_المنتهي' appears twice, same page_id: 7 + 2 = 9
     assert totals[("ar.wikipedia", '"W"_تشير_الى_المنتهي')] == 9
+
+class TestIsValid:
+    # ---- page_id is None -> invalid regardless of title --------------------
+
+    def test_null_page_id_is_invalid(self):
+        obj = ParsedPageview.parse("de.wikipedia Special:WantedPages/ null mobile-web 4 A1B1G2")
+        # null page_id makes it invalid; the "Special:" prefix is irrelevant
+        # here because de.wikipedia has no prefix map.
+        assert obj.page_id is None
+        assert obj.is_valid() is False
+
+    def test_null_page_id_with_normal_title_is_invalid(self):
+        obj = ParsedPageview.parse("en.wikipedia Normal_Title null desktop 10 B1")
+        assert obj.page_id is None
+        assert obj.is_valid() is False
+
+    # ---- en.wikipedia: "Special:" prefix -----------------------------------
+
+    def test_en_special_prefix_is_invalid(self):
+        obj = ParsedPageview.parse("en.wikipedia Special:WantedPages/ 12345 mobile-web 4 A1B1G2")
+        assert obj.page_id == 12345
+        assert obj.is_valid() is False
+
+    def test_en_normal_title_is_valid(self):
+        obj = ParsedPageview.parse("en.wikipedia Main_Page 67890 desktop 100 B1")
+        assert obj.page_id == 67890
+        assert obj.is_valid() is True
+
+    def test_en_partial_special_substring_is_valid(self):
+        # "Special" without the trailing colon must NOT be treated as invalid.
+        obj = ParsedPageview.parse("en.wikipedia SpecialPages 101 desktop 5 B1")
+        assert obj.is_valid() is True
+
+    # ---- ar.wikipedia: "خاص:" prefix ---------------------------------------
+
+    def test_ar_special_prefix_is_invalid(self):
+        obj = ParsedPageview.parse("ar.wikipedia خاص:صفحات_مطلوبة 202 desktop 7 B1")
+        assert obj.page_id == 202
+        assert obj.is_valid() is False
+
+    def test_ar_normal_title_is_valid(self):
+        obj = ParsedPageview.parse("ar.wikipedia القاهرة 303 mobile-web 12 B1")
+        assert obj.page_id == 303
+        assert obj.is_valid() is True
+
+    # ---- unknown wiki code: no prefixes defined -> valid if page_id set ---
+
+    def test_unknown_wiki_code_with_special_like_title_is_valid(self):
+        obj = ParsedPageview.parse("de.wikipedia Special:WantedPages/ 404 desktop 3 B1")
+        assert obj.page_id == 404
+        assert obj.is_valid() is True
+
+    # ---- direct construction (no parse) for full branch coverage -----------
+
+    def test_construct_directly_with_none_page_id(self):
+        obj = ParsedPageview(
+            wiki_code="en.wikipedia",
+            title="Special:Foo",
+            page_id=None,
+            agent="desktop",
+            daily_total=1,
+        )
+        assert obj.is_valid() is False
+
+    def test_construct_directly_en_valid(self):
+        obj = ParsedPageview(
+            wiki_code="en.wikipedia",
+            title="Portal:Science",
+            page_id=999,
+            agent="desktop",
+            daily_total=1,
+        )
+        assert obj.is_valid() is True
+

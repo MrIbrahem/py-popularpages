@@ -14,7 +14,7 @@ from src.py_port.popularpages.config import app_config
 def patched(monkeypatch):
     """Configure a mocked report updater for CLI tests.
 
-    Parameters:
+    Args:
         monkeypatch: Pytest monkeypatch fixture used to replace the report updater.
     """
     # main() drives everything via a single asyncio.run() call, which needs a

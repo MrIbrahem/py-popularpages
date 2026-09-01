@@ -48,8 +48,17 @@ class WikiRepository:
         log_dir: Path | None = None,
     ) -> None:
         """
-        :param wiki: Wiki in the form lang.project, e.g. 'en.wikipedia'.
-        :param dry_run: If True, `set_text()` prints instead of saving to the wiki.
+        Initialize the repository for a single wiki.
+
+        Loads the wiki's configuration, sets up the translation/i18n helper,
+        builds the :class:`PageviewsRepository` and the lazily-connected
+        :class:`WikiDatabaseRepository`, and creates a shared HTTP client used
+        for fetching assessment config. Raises ``ValueError`` if the wiki is not
+        present in the loaded config.
+
+        Args:
+            wiki (str): Wiki in the form lang.project, e.g. 'en.wikipedia'.
+            dry_run (bool): If True, `set_text()` prints instead of saving to the wiki.
         """
         self.wiki = wiki
         self.dry_run = dry_run
@@ -114,9 +123,16 @@ class WikiRepository:
         """
         Get the WikiProject config for the given title.
 
-        :param title: WikiProject page title, e.g. 'Wikipedia:WikiProject
-        Popular pages'.
-        :return: WikiProjectConfig object.
+        Fetches the raw JSON config (via :meth:`get_json_config`) and parses it
+        into a list of :class:`WikiProjectConfig` objects. The ``title``
+        defaults to the wiki's configured config page when omitted.
+
+        Args:
+            title (str | None): WikiProject page title, e.g. 'Wikipedia:WikiProject
+                Popular pages'.
+
+        Returns:
+            list[WikiProjectConfig]: Parsed WikiProjectConfig objects.
         """
         json_data = self.get_json_config(title)
         logger.debug("Loaded %d WikiProject config(s) for title '%s'", len(json_data), title)
@@ -128,7 +144,16 @@ class WikiRepository:
 
         Example: Wikipedia:WikiProject/Popular pages config.json
 
-        :return: Config data, with the 'description' explanatory entry removed.
+        Reads the raw wikitext of the config page, parses it as JSON, and removes
+        the ``description`` entry (which is only explanatory text). Returns the
+        remaining config dict.
+
+        Args:
+            title (str | None): Config page title to fetch. Defaults to the
+                wiki's configured config page when ``None``.
+
+        Returns:
+            dict: Config data, with the 'description' explanatory entry removed.
         """
         if title is None:
             title = self.wiki_config_page
@@ -166,10 +191,14 @@ class WikiRepository:
         """
         Get timestamps of the bot's last edits for all configured WikiProjects.
 
-        :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
+        Resolves each configured project's report title, then queries the
+        replica database for the bot's most recent edit timestamp per project.
+
+        Returns:
+            list[dict]: List of dicts with 'page_title', 'rev_timestamp'.
         """
         config = self.get_config()
-        projects = {x.report_without_ns: x.project_main_page for x in config}
+        projects = {x.report_title: x.project_main_page for x in config}
 
         titles = list(projects.keys())
         logger.debug("Looking up last-bot timestamps for %d project(s)", len(titles))
@@ -184,8 +213,15 @@ class WikiRepository:
         """
         Check if a given title exists on the wiki.
 
-        :param title: Title to check existence for.
-        :return: True if the title exists, else False.
+        Queries the MediaWiki API for whether the page exists. (Note: the
+        current implementation returns ``True`` for any title regardless of
+        existence -- see the inline ``return True``.)
+
+        Args:
+            title (str): Title to check existence for.
+
+        Returns:
+            bool: True if the title exists, else False.
         """
         page = self.site.pages[title]
         logger.debug("does_title_exist('%s') -> exists=%s", title, page.exists)
@@ -197,8 +233,15 @@ class WikiRepository:
         """
         Check whether the page already has a first (lead) section.
 
-        :param title: The page title to check.
-        :return: True if it exists, else False.
+        Parses the page's wikitext and reports whether it contains at least one
+        section. A page that does not exist or has no sections is treated as
+        having no lead section.
+
+        Args:
+            title (str): The page title to check.
+
+        Returns:
+            bool: True if it exists, else False.
         """
         logger.debug("Checking lead section for '%s'", title)
         page = self.site.pages[title]
@@ -224,9 +267,15 @@ class WikiRepository:
         """
         Get config for a single WikiProject by its display name.
 
-        :param project_name: Name of WikiProject as specified in the 'Name'
-            parameter of the JSON config.
-        :return: WikiProjectConfig for the matching project, or None.
+        Iterates the wiki's configured projects and returns the one whose
+        ``Name`` matches ``project_name``.
+
+        Args:
+            project_name (str): Name of WikiProject as specified in the 'Name'
+                parameter of the JSON config.
+
+        Returns:
+            WikiProjectConfig | None: WikiProjectConfig for the matching project, or None.
         """
         logger.debug("Looking up project by name '%s'", project_name)
         config = self.get_config()
@@ -240,7 +289,12 @@ class WikiRepository:
         """
         Get the wiki's assessment configuration (colors/icons per class/importance).
 
-        :return: Nested dict, e.g. {'class': {...}, 'importance': {...}}.
+        Fetches and caches the assessment config from the configured URL. On
+        success returns the nested ``{wiki}.org`` config dict; on failure logs
+        the error and returns ``None`` (cached so it is only fetched once).
+
+        Returns:
+            dict: Nested dict, e.g. {'class': {...}, 'importance': {...}}.
         """
         if self._assessment_config is not None:
             logger.debug("Returning cached assessment config")
@@ -283,12 +337,21 @@ class WikiRepository:
         """
         Update a wiki page with the given text.
 
-        :param page_title: Page to set text for.
-        :param text: Text to set on the page.
-        :param summary: Edit summary.
-        :param section: Section to update. If None, the entire page is updated.
-        :return: The API result dict, or None if the edit failed or this is
-            a dry run.
+        Logs in if needed, ensures a summary exists, and (in dry-run mode)
+        writes the rendered wikitext to disk instead of saving. Otherwise edits
+        the page at the whole page or a specific section, retrying once on
+        login errors.
+
+        Args:
+            page_title (str): Page to set text for.
+            text (str): Text to set on the page.
+            summary (str | None): Edit summary.
+            section_number (int | None): Section to update. If None, the entire page is updated.
+            file_name (str | None): Optional filename for the dry-run wikitext dump.
+
+        Returns:
+            dict | None: The API result dict, or None if the edit failed or this is
+                a dry run.
         """
         logger.info(
             "set_text: attempting to update '%s' (section=%s, dry_run=%s)", page_title, section_number, self.dry_run
@@ -370,8 +433,14 @@ class WikiRepository:
         """
         Get the date the bot last edited the given page.
 
-        :param page: Page title.
-        :return: Date in YYYY-MM-DD format, or '' if never edited by the bot.
+        Queries the page's revisions for the most recent one authored by the
+        configured bot user and formats it as ``YYYY-MM-DD``.
+
+        Args:
+            title (str): Page title.
+
+        Returns:
+            str: Date in YYYY-MM-DD format, or '' if never edited by the bot.
         """
         logger.debug("Looking up bot's last edit date for '%s'", title)
         page = self.site.pages[title]
@@ -395,13 +464,18 @@ class WikiRepository:
         """
         Get WikiProjects that have not yet been updated for the current cycle.
 
-        :return: Config for WikiProjects not updated so far this month.
+        Compares each configured project's last bot edit timestamp against the
+        start of the current month and returns the projects that have not been
+        updated since then.
+
+        Returns:
+            list[WikiProjectConfig]: Config for WikiProjects not updated so far this month.
         """
         logger.info("[%s] Checking for stale projects", self.wiki)
         logger.info("Checking for stale projects on '%s'", self.wiki)
 
         _config = self.get_config()
-        projects = {x.report_without_ns: x.project_main_page for x in _config}
+        projects = {x.report_title: x.project_main_page for x in _config}
 
         if not projects:
             return _config
@@ -432,6 +506,18 @@ class WikiRepository:
         Split the given target batches into chunks of at most
         `app_config.pageviews.batch_size_threshold` targets each, and fetch
         pageviews for each chunk via `PageviewsRepository.get_pageviews`.
+
+        Iterates over the batches in fixed-size windows, summing the per-title
+        pageviews returned for each chunk into a single ``title -> views`` map,
+        so callers receive the combined total across all batches.
+
+        Args:
+            batches (dict[str, list[str]]): Mapping of target page -> list of titles (target + redirects) to fetch.
+            start (str): Start date in YYYYMMDD00 format.
+            end (str): End date in YYYYMMDD00 format.
+
+        Returns:
+            dict[str, int]: Combined title -> total pageviews across all batches.
         """
         chunk_size = app_config.pageviews.batch_size_threshold
         items = list(batches.items())
