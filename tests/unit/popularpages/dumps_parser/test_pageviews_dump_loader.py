@@ -21,7 +21,7 @@ import pytest
 from src.py_port.popularpages.dumps_parser.pageviews_dump_loader import (
     DumpNotFoundError,
     _aggregate_dump,
-    _dump_path_for_month,
+    dump_path_for_month,
     _iter_dump_lines,
     load_dump_into_cache,
 )
@@ -57,7 +57,7 @@ WANTED_WIKI_CODES = {"ar.wikipedia", "en.wikipedia"}
 
 def _write_fixture_dump(dumps_root: Path, year: int, month: int, lines: list[str]) -> Path:
     """Write ``lines`` into a real bz2 file at the expected dump path."""
-    dump_file = _dump_path_for_month(year, month, root=dumps_root)
+    dump_file = dump_path_for_month(year, month, root=dumps_root)
     dump_file.parent.mkdir(parents=True, exist_ok=True)
     with bz2.open(dump_file, "wt", encoding="utf-8") as f:
         for line in lines:
@@ -66,17 +66,17 @@ def _write_fixture_dump(dumps_root: Path, year: int, month: int, lines: list[str
 
 
 # ---------------------------------------------------------------------------
-# _dump_path_for_month
+# dump_path_for_month
 # ---------------------------------------------------------------------------
 
 
 def test_dump_path_for_month_pattern(tmp_path: Path):
-    path = _dump_path_for_month(2026, 7, root=tmp_path)
+    path = dump_path_for_month(2026, 7, root=tmp_path)
     assert path == tmp_path / "2026" / "2026-07" / "pageviews-202607-user.bz2"
 
 
 def test_dump_path_for_month_pads_single_digit_month(tmp_path: Path):
-    path = _dump_path_for_month(2026, 1, root=tmp_path)
+    path = dump_path_for_month(2026, 1, root=tmp_path)
     assert path.name == "pageviews-202601-user.bz2"
     assert path.parent.name == "2026-01"
 

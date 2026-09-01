@@ -115,6 +115,9 @@ def _aggregate_dump(
     line_count = 0
     valid_lines_count = 0
 
+    for wiki in wanted_wiki_codes:
+        totals[wiki] = {}
+
     for line in lines:
         line_count += 1
         if line_count % _PROGRESS_LOG_EVERY == 0:
@@ -128,6 +131,7 @@ def _aggregate_dump(
         space_idx = line.find(" ")
         if space_idx == -1:
             continue
+
         wiki_code = line[:space_idx]
         if wiki_code not in wanted_wiki_codes:
             continue
@@ -139,17 +143,20 @@ def _aggregate_dump(
             logger.debug("Skipping malformed line: %r", line)
             continue
 
+        cache_title = parsed.title#.replace("_", " ")
+
         if wanted_titles_by_wiki is not None:
             wanted_titles = wanted_titles_by_wiki.get(parsed.wiki_code)
-            if wanted_titles is not None and parsed.title not in wanted_titles:
+            if wanted_titles is not None and cache_title not in wanted_titles:
                 continue
 
         valid_lines_count += 1
-        wiki_totals = totals.setdefault(parsed.wiki_code, {})
-        wiki_totals[parsed.title] = wiki_totals.get(parsed.title, 0) + parsed.daily_total
+        wiki_totals = totals[parsed.wiki_code]
+        wiki_totals[cache_title] = wiki_totals.get(cache_title, 0) + parsed.daily_total
 
     if malformed_count:
         logger.warning("Skipped %d malformed line(s) while processing dump.", malformed_count)
+
     logger.info("Finished processing %s total dump lines., valid_lines_count: %s", f"{line_count:,}", f"{valid_lines_count:,}")
 
     return totals

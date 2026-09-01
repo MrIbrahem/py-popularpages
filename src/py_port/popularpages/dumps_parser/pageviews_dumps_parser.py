@@ -57,7 +57,7 @@ class ParsedPageview:
             '"\\"W\\"_x"'       -> '"W"_x'               (wrapped + escaped)
         """
 
-        raw_title = raw_title.replace("_", " ")
+        # raw_title = raw_title.replace("_", " ")
         # Check if the raw_title is wrapped in double quotes
         if len(raw_title) >= 2 and raw_title.startswith('"') and raw_title.endswith('"'):
             # Extract the inner content by removing the outer quotes
