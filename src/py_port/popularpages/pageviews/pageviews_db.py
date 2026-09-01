@@ -209,9 +209,10 @@ class PageviewsDb:
 
         """
         # 1. Collect all unique titles (targets + redirects) directly into a set
-        all_titles = {
-            title for target, redirects in targets_to_redirects.items() for title in (target, *redirects) if title
-        }
+        all_titles = set()
+        for key, redirects in targets_to_redirects.items():
+            all_titles.add(key)
+            all_titles.update(t for t in redirects if t)
 
         # 2. Fetch view counts for all unique titles in a single batch query
         views_by_title = self._query_views_by_title(list(all_titles))
