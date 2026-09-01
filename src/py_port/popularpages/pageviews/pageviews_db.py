@@ -93,6 +93,13 @@ class PageviewsDb:
 
         logger.debug("Upserted %d titles into %s", len(title_views), self.db_file_path)
 
+    def upsert_many_chunks(self, title_views: dict[str, int]) -> None:
+        """
+        TODO: solve sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) too many SQL variables
+        """
+        if not title_views:
+            return
+
     # ---------------------------------------------------
     # Lookup
     # ---------------------------------------------------
