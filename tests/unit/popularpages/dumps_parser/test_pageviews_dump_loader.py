@@ -102,14 +102,14 @@ def test_iter_dump_lines_streams_real_bz2_file(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# _aggregate_dump
+# _process_dump_lines
 # ---------------------------------------------------------------------------
 
 
 def test_aggregate_dump_filters_unwanted_wikis(tmp_path: Path):
     views_dir = tmp_path / "views"
     loader = PageviewsDumpLoader(views_dir=views_dir, dumps_root=tmp_path / "dumps")
-    totals = loader._aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
+    totals = loader._process_dump_lines(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
     assert "aa.wikipedia" not in totals
     assert set(totals.keys()) == {"ar.wikipedia", "en.wikipedia"}
 
@@ -117,7 +117,7 @@ def test_aggregate_dump_filters_unwanted_wikis(tmp_path: Path):
 class TestAggregateDump:
     """Aggregation behavior, verified through the real SQLite cache read path.
 
-    ``_aggregate_dump`` streams aggregated titles into the SQLite cache in
+    ``_process_dump_lines`` streams aggregated titles into the SQLite cache in
     bounded-memory batches instead of returning them in memory, so these tests
     run the aggregation against a fixture and read the upserted totals back via
     :class:`PageviewsDb` (the same interface downstream code uses).
@@ -132,7 +132,7 @@ class TestAggregateDump:
         return PageviewsDumpLoader(views_dir=views_dir, dumps_root=tmp_path / "dumps")
 
     def test_aggregate_dump_sums_across_agents_and_page_ids(self, loader: PageviewsDumpLoader, views_dir: Path):
-        loader._aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
+        loader._process_dump_lines(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
 
         db = PageviewsDb(views_dir / "ar.wikipedia" / "2026-08.sqlite3")
         try:
@@ -157,7 +157,7 @@ class TestAggregateDump:
         assert views['"W" تشير الى المنتهي'] == 9
 
     def test_aggregate_dump_sums_across_agents_for_en_wikipedia(self, loader: PageviewsDumpLoader, views_dir: Path):
-        loader._aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
+        loader._process_dump_lines(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
 
         db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
         try:
@@ -167,7 +167,7 @@ class TestAggregateDump:
             db.close_db()
 
     def test_aggregate_dump_skips_malformed_line_without_crashing(self, loader: PageviewsDumpLoader, views_dir: Path):
-        loader._aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
+        loader._process_dump_lines(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
 
         db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
         try:
@@ -179,7 +179,7 @@ class TestAggregateDump:
     def test_aggregate_dump_title_filtering_optimization(self, loader: PageviewsDumpLoader, views_dir: Path):
         # Only keep "!" for ar.wikipedia; en.wikipedia unfiltered (no entry).
         wanted_titles = {"ar.wikipedia": {"!"}}
-        loader._aggregate_dump(
+        loader._process_dump_lines(
             FIXTURE_LINES,
             WANTED_WIKI_CODES,
             "2026-08",

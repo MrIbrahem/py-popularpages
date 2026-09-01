@@ -147,7 +147,7 @@ class PageviewsDumpLoader:
 
         Args:
             totals_by_wiki (dict[str, dict[str, int]]): ``{wiki_code: {title: total_titles}}``, as
-                returned by :meth:`_aggregate_dump`.
+                returned by :meth:`_process_dump_lines`.
             yyyy_mm (str): ``YYYY-MM`` string used to build the cache filename.
         """
         for wiki_code, title_views in totals_by_wiki.items():
@@ -196,7 +196,7 @@ class PageviewsDumpLoader:
                 db.close_db()
         return counts
 
-    def _aggregate_dump(
+    def _process_dump_lines(
         self,
         lines: Iterable[str],
         wanted_wiki_codes: set[str],
@@ -364,7 +364,7 @@ class PageviewsDumpLoader:
             wanted_wiki_codes (set[str]): Wiki codes to keep, e.g. the keys of
                 ``config/wikis.yaml`` (``{"en.wikipedia", "ar.wikipedia", ...}``).
             wanted_titles_by_wiki (dict[str, set[str]] | None): Optional per-wiki title allow-list; see
-                :meth:`_aggregate_dump`.
+                :meth:`_process_dump_lines`.
 
         Returns:
             dict[str, int]: ``{wiki_code: number_of_distinct_titles}`` for every wiki
@@ -383,7 +383,7 @@ class PageviewsDumpLoader:
 
         lines = self._iter_dump_lines(dump_file)
 
-        totals_by_wiki = self._aggregate_dump(
+        totals_by_wiki = self._process_dump_lines(
             lines=lines,
             wanted_wiki_codes=wanted_wiki_codes,
             yyyy_mm=yyyy_mm,

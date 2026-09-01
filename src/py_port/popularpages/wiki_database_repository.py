@@ -51,8 +51,15 @@ class WikiDatabaseRepository:
         """
         Get timestamps of the bot's last edits for the given WikiProjects.
 
-        :param projects: Mapping of db-key page title -> WikiProject name.
-        :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
+        Runs a SQL query against the replica database that finds, for each
+        requested page title, the most recent revision authored by the bot in
+        the Project namespace (namespace 4) and returns its timestamp.
+
+        Args:
+            titles (list[str]): Mapping of db-key page title -> WikiProject name.
+
+        Returns:
+            list[dict[str, Any]]: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
         """
 
         placeholders = ", ".join(["%s"] * len(titles))
@@ -91,8 +98,15 @@ class WikiDatabaseRepository:
         """
         Get titles & assessments for all pages in a WikiProject.
 
-        :param project: Name of the project, e.g. 'Medicine'.
-        :return: List of rows with page_title, pa_class, pa_importance, redir_title.
+        Queries the replica database for every page in the given project's
+        namespace, returning its page title, assessment class/importance, and
+        the title of its redirect (if any).
+
+        Args:
+            project (str): Name of the project, e.g. 'Medicine'.
+
+        Returns:
+            list[dict[str, Any]]: List of rows with page_title, pa_class, pa_importance, redir_title.
         """
 
         logger.debug("Fetching pages and assessments for project '%s'", project)
@@ -129,8 +143,15 @@ class WikiDatabaseRepository:
         """
         Get timestamps of the bot's last edits for the given WikiProjects.
 
-        :param titles: Mapping of db-key page title -> WikiProject name.
-        :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
+        Public wrapper around :meth:`_get_projects_timestamps` that runs the
+        query and returns the raw rows (binary columns already resolved by
+        ``db.select``).
+
+        Args:
+            titles (list[str]): Mapping of db-key page title -> WikiProject name.
+
+        Returns:
+            list[dict[str, Any]]: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
         """
         logger.info("[%s] Fetching timestamps of the bot's last edits", self.wiki)
 
@@ -144,8 +165,14 @@ class WikiDatabaseRepository:
         """
         Get titles & assessments for all pages in a WikiProject.
 
-        :param project: Name of the project, e.g. 'Medicine'.
-        :return: List of rows with page_title, pa_class, pa_importance, redir_title.
+        Public wrapper around :meth:`_get_project_pages` that runs the query and
+        returns the raw rows for the given project.
+
+        Args:
+            project (str): Name of the project, e.g. 'Medicine'.
+
+        Returns:
+            list[dict[str, Any]]: List of rows with page_title, pa_class, pa_importance, redir_title.
         """
         logger.debug("Fetching pages for project '%s'", project)
         logger.info("[%s] Fetching pages and assessments for project %s", self.wiki, project)
