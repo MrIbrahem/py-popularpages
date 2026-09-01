@@ -120,6 +120,12 @@ def main() -> None:
         action="store_true",
         help="Log what would happen without writing or deleting anything.",
     )
+    parser.add_argument(
+        "--debug",
+        "-v",
+        action="store_true",
+        help="Enable DEBUG-level logging (default: INFO).",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

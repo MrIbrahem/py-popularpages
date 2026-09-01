@@ -13,15 +13,15 @@ changes required to the existing REST-based code.
 Usage examples
 --------------
     # Load July 2026 for every wiki configured in config/wikis.yaml:
-    python -m src.load_pageviews_dump --year 2026 --month 7
+    python -m src.py_port.load_pageviews_dump --year 2026 --month 7
 
     # Same, but only for specific wikis:
-    python -m src.load_pageviews_dump --year 2026 --month 7 \\
+    python -m src.py_port.load_pageviews_dump --year 2026 --month 7 \\
         --wiki en.wikipedia --wiki ar.wikipedia
 
     # Point at a different wikis.yaml / dumps root / views dir (e.g. for
     # local testing away from the real Toolforge NFS mount):
-    python -m src.load_pageviews_dump --year 2026 --month 7 \\
+    python -m src.py_port.load_pageviews_dump --year 2026 --month 7 \\
         --dumps-root /path/to/fake/dumps \\
         --views-dir /path/to/data/views
 
@@ -101,7 +101,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=f"Root data/views directory to write SQLite caches into (default: {DEFAULT_VIEWS_DIR}).",
     )
     parser.add_argument(
-        "--verbose",
+        "--debug",
         "-v",
         action="store_true",
         help="Enable DEBUG-level logging (default: INFO).",
@@ -136,11 +136,6 @@ def _resolve_wanted_wiki_codes(args: argparse.Namespace) -> set[str]:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
-
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
 
     try:
         wanted_wiki_codes = _resolve_wanted_wiki_codes(args)
