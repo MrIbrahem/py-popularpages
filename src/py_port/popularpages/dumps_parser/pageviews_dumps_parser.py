@@ -46,17 +46,17 @@ class ParsedPageview:
 
     def is_valid(self) -> bool:
         """
-        return False if:
-            - page_id is None
-            - title start with (Special: in en.wikipedia)
-            - title start with (خاص: in ar.wikipedia)
+        Check if the current page is valid based on its page ID and title prefix.
+
+        Returns:
+            bool: True if the page is valid, False otherwise.
         """
         if self.page_id is None:
             return False
 
         invalid_title_prefixes = {
-            "en.wikipedia": ("Special:"),
-            "ar.wikipedia": ("خاص:"),
+            "en.wikipedia": ("Special:",),
+            "ar.wikipedia": ("خاص:",),
         }
 
         prefixes = invalid_title_prefixes.get(self.wiki_code, ())
