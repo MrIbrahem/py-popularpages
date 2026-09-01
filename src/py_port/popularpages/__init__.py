@@ -22,5 +22,9 @@ from .logger_config import setup_logging  # noqa: E402
 
 # setup_logging(name=".", level="INFO")
 
-level = "DEBUG" if "debug" in sys.argv else "INFO"
+# Logging is configured before argparse runs in main(), so detect the
+# debug/verbose flag from sys.argv at import time. --verbose/-v is the
+# canonical flag (used by main()); --debug is also honored for convenience.
+_DEBUG_FLAGS = {"-v", "--verbose", "--debug"}
+level = "DEBUG" if _DEBUG_FLAGS.intersection(sys.argv[1:]) else "INFO"
 setup_logging(name="popularpages", level=level)

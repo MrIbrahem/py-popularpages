@@ -68,8 +68,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Load a monthly pageview_complete dump into the SQLite pageviews cache.",
     )
 
-    parser.add_argument("debug", help="Enable debug logs")
-
     parser.add_argument("--year", type=int, required=True, help="Dump year, e.g. 2026.")
     parser.add_argument(
         "--month",
