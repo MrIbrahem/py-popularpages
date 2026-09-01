@@ -9,9 +9,14 @@ Notes (confirmed against real dump samples):
   string "null".
 - hourly_counts is optional and, when present or absent, is simply
   discarded — it is never needed downstream.
-- Titles may contain a literal double-quote character, which is escaped
-  in the raw dump as \" (backslash + quote). This must be unescaped
-  back to " after extraction.
+- Titles containing a literal double-quote character are CSV-style
+  quoted in the raw dump: the whole title field is wrapped in an
+  outer pair of unescaped " characters, and every literal " inside
+  the title is escaped as \". Titles with no " character are left
+  completely bare (no wrapping). E.g. title `"` is written as `"\""`
+  (open-quote, escaped-quote, close-quote); title `"W"_x` is written
+  as `"\"W\"_x"`. This wrapper must be stripped and the inner \"
+  sequences unescaped back to " after extraction.
 - Titles use underscores for spaces and can contain arbitrary
   punctuation (including leading '!', "'", '(') and non-Latin scripts.
 - We deliberately do NOT assume a fixed total column count. We split
@@ -39,10 +44,21 @@ class ParsedPageview:
 def unescape_title(raw_title: str) -> str:
     """Convert a raw dump title field into its true string form.
 
-    Currently handles the one escape sequence confirmed present in the
-    dumps: an escaped double-quote (\\") becoming a literal ".
+    The dump uses CSV-style conditional quoting: a title is wrapped in
+    an outer, unescaped pair of double-quotes IF AND ONLY IF it contains
+    a literal double-quote character; any literal " inside such a title
+    is escaped as \". Titles without a " character are left bare with
+    no wrapping at all.
+
+    Examples (raw field -> true title):
+        '!'                 -> '!'                  (no quote char, bare)
+        '"\\""'             -> '"'                  (wrapped + escaped)
+        '"\\"W\\"_x"'       -> '"W"_x'               (wrapped + escaped)
     """
-    return raw_title.replace('\\"', '"')
+    if len(raw_title) >= 2 and raw_title.startswith('"') and raw_title.endswith('"'):
+        inner = raw_title[1:-1]
+        return inner.replace('\\"', '"')
+    return raw_title
 
 
 def parse_pageview_line(line: str) -> ParsedPageview:
