@@ -25,6 +25,8 @@ Notes (confirmed against real dump samples):
   which we only need the first token (daily_total).
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -68,7 +70,7 @@ class ParsedPageview:
         return raw_title
 
     @classmethod
-    def parse(cls, line: str) -> "ParsedPageview":
+    def parse(cls, line: str) -> ParsedPageview:
         """
         Parse a single line of the pageview_complete dump.
 

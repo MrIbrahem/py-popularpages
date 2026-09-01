@@ -3,7 +3,7 @@
 import importlib.util
 import os
 import sys
-import resource
+
 
 def _resident_memory_bytes() -> int:
     """Return the resident set size for the current process in bytes."""
@@ -12,7 +12,9 @@ def _resident_memory_bytes() -> int:
 
         return psutil.Process(os.getpid()).memory_info().rss
 
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss # pyright: ignore[reportAttributeAccessIssue]
+    import resource
+
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss  # pyright: ignore[reportAttributeAccessIssue]
     if sys.platform == "darwin":
         return usage
     return usage * 1024

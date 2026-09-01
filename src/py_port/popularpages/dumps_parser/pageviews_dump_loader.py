@@ -28,10 +28,9 @@ import logging
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from ..utils import get_memory
-
 from ..config import app_config
 from ..pageviews.pageviews_db import PageviewsDb
+from ..utils import get_memory
 from .pageviews_dumps_parser import MalformedLineError, ParsedPageview
 
 logger = logging.getLogger(__name__)
@@ -43,6 +42,8 @@ DUMPS_ROOT = Path("/public/dumps/public/other/pageview_complete/monthly")
 
 # How often to log progress while streaming a multi-GB file, in lines.
 _PROGRESS_LOG_EVERY = 5_000_000
+
+_BATCH_SIZE = 600_000
 
 # How many upserted rows to batch per PageviewsDb.upsert_many() call, per wiki.
 # Keeps memory bounded for very large wikis and gives visible incremental
@@ -87,11 +88,58 @@ def _iter_dump_lines(dump_file: Path) -> Iterator[str]:
         yield from f
 
 
+def _write_totals_to_cache(
+    totals_by_wiki: dict[str, dict[str, int]],
+    views_dir: Path,
+    yyyy_mm: str,
+    batch_size: int = _UPSERT_BATCH_SIZE,
+) -> None:
+    """
+    Write aggregated per-wiki totals into the existing per-wiki/month SQLite
+    cache, via :class:`PageviewsDb`, using batched upserts.
+
+    :param totals_by_wiki: ``{wiki_code: {title: total_titles}}``, as returned
+        by :func:`_aggregate_dump`.
+    :param views_dir: Root ``data/views`` directory. Each wiki's cache file is
+        written to ``<views_dir>/<wiki_code>/<YYYY-MM>.sqlite3``.
+    :param year: Dump year, used to build the ``YYYY-MM`` cache filename.
+    :param month: Dump month, used to build the ``YYYY-MM`` cache filename.
+    :param batch_size: Max rows per ``upsert_many`` call (bounds peak memory
+        and gives visible incremental progress for very large wikis).
+    """
+
+    for wiki_code, title_views in totals_by_wiki.items():
+        if not title_views:
+            continue
+
+        db_file_path = app_config.data_paths.build_db_file_path(
+            wiki_code,
+            yyyy_mm,
+            views_dir,
+        )
+
+        db = PageviewsDb(db_file_path)
+        try:
+            items = list(title_views.items())
+            total = len(items)
+            written = 0
+            for start in range(0, total, batch_size):
+                batch = dict(items[start : start + batch_size])
+                db.upsert_many(batch)
+                written += len(batch)
+                logger.debug("[%s] Upserted %d/%d titles into %s", wiki_code, written, total, db_file_path)
+            logger.info("[%s] Wrote %d titles to %s", wiki_code, total, db_file_path)
+        finally:
+            db.close_db()
+
+
 def _aggregate_dump(
     lines: Iterable[str],
     wanted_wiki_codes: set[str],
+    yyyy_mm: str,
     wanted_titles_by_wiki: dict[str, set[str]] | None = None,
-) -> dict[str, dict[str, int]]:
+    views_dir: Path = app_config.paths.views_dir,
+) -> dict[str, int]:
     """
     Single pass over dump lines, aggregating ``daily_total`` per (wiki, title).
 
@@ -106,19 +154,23 @@ def _aggregate_dump(
         configs, mirroring the old REST-API approach's per-title fetching).
         A wiki code with *no* entry in this dict (or when the whole parameter
         is ``None``) has all its titles aggregated, unfiltered.
-    :return: ``{wiki_code: {title: total_views}}`` for every wiki in
+    :return: ``{wiki_code: total_titles}`` for every wiki in
         ``wanted_wiki_codes`` that had at least one matching line.
 
     Malformed lines are logged and skipped rather than aborting the whole
     (multi-hour, multi-GB) run over a handful of bad rows.
     """
+    totals_len: dict[str, int] = {}
     totals: dict[str, dict[str, int]] = {}
+
     malformed_count = 0
     line_count = 0
     valid_lines_count = 0
+    batch_count = 0
 
     for wiki in wanted_wiki_codes:
         totals[wiki] = {}
+        totals_len[wiki] = 0
 
     for line in lines:
         line_count += 1
@@ -146,70 +198,51 @@ def _aggregate_dump(
             logger.debug("Skipping malformed line: %r", line)
             continue
 
-        cache_title = parsed.title#.replace("_", " ")
+        cache_title = parsed.title  # .replace("_", " ")
 
         if wanted_titles_by_wiki is not None:
             wanted_titles = wanted_titles_by_wiki.get(parsed.wiki_code)
             if wanted_titles is not None and cache_title not in wanted_titles:
                 continue
 
+        batch_count += 1
         valid_lines_count += 1
+
         wiki_totals = totals[parsed.wiki_code]
         wiki_totals[cache_title] = wiki_totals.get(cache_title, 0) + parsed.daily_total
+
+        if batch_count >= _BATCH_SIZE:
+            batch_count = 0
+
+            # 1. update totals lengths
+            for x, rows in totals.items():
+                totals_len[x] += len(rows)
+
+            # 2. save batch to cache
+            _write_totals_to_cache(
+                totals_by_wiki=totals,
+                views_dir=views_dir,
+                yyyy_mm=yyyy_mm,
+            )
+            # 3. clear the dicts to free memory, but keep the outer dict keys for the next batch
+            for x in totals.keys():
+                totals[x] = {}
+
+    # 4. save last batch to cache
+    _write_totals_to_cache(
+        totals_by_wiki=totals,
+        views_dir=views_dir,
+        yyyy_mm=yyyy_mm,
+    )
 
     if malformed_count:
         logger.warning("Skipped %d malformed line(s) while processing dump.", malformed_count)
 
-    logger.info("Finished processing %s total dump lines., valid_lines_count: %s", f"{line_count:,}", f"{valid_lines_count:,}")
+    logger.info(
+        "Finished processing %s total dump lines., valid_lines_count: %s", f"{line_count:,}", f"{valid_lines_count:,}"
+    )
 
-    return totals
-
-
-def _write_totals_to_cache(
-    totals_by_wiki: dict[str, dict[str, int]],
-    views_dir: Path,
-    year: int,
-    month: int,
-    batch_size: int = _UPSERT_BATCH_SIZE,
-) -> None:
-    """
-    Write aggregated per-wiki totals into the existing per-wiki/month SQLite
-    cache, via :class:`PageviewsDb`, using batched upserts.
-
-    :param totals_by_wiki: ``{wiki_code: {title: total_views}}``, as returned
-        by :func:`_aggregate_dump`.
-    :param views_dir: Root ``data/views`` directory. Each wiki's cache file is
-        written to ``<views_dir>/<wiki_code>/<YYYY-MM>.sqlite3``.
-    :param year: Dump year, used to build the ``YYYY-MM`` cache filename.
-    :param month: Dump month, used to build the ``YYYY-MM`` cache filename.
-    :param batch_size: Max rows per ``upsert_many`` call (bounds peak memory
-        and gives visible incremental progress for very large wikis).
-    """
-    yyyy_mm = f"{year:04d}-{month:02d}"
-
-    for wiki_code, title_views in totals_by_wiki.items():
-        if not title_views:
-            continue
-
-        db_file_path = app_config.data_paths.build_db_file_path(
-            wiki_code,
-            yyyy_mm,
-            views_dir,
-        )
-
-        db = PageviewsDb(db_file_path)
-        try:
-            items = list(title_views.items())
-            total = len(items)
-            written = 0
-            for start in range(0, total, batch_size):
-                batch = dict(items[start : start + batch_size])
-                db.upsert_many(batch)
-                written += len(batch)
-                logger.debug("[%s] Upserted %d/%d titles into %s", wiki_code, written, total, db_file_path)
-            logger.info("[%s] Wrote %d titles to %s", wiki_code, total, db_file_path)
-        finally:
-            db.close_db()
+    return totals_len
 
 
 def load_dump_into_cache(
@@ -242,12 +275,18 @@ def load_dump_into_cache(
     dump_file = _dump_path_for_month(year, month, root=dumps_root)
     logger.info("Loading pageviews dump for %04d-%02d from %s", year, month, dump_file)
 
+    yyyy_mm = f"{year:04d}-{month:02d}"
+
     lines = _iter_dump_lines(dump_file)
-    totals_by_wiki = _aggregate_dump(lines, wanted_wiki_codes, wanted_titles_by_wiki)
 
-    _write_totals_to_cache(totals_by_wiki, views_dir, year, month)
+    totals_by_wiki = _aggregate_dump(
+        lines=lines,
+        wanted_wiki_codes=wanted_wiki_codes,
+        yyyy_mm=yyyy_mm,
+        wanted_titles_by_wiki=wanted_titles_by_wiki,
+    )
 
-    return {wiki_code: len(titles) for wiki_code, titles in totals_by_wiki.items()}
+    return totals_by_wiki
 
 
 __all__ = [
