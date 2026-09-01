@@ -26,7 +26,7 @@ Replace the REST-API-per-title fetching path with a pipeline that:
 4. Aggregates monthly totals per title.
 5. Writes results into the existing per-wiki/month SQLite cache, one file per `data/views/<wiki>/<YYYY-MM>.sqlite3`, using the existing `PageView` model (`title` primary key, `views` integer) — so downstream code (`ReportUpdater`, etc.) needs no changes, only the _source_ of the cached data changes.
 
-## Confirmed data format (from real sample)
+## Confirmed data format (from real samples)
 
 Each line has a fixed structure of space-separated fields:
 
@@ -36,28 +36,33 @@ wiki_code  title  page_id  agent  daily_total  [hourly_counts]
 
 -   **`page_id` is always present** as a field — either a numeric ID or the literal string `null`. It is never omitted.
 -   **`hourly_counts` is optional** and may be absent at the end of the line — but it's **not needed for this use case** and is discarded entirely regardless of whether it's present.
+-   A targeted sample of 999 consecutive `ar.wikipedia` lines showed 6 space-separated columns in 100% of cases (`lines with 6 columns: 999`) when split naively via `line.split(' ')`. This is a useful sanity check but **must not be treated as a structural guarantee across the full ~5.28 GB file** or other wikis — the parser must not hardcode an assumption of exactly 6 columns.
 -   Titles use underscores for spaces, as in standard MediaWiki API responses.
 -   Titles can contain arbitrary punctuation, including leading special characters (`!`, `'`, `(`), Arabic script, and wiki markup remnants (`'''` for bold) — none of this should be misinterpreted as delimiters or escaped/stripped.
--   The same logical page can appear under **multiple different title strings** with the same `page_id` (e.g. an Arabic-script alias vs. a Latin transliteration). `page_id` must **not** be used as the aggregation key — aggregation is by `title` string only, matching current REST-based behavior (which queries by exact title).
+-   **Titles containing a literal double-quote character (`"`) are escaped in the raw dump as `\"`.** This was confirmed directly against raw file bytes (via `bz2.open(..., 'rt')` + unmodified `print(line, end='')`, with no intermediate `repr()` or terminal reformatting), so `\"` is a real byte sequence in the file, not a display artifact. Examples observed: a line whose title is `"` appears in the file as `"\""`; a line whose title is `"W"_تشير_الى_المنتهي` appears as `"\"W\"_تشير_الى_المنتهي"`. This must be unescaped (`\"` → `"`) after extraction.
+-   The same logical page can appear under **multiple different title strings** with the same `page_id` (e.g. an Arabic-script alias vs. a Latin transliteration). `page_id` must **not** be used as the aggregation key — aggregation is by `title` string only (post-unescaping), matching current REST-based behavior (which queries by exact title).
 
 ## Proposed plan
 
 -   [ ] **Path resolution**: build the dump path from year/month, e.g. `/public/dumps/public/other/pageview_complete/monthly/{year}/{year}-{month:02d}/pageviews-{year}{month:02d}-user.bz2`; confirm exact path/filename pattern against the live mount before hardcoding.
 -   [ ] **Streaming parser**: read via `bz2.open(path, "rt")` line-by-line directly from the NFS path; no copying the file locally first.
-    -   Parse each line with `line.split(' ', maxsplit=4)` to get exactly 5 parts: `[wiki_code, title, page_id, agent, rest]`.
-    -   Extract `daily_total = int(rest.split(' ', maxsplit=1)[0])`. This works whether `hourly_counts` is present or absent — anything after `daily_total` in `rest` is simply discarded, never inspected or parsed.
+    -   Parse each line with `line.split(' ', maxsplit=4)` to get exactly 5 parts: `[wiki_code, title, page_id, agent, rest]`. Use `maxsplit=4` from the left rather than relying on a fixed total column count — the 999-line sample showing 6 naive columns is not a guaranteed invariant across the whole file.
+    -   Extract `daily_total = int(rest.split(' ', maxsplit=1)[0])`. This works whether `hourly_counts` is present or absent — anything after `daily_total` in `rest` is discarded, never inspected or parsed.
+    -   **Unescape the title**: apply `title = title.replace('\\"', '"')` after extraction, to convert the raw dump's escaped `\"` sequences back into literal `"` characters. Investigate on a wider sample whether other escape sequences (e.g. `\\`) also occur before finalizing this as the only unescaping rule needed.
     -   `page_id` is parsed but discarded (not used downstream).
 -   [ ] **Wiki filtering**: only keep lines where `wiki_code` matches one of the configured wikis.
--   [ ] **Title filtering (optional optimization)**: if the set of needed titles per wiki is known ahead of time (from WikiProject configs, same as current REST approach), skip totals for titles we'll never use — reduces memory footprint.
--   [ ] **Aggregation**: single pass over the file, summing `daily_total` per `(wiki, title)` — **`title` is the sole aggregation key; `page_id` is explicitly not used for merging**, since the same `page_id` can legitimately appear under multiple distinct title strings and each must be kept/aggregated separately to match current REST behavior. Keep running totals per wiki in memory (or batch to disk if memory is a concern for very large wikis).
+-   [ ] **Title filtering (optional optimization)**: if the set of needed titles per wiki is known ahead of time (from WikiProject configs, same as current REST approach), skip totals for titles we'll never use — reduces memory footprint. Note this filtering must happen post-unescaping, so titles are compared in their true (unescaped) form.
+-   [ ] **Aggregation**: single pass over the file, summing `daily_total` per `(wiki, title)` — **`title` (post-unescaping) is the sole aggregation key; `page_id` is explicitly not used for merging**, since the same `page_id` can legitimately appear under multiple distinct title strings and each must be kept/aggregated separately to match current REST behavior. Keep running totals per wiki in memory (or batch to disk if memory is a concern for very large wikis).
 -   [ ] **DB write strategy**: for each wiki, create/open `data/views/<wiki>/<YYYY-MM>.sqlite3` and bulk-upsert into the `pageviews` table using the existing `PageView(title, views)` model — use `session.bulk_insert_mappings`/batched inserts rather than row-by-row commits, since a wiki like `en.wikipedia` can have millions of distinct titles.
 -   [ ] **Fallback**: keep the REST API path available (`--source=api` vs `--source=dump`) in case a given month's dump isn't published yet, or the tool needs to run before the monthly dump lands.
 -   [ ] **Toolforge job**: run as a Toolforge job (not webservice) given single-pass processing time over a multi-GB compressed file; decide whether to process all configured wikis in one pass (keeping multiple per-wiki dicts in memory) or one wiki at a time (multiple passes over the file, lower peak memory, more I/O).
--   [ ] **Tests**: unit tests for the line parser using small local fixture files (built from the real sample, not synthetic data), covering:
+-   [ ] **Wider validation pass before finalizing parser**: re-run the column-counting sanity script (as used for the 999-line `ar.wikipedia` sample) across a much larger sample — ideally the full file or a large multi-wiki subset — to check for any lines that don't fit the assumed structure, before treating `maxsplit=4` + unescaping as final.
+-   [ ] **Tests**: unit tests for the line parser using small local fixture files (built from the real samples, not synthetic data), covering:
     -   `page_id` numeric
     -   `page_id = null` (string)
     -   Titles with leading special characters (`!`, `'`, `(`)
     -   Titles with non-Latin (Arabic) script
+    -   Titles containing an escaped double-quote (`\"` → `"`), including the pure-quote title (`"\""` → `"`) and mixed cases (`"\"W\"_تشير_الى_المنتهي"` → `"W"_تشير_الى_المنتهي"`)
     -   Two different title strings sharing the same `page_id` — verify both retained as separate aggregation entries, not merged
     -   Also test that the aggregation + SQLite write path produces a `PageView` table matching what the REST-based path currently produces, for a small fixture wiki.
 
@@ -67,6 +72,7 @@ wiki_code  title  page_id  agent  daily_total  [hourly_counts]
 -   Timing: dumps for month M typically land a few days into month M+1 — does the existing `0 0 1 * *` cron need to shift later in the month?
 -   Memory strategy: one full pass building per-wiki dicts for all configured wikis at once vs. one pass per wiki — trade-off between total I/O time and peak RAM.
 -   Should the SQLite file be rebuilt from scratch each run, or upserted incrementally (matters if a partial/interrupted run needs to resume)?
+-   Are there other escape sequences besides `\"` present in titles (e.g. escaped backslashes) that need to be handled for full round-trip correctness?
 
 ## References
 
