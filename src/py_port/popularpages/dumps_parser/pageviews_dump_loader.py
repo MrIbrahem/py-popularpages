@@ -75,10 +75,18 @@ class PageviewsDumpLoader:
         dumps_root: Path = DUMPS_ROOT,
     ) -> None:
         """
-        :param views_dir: Root ``data/views`` directory. Each wiki's cache
-            file is written to ``<views_dir>/<wiki_code>/<YYYY-MM>.sqlite3``.
-        :param dumps_root: Override for the dumps root directory (mainly for
-            tests).
+        Bind the loader to a views directory and a dumps root.
+
+        The loader writes per-wiki/month SQLite pageviews caches under
+        ``views_dir`` and reads the monthly ``pageview_complete`` dumps from
+        ``dumps_root``. Both default to the real Toolforge locations and are
+        only overridden in tests.
+
+        Args:
+            views_dir (Path): Root ``data/views`` directory. Each wiki's cache
+                file is written to ``<views_dir>/<wiki_code>/<YYYY-MM>.sqlite3``.
+            dumps_root (Path): Override for the dumps root directory (mainly for
+                tests).
         """
         self.views_dir = views_dir
         self.dumps_root = dumps_root
@@ -87,10 +95,18 @@ class PageviewsDumpLoader:
         """
         Build the on-disk path to a monthly ``pageview_complete`` dump.
 
-        :param year: e.g. 2026.
-        :param month: 1-12.
-        :return: e.g.
-            ``/public/dumps/public/other/pageview_complete/monthly/2026/2026-07/pageviews-202607-user.bz2``
+        Constructs the expected filesystem location of the compressed dump for
+        the given year and month, following the Toolforge ``pageview_complete``
+        directory layout. The returned path is then opened by
+        :meth:`_iter_dump_lines`.
+
+        Args:
+            year (int): Dump year, e.g. 2026.
+            month (int): Dump month, 1-12.
+
+        Returns:
+            Path: e.g.
+                ``/public/dumps/public/other/pageview_complete/monthly/2026/2026-07/pageviews-202607-user.bz2``
         """
         yyyymm = f"{year:04d}{month:02d}"
         return self.dumps_root / f"{year:04d}" / f"{year:04d}-{month:02d}" / f"pageviews-{yyyymm}-user.bz2"
@@ -103,7 +119,11 @@ class PageviewsDumpLoader:
         ``bz2.open`` in text mode streams and decompresses incrementally as
         the file object is iterated.
 
-        :raises DumpNotFoundError: if ``dump_file`` doesn't exist.
+        Args:
+            dump_file (Path): Path to the bz2-compressed dump file.
+
+        Raises:
+            DumpNotFoundError: if ``dump_file`` doesn't exist.
         """
         if not dump_file.exists():
             raise DumpNotFoundError(f"Pageviews dump not found: {dump_file}")
@@ -120,9 +140,15 @@ class PageviewsDumpLoader:
         Write aggregated per-wiki totals into the existing per-wiki/month
         SQLite cache, via :class:`PageviewsDb`, using batched upserts.
 
-        :param totals_by_wiki: ``{wiki_code: {title: total_titles}}``, as
-            returned by :meth:`_aggregate_dump`.
-        :param yyyy_mm: ``YYYY-MM`` string used to build the cache filename.
+        For each wiki present in ``totals_by_wiki``, opens the corresponding
+        cache file and upserts the title -> total mapping, logging progress and
+        freeing the connection afterward so peak memory and open handles stay
+        bounded across the whole dump.
+
+        Args:
+            totals_by_wiki (dict[str, dict[str, int]]): ``{wiki_code: {title: total_titles}}``, as
+                returned by :meth:`_aggregate_dump`.
+            yyyy_mm (str): ``YYYY-MM`` string used to build the cache filename.
         """
         for wiki_code, title_views in totals_by_wiki.items():
             if not title_views:
@@ -180,22 +206,32 @@ class PageviewsDumpLoader:
         """
         Single pass over dump lines, aggregating ``daily_total`` per (wiki, title).
 
-        :param lines: An iterable of raw dump lines (e.g. from
-            :meth:`_iter_dump_lines`).
-        :param wanted_wiki_codes: Only lines whose ``wiki_code`` is in this
-            set are kept; everything else is skipped immediately (before any
-            title unescaping/aggregation work).
-        :param yyyy_mm: ``YYYY-MM`` string used to build the cache filename.
-        :param wanted_titles_by_wiki: Optional per-wiki set of titles to
-            keep. When a wiki code has an entry here, only those titles are
-            aggregated for that wiki (memory optimization for wikis where the
-            full set of titles we'll ever need is known ahead of time from
-            WikiProject configs, mirroring the old REST-API approach's
-            per-title fetching). A wiki code with *no* entry in this dict (or
-            when the whole parameter is ``None``) has all its titles
-            aggregated, unfiltered.
-        :return: ``{wiki_code: total_titles}`` for every wiki in
-            ``wanted_wiki_codes`` that had at least one matching line.
+        Each line is filtered down to the configured wikis and, optionally, a
+        per-wiki allow-list of titles before its ``daily_total`` is added to a
+        running total. Malformed lines are logged and skipped rather than
+        aborting the whole (multi-hour, multi-GB) run over a handful of bad
+        rows. The exact distinct-title count is read back from the SQLite cache
+        afterward.
+
+        Args:
+            lines (Iterable[str]): An iterable of raw dump lines (e.g. from
+                :meth:`_iter_dump_lines`).
+            wanted_wiki_codes (set[str]): Only lines whose ``wiki_code`` is in this
+                set are kept; everything else is skipped immediately (before any
+                title unescaping/aggregation work).
+            yyyy_mm (str): ``YYYY-MM`` string used to build the cache filename.
+            wanted_titles_by_wiki (dict[str, set[str]] | None): Optional per-wiki set of titles to
+                keep. When a wiki code has an entry here, only those titles are
+                aggregated for that wiki (memory optimization for wikis where the
+                full set of titles we'll ever need is known ahead of time from
+                WikiProject configs, mirroring the old REST-API approach's
+                per-title fetching). A wiki code with *no* entry in this dict (or
+                when the whole parameter is ``None``) has all its titles
+                aggregated, unfiltered.
+
+        Returns:
+            dict[str, int]: ``{wiki_code: total_titles}`` for every wiki in
+                ``wanted_wiki_codes`` that had at least one matching line.
 
         Malformed lines are logged and skipped rather than aborting the whole
         (multi-hour, multi-GB) run over a handful of bad rows.
