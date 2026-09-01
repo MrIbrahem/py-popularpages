@@ -28,6 +28,7 @@ Notes (confirmed against real dump samples):
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 
 class MalformedLineError(ValueError):
@@ -36,11 +37,33 @@ class MalformedLineError(ValueError):
 
 @dataclass(frozen=True)
 class ParsedPageview:
-    wiki_code: str
+    wiki_code: Literal["en.wikipedia", "ar.wikipedia"]
     title: str
-    page_id: str  # kept as-is (numeric string or "null"); unused downstream
+    # page_id: str  # kept as-is (numeric string or "null"); unused downstream
+    page_id: int | None
     agent: str
     daily_total: int
+
+    def is_valid(self) -> bool:
+        """
+        return False if:
+            - page_id is None
+            - title start with (Special: in en.wikipedia)
+            - title start with (خاص: in ar.wikipedia)
+        """
+        if self.page_id is None:
+            return False
+
+        invalid_title_prefixes = {
+            "en.wikipedia": ("Special:"),
+            "ar.wikipedia": ("خاص:"),
+        }
+
+        prefixes = invalid_title_prefixes.get(self.wiki_code, ())
+        if self.title.startswith(prefixes):
+            return False
+
+        return True
 
     @staticmethod
     def unescape_title(raw_title: str) -> str:
@@ -96,6 +119,11 @@ class ParsedPageview:
             raise MalformedLineError(f"could not parse daily_total from {daily_total_str!r} in line: {line!r}") from exc
 
         title = cls.unescape_title(raw_title)
+
+        try:
+            page_id = int(page_id)
+        except ValueError:
+            page_id = None
 
         return cls(
             wiki_code=wiki_code,

@@ -290,6 +290,10 @@ class PageviewsDumpLoader:
             if cache_title not in wiki_totals:
                 accumulated_titles += 1
 
+            # skip lines without page_id such as disambiguation pages
+            if parsed.page_id is None:
+                continue
+
             if parsed.daily_total == 0:
                 zero_daily_total_count += 1
                 continue
