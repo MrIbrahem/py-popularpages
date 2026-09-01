@@ -25,7 +25,7 @@ class PageviewsDb:
     # See: https://www.sqlite.org/limits.html#max_variable_number
     _SELECT_IN_CHUNK_SIZE = 500
 
-    def __init__(self, db_file_path: Path) -> None:
+    def __init__(self, db_file_path: Path, converte_underscore_to_space: bool = True,) -> None:
         """
         Open (creating if needed) the SQLite pageviews cache at the given path.
 
@@ -35,8 +35,10 @@ class PageviewsDb:
 
         Args:
             db_file_path (Path): Path to the SQLite database file.
+            converte_underscore_to_space (bool): Whether to convert underscores to spaces in titles.
         """
         self.db_file_path = db_file_path
+        self.converte_underscore_to_space = converte_underscore_to_space
 
         # SQLite creates the file on first connection if it doesn't exist yet.
         self._engine = create_engine(f"sqlite:///{self.db_file_path}", future=True)
@@ -54,6 +56,12 @@ class PageviewsDb:
     # ---------------------------------------------------
     # Internal helpers
     # ---------------------------------------------------
+    def _converte_underscore_to_space(self, title: str) -> str:
+        if not self.converte_underscore_to_space:
+            return title
+
+        return title.replace("_", " ")
+
     @staticmethod
     def _chunked(items: Sequence[str], size: int) -> Iterator[Sequence[str]]:
         """Yield successive chunks of ``items`` of at most ``size`` elements."""
@@ -137,7 +145,7 @@ class PageviewsDb:
 
         # Store titles without underscores (display form) from the moment they
         # enter the cache, so lookups never have to guess at the title format.
-        title_views = {title.replace("_", " "): views for title, views in title_views.items()}
+        title_views = {self._converte_underscore_to_space(title): views for title, views in title_views.items()}
 
         with self._Session() as session:
             stmt = sqlite_insert(PageView).values(

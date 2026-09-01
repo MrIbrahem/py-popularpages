@@ -33,14 +33,14 @@ def db_dir(tmp_path):
 
 
 @pytest.fixture
-def db_factory(db_dir):
+def db_factory(db_dir, converte_underscore_to_space: bool = True):
     """Create PageviewsDb instances (optionally under a custom base dir) and
     ensure they are all closed on teardown."""
     created: list[PageviewsDb] = []
 
     def _make(wiki: str = "en.wikipedia", year_month: str = "2024-01", base_dir=None) -> PageviewsDb:
         db_file_path = PageviewsCache.build_db_file_path(wiki, year_month, base_dir or db_dir)
-        db = PageviewsDb(db_file_path)
+        db = PageviewsDb(db_file_path, converte_underscore_to_space=converte_underscore_to_space)
         created.append(db)
         return db
 
@@ -53,6 +53,10 @@ def db_factory(db_dir):
 def load_db(db_factory) -> PageviewsDb:
     """A single default PageviewsDb instance for tests that don't need custom params."""
     return db_factory()
+
+@pytest.fixture
+def load_db_no_underscore_converte(db_factory) -> PageviewsDb:
+    return db_factory(converte_underscore_to_space=False)
 
 
 def _rows(sqlite_path) -> dict[str, int]:
@@ -103,16 +107,16 @@ class TestInitAndClose:
 # upsert_many
 # ---------------------------------------------------
 class TestUpsertMany:
-    def test_empty_dict_is_a_noop(self, load_db):
+    def test_empty_dict_is_a_noop(self, load_db: PageviewsDb):
         load_db.upsert_many({})
         assert load_db.query_titles_cache(["Cairo"]) == set()
 
-    def test_inserts_new_rows(self, load_db):
+    def test_inserts_new_rows(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10, "Alexandria": 20})
         assert load_db.get_views("Cairo", []) == 10
         assert load_db.get_views("Alexandria", []) == 20
 
-    def test_re_fetch_overwrites_existing_row_not_duplicates(self, load_db):
+    def test_re_fetch_overwrites_existing_row_not_duplicates(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10})
         # Re-upserting the same title with a new view count must overwrite the
         # existing row (primary-key conflict), never duplicate it.
@@ -122,7 +126,7 @@ class TestUpsertMany:
         assert load_db.get_views("Cairo", []) == 999
         assert load_db.query_titles_cache(["Cairo"]) == {"Cairo"}
 
-    def test_mixed_insert_and_update_in_one_call(self, load_db):
+    def test_mixed_insert_and_update_in_one_call(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10})
         load_db.upsert_many({"Cairo": 50, "Giza": 5})
         assert load_db.get_views("Cairo", []) == 50
@@ -133,15 +137,15 @@ class TestUpsertMany:
 # query_titles_cache
 # ---------------------------------------------------
 class TestQueryTitlesCache:
-    def test_empty_wanted_returns_empty_set(self, load_db):
+    def test_empty_wanted_returns_empty_set(self, load_db: PageviewsDb):
         assert load_db.query_titles_cache([]) == set()
 
-    def test_returns_only_cached_titles(self, load_db):
+    def test_returns_only_cached_titles(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10, "Alexandria": 20})
         result = load_db.query_titles_cache(["Cairo", "Alexandria", "Luxor"])
         assert result == {"Cairo", "Alexandria"}
 
-    def test_none_cached_returns_empty_set(self, load_db):
+    def test_none_cached_returns_empty_set(self, load_db: PageviewsDb):
         result = load_db.query_titles_cache(["Unknown 1", "Unknown 2"])
         assert result == set()
 
@@ -150,26 +154,26 @@ class TestQueryTitlesCache:
 # get_views
 # ---------------------------------------------------
 class TestGetViews:
-    def test_target_with_no_redirects(self, load_db):
+    def test_target_with_no_redirects(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 42})
         assert load_db.get_views("Cairo", []) == 42
 
-    def test_sums_target_and_redirects(self, load_db):
+    def test_sums_target_and_redirects(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10, "Al-Qahira": 5, "Qahira": 3})
         assert load_db.get_views("Cairo", ["Al-Qahira", "Qahira"]) == 18
 
-    def test_missing_title_returns_zero(self, load_db):
+    def test_missing_title_returns_zero(self, load_db: PageviewsDb):
         assert load_db.get_views("Nonexistent", []) == 0
 
-    def test_missing_redirect_is_ignored_not_erroring(self, load_db):
+    def test_missing_redirect_is_ignored_not_erroring(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10})
         assert load_db.get_views("Cairo", ["Unknown Redirect"]) == 10
 
-    def test_falsy_titles_in_redirects_are_skipped(self, load_db):
+    def test_falsy_titles_in_redirects_are_skipped(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10})
         assert load_db.get_views("Cairo", ["", None]) == 10  # type: ignore[list-item]
 
-    def test_empty_target_and_no_redirects_returns_zero(self, load_db):
+    def test_empty_target_and_no_redirects_returns_zero(self, load_db: PageviewsDb):
         assert load_db.get_views("", []) == 0
 
 
@@ -177,6 +181,11 @@ class TestGetViews:
 # one_title_views
 # ---------------------------------------------------
 class TestOneTitleViews:
+
+    def test_with_underscore(self, load_db: PageviewsDb):
+        load_db.upsert_many({"test_ye": 15_000})
+        assert load_db.one_title_views("test_ye") is None
+        assert load_db.one_title_views("test ye") == 15_000
 
     def test_target_with_no_redirects(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 42})
@@ -190,14 +199,14 @@ class TestOneTitleViews:
 # get_views_many (bulk lookup used by large projects)
 # ---------------------------------------------------
 class TestGetViewsMany:
-    def test_empty_targets_returns_empty_dict(self, load_db):
+    def test_empty_targets_returns_empty_dict(self, load_db: PageviewsDb):
         assert load_db.get_views_many({}) == {}
 
-    def test_no_matching_titles_returns_zero_for_each_target(self, load_db):
+    def test_no_matching_titles_returns_zero_for_each_target(self, load_db: PageviewsDb):
         result2 = load_db.get_views_many({"A": [], "B": []})
         assert result2 == {"A": 0, "B": 0}
 
-    def test_aggregates_target_plus_redirects_per_target(self, load_db):
+    def test_aggregates_target_plus_redirects_per_target(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10, "Al-Qahira": 5, "Alexandria": 20})
 
         result2 = load_db.get_views_many(
@@ -205,13 +214,13 @@ class TestGetViewsMany:
         )
         assert result2 == {"Cairo": 15, "Alexandria": 20}
 
-    def test_unknown_target_with_missing_redirects_is_zero(self, load_db):
+    def test_unknown_target_with_missing_redirects_is_zero(self, load_db: PageviewsDb):
         load_db.upsert_many({"A": 10})
 
         result2 = load_db.get_views_many({"A": [], "Unknown": ["Also missing"]})
         assert result2 == {"A": 10, "Unknown": 0}
 
-    def test_shared_redirect_counts_for_each_referencing_target(self, load_db):
+    def test_shared_redirect_counts_for_each_referencing_target(self, load_db: PageviewsDb):
         """A redirect referenced by two targets is looked up once but its
         views are counted independently towards each target's total."""
         load_db.upsert_many({"Shared": 9, "TargetA": 1, "TargetB": 2})
@@ -221,14 +230,14 @@ class TestGetViewsMany:
         )
         assert result2 == {"TargetA": 10, "TargetB": 11}
 
-    def test_matches_get_views_for_single_target(self, load_db):
+    def test_matches_get_views_for_single_target(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10, "Al-Qahira": 5})
         single = load_db.get_views("Cairo", ["Al-Qahira"])
 
         many2 = load_db.get_views_many({"Cairo": ["Al-Qahira"]})
         assert many2["Cairo"] == single
 
-    def test_target_missing_from_redirects_by_target_defaults_to_no_redirects(self, load_db):
+    def test_target_missing_from_redirects_by_target_defaults_to_no_redirects(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10})
 
         result2 = load_db.get_views_many({"Cairo": []})
@@ -257,7 +266,7 @@ class TestChunking:
         counts2 = db.get_views_many({t: [] for t in targets})
         assert counts2 == mapping
 
-    def test_query_titles_cache_beyond_chunk_size(self, load_db):
+    def test_query_titles_cache_beyond_chunk_size(self, load_db: PageviewsDb):
         # Default _SELECT_IN_CHUNK_SIZE is 500; use more than one chunk's worth.
         titles = [f"Title {i}" for i in range(1200)]
         load_db.upsert_many({t: i for i, t in enumerate(titles)})
@@ -265,14 +274,14 @@ class TestChunking:
         cached = load_db.query_titles_cache(titles)
         assert cached == set(titles)
 
-    def test_get_views_many_beyond_chunk_size(self, load_db):
+    def test_get_views_many_beyond_chunk_size(self, load_db: PageviewsDb):
         targets = [f"Target {i}" for i in range(1200)]
         load_db.upsert_many({t: i for i, t in enumerate(targets)})
 
         result2 = load_db.get_views_many(dict.fromkeys(targets, []))
         assert all(result2[f"Target {i}"] == i for i in range(1200))
 
-    def test_upsert_many_large_batch(self, load_db):
+    def test_upsert_many_large_batch(self, load_db: PageviewsDb):
         # Insert values in a single call spanning multiple chunks on read-back.
         title_views = {f"Bulk {i}": i * 2 for i in range(1000)}
         load_db.upsert_many(title_views)
@@ -285,14 +294,14 @@ class TestChunking:
 # count_titles
 # ---------------------------------------------------
 class TestCountTitles:
-    def test_empty_db_returns_zero(self, load_db):
+    def test_empty_db_returns_zero(self, load_db: PageviewsDb):
         assert load_db.count_titles() == 0
 
-    def test_counts_distinct_titles(self, load_db):
+    def test_counts_distinct_titles(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10, "Alexandria": 20})
         assert load_db.count_titles() == 2
 
-    def test_reupserting_same_title_does_not_inflate_count(self, load_db):
+    def test_reupserting_same_title_does_not_inflate_count(self, load_db: PageviewsDb):
         load_db.upsert_many({"Cairo": 10})
         load_db.upsert_many({"Cairo": 99})
         assert load_db.count_titles() == 1
@@ -302,11 +311,11 @@ class TestCountTitles:
 # upsert_many_chunks (SQLite bound-variable limit workaround)
 # ---------------------------------------------------
 class TestUpsertManyChunks:
-    def test_empty_dict_is_a_noop(self, load_db):
+    def test_empty_dict_is_a_noop(self, load_db: PageviewsDb):
         load_db.upsert_many_chunks({})
         assert load_db.query_titles_cache(["Cairo"]) == set()
 
-    def test_small_batch_delegates_to_upsert_many(self, load_db):
+    def test_small_batch_delegates_to_upsert_many(self, load_db: PageviewsDb):
         """A batch smaller than the chunk_size takes the early-return path
         straight to ``upsert_many``."""
         load_db.upsert_many_chunks({"Cairo": 10, "Giza": 5})
@@ -339,7 +348,7 @@ class TestUpsertManyChunks:
 # Underscore -> space normalization in upsert_many
 # ---------------------------------------------------
 class TestUnderscoreNormalization:
-    def test_underscores_converted_to_spaces_on_upsert(self, load_db):
+    def test_underscores_converted_to_spaces_on_upsert(self, load_db: PageviewsDb):
         load_db.upsert_many({"New_York_City": 100})
         # The stored key uses spaces, so the underscore form is not found...
         assert load_db.get_views("New_York_City", []) == 0
@@ -347,7 +356,7 @@ class TestUnderscoreNormalization:
         assert load_db.get_views("New York City", []) == 100
         assert _rows(load_db.db_file_path) == {"New York City": 100}
 
-    def test_mixed_underscore_and_space_titles(self, load_db):
+    def test_mixed_underscore_and_space_titles(self, load_db: PageviewsDb):
         load_db.upsert_many({"Los_Angeles": 5, "San Francisco": 7})
         assert load_db.get_views("Los Angeles", []) == 5
         assert load_db.get_views("San Francisco", []) == 7
