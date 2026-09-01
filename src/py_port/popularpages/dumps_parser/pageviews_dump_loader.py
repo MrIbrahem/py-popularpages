@@ -211,7 +211,7 @@ class PageviewsDumpLoader:
         Malformed lines are logged and skipped rather than aborting the whole
         (multi-hour, multi-GB) run over a handful of bad rows.
         """
-        totals_len: dict[str, int] = {}
+        totals_len: dict[str, int] = defaultdict(int)
         totals: dict[str, dict[str, int]] = {}
 
         zero_daily_total_count = 0
@@ -222,7 +222,6 @@ class PageviewsDumpLoader:
 
         for wiki in wanted_wiki_codes:
             totals[wiki] = {}
-            totals_len[wiki] = 0
 
         def _flush() -> None:
             nonlocal accumulated_titles
