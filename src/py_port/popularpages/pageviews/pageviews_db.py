@@ -75,6 +75,28 @@ class PageviewsDb:
     # ---------------------------------------------------
     # Writes
     # ---------------------------------------------------
+
+    def upsert_many_chunks(self, title_views: dict[str, int]) -> None:
+        """
+        to solve sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) too many SQL variables
+        """
+        if not title_views:
+            return
+
+        chunk_size = 900  # Keep it safely below the 999 limit
+        if len(title_views) < chunk_size:
+            self.upsert_many(title_views)
+            return
+
+        total = len(title_views)
+        written = 0
+
+        for i in range(0, len(title_views), chunk_size):
+            batch = dict(list(title_views.items())[i:i + chunk_size])
+            self.upsert_many(batch)
+            written += len(batch)
+            logger.debug("Upserted %d/%d rows", written, total)
+
     def upsert_many(self, title_views: dict[str, int]) -> None:
         """Upsert a batch of title -> views pairs, committing once for the batch."""
         if not title_views:
@@ -92,13 +114,6 @@ class PageviewsDb:
             session.commit()
 
         logger.debug("Upserted %d titles into %s", len(title_views), self.db_file_path)
-
-    def upsert_many_chunks(self, title_views: dict[str, int]) -> None:
-        """
-        TODO: solve sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) too many SQL variables
-        """
-        if not title_views:
-            return
 
     # ---------------------------------------------------
     # Lookup

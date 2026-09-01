@@ -43,14 +43,13 @@ DUMPS_ROOT = Path("/public/dumps/public/other/pageview_complete/monthly")
 # How often to log progress while streaming a multi-GB file, in lines.
 _PROGRESS_LOG_EVERY = 5_000_000
 
-_BATCH_SIZE = 600_000
-
-# How many upserted rows to batch per PageviewsDb.upsert_many() call, per wiki.
-# Keeps memory bounded for very large wikis and gives visible incremental
-# progress, while staying well above the SQLite chunk size used internally
-# by PageviewsDb for reads (that limit doesn't apply to writes, but batching
-# writes still avoids holding one enormous dict-of-dicts across the whole run).
-_UPSERT_BATCH_SIZE = 200_000
+# Upper bound on the number of distinct (wiki, title) entries held in memory
+# at once across all wikis. The dump can contain billions of distinct titles,
+# so memory is driven by how many we accumulate *between* cache flushes, not
+# by the number of raw lines. We flush (and free) as soon as this many distinct
+# titles are buffered, which keeps peak memory bounded regardless of how the
+# titles are distributed across wikis or how many lines the dump has.
+_MAX_ACCUMULATED_TITLES = 500_000
 
 
 class DumpNotFoundError(FileNotFoundError):
@@ -92,7 +91,6 @@ def _write_totals_to_cache(
     totals_by_wiki: dict[str, dict[str, int]],
     views_dir: Path,
     yyyy_mm: str,
-    batch_size: int = _UPSERT_BATCH_SIZE,
 ) -> None:
     """
     Write aggregated per-wiki totals into the existing per-wiki/month SQLite
@@ -104,8 +102,6 @@ def _write_totals_to_cache(
         written to ``<views_dir>/<wiki_code>/<YYYY-MM>.sqlite3``.
     :param year: Dump year, used to build the ``YYYY-MM`` cache filename.
     :param month: Dump month, used to build the ``YYYY-MM`` cache filename.
-    :param batch_size: Max rows per ``upsert_many`` call (bounds peak memory
-        and gives visible incremental progress for very large wikis).
     """
 
     for wiki_code, title_views in totals_by_wiki.items():
@@ -120,15 +116,8 @@ def _write_totals_to_cache(
 
         db = PageviewsDb(db_file_path)
         try:
-            items = list(title_views.items())
-            total = len(items)
-            written = 0
-            for start in range(0, total, batch_size):
-                batch = dict(items[start : start + batch_size])
-                db.upsert_many(batch)
-                written += len(batch)
-                logger.debug("[%s] Upserted %d/%d titles into %s", wiki_code, written, total, db_file_path)
-            logger.info("[%s] Wrote %d titles to %s", wiki_code, total, db_file_path)
+            # upsert_many_chunks will handle the batch_size
+            db.upsert_many_chunks(title_views)
         finally:
             db.close_db()
 
@@ -166,11 +155,33 @@ def _aggregate_dump(
     malformed_count = 0
     line_count = 0
     valid_lines_count = 0
-    batch_count = 0
+    accumulated_titles = 0
 
     for wiki in wanted_wiki_codes:
         totals[wiki] = {}
         totals_len[wiki] = 0
+
+    def _flush() -> None:
+        nonlocal accumulated_titles
+        # Update per-wiki distinct-title counts (titles only count once, even
+        # though the dict holds their running total which may change on later
+        # flushes for the same title).
+
+        # 1. update totals lengths
+        for wiki_code, rows in totals.items():
+            totals_len[wiki_code] += len(rows)
+
+        # 2. save batch to cache
+        _write_totals_to_cache(
+            totals_by_wiki=totals,
+            views_dir=views_dir,
+            yyyy_mm=yyyy_mm,
+        )
+        # 3. clear the dicts to free memory, but keep the outer dict keys for the next batch
+        for wiki_code in totals.keys():
+            totals[wiki_code] = {}
+
+        accumulated_titles = 0
 
     for line in lines:
         line_count += 1
@@ -205,35 +216,18 @@ def _aggregate_dump(
             if wanted_titles is not None and cache_title not in wanted_titles:
                 continue
 
-        batch_count += 1
         valid_lines_count += 1
 
         wiki_totals = totals[parsed.wiki_code]
+        if cache_title not in wiki_totals:
+            accumulated_titles += 1
         wiki_totals[cache_title] = wiki_totals.get(cache_title, 0) + parsed.daily_total
 
-        if batch_count >= _BATCH_SIZE:
-            batch_count = 0
+        if accumulated_titles >= _MAX_ACCUMULATED_TITLES:
+            _flush()
 
-            # 1. update totals lengths
-            for x, rows in totals.items():
-                totals_len[x] += len(rows)
-
-            # 2. save batch to cache
-            _write_totals_to_cache(
-                totals_by_wiki=totals,
-                views_dir=views_dir,
-                yyyy_mm=yyyy_mm,
-            )
-            # 3. clear the dicts to free memory, but keep the outer dict keys for the next batch
-            for x in totals.keys():
-                totals[x] = {}
-
-    # 4. save last batch to cache
-    _write_totals_to_cache(
-        totals_by_wiki=totals,
-        views_dir=views_dir,
-        yyyy_mm=yyyy_mm,
-    )
+    # Save any remaining buffered titles to cache.
+    _flush()
 
     if malformed_count:
         logger.warning("Skipped %d malformed line(s) while processing dump.", malformed_count)
