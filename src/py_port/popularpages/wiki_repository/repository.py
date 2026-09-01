@@ -195,7 +195,7 @@ class WikiRepository:
         replica database for the bot's most recent edit timestamp per project.
 
         Returns:
-            list[dict]: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
+            list[dict]: List of dicts with 'page_title', 'rev_timestamp'.
         """
         config = self.get_config()
         projects = {x.report_title: x.project_main_page for x in config}
