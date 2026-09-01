@@ -121,6 +121,7 @@ def _aggregate_dump(
     for line in lines:
         line_count += 1
         if line_count % _PROGRESS_LOG_EVERY == 0:
+            # TODO: print memory usage
             logger.info("Processed %s dump lines so far...", f"{line_count:,}")
             logger.info("malformed_count: %s, valid_lines_count: %s", f"{malformed_count:,}", f"{valid_lines_count:,}")
 
