@@ -22,7 +22,7 @@ from src.py_port.popularpages.wiki_repository import WikiRepository
 def updater(monkeypatch) -> tuple[ReportUpdater, MagicMock]:
     """Create a configured `ReportUpdater` and mocked wiki repository for tests.
 
-    Parameters:
+    Args:
         monkeypatch: Pytest fixture used to replace repository and configuration dependencies.
 
     Returns:

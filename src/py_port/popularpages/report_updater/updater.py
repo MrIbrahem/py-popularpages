@@ -393,7 +393,7 @@ class ReportUpdater:
         to roughly one project's worth of data (itself capped by
         `app_config.wiki.max_project_size`).
 
-        Parameters:
+        Args:
             config (list[WikiProjectConfig]): WikiProject configurations to process. An empty list aborts the update.
         """
         # Make sure config isn't empty.

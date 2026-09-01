@@ -29,7 +29,7 @@ async def _process_wiki(wiki: str, *, dry_run: bool, update_index: bool) -> None
     where each wiki is invoked by its own cron job), so exceptions are caught
     and logged here rather than propagated to the gather() caller.
 
-    Parameters:
+    Args:
         wiki: The wiki key to process (e.g. "en.wikipedia").
         dry_run: Whether to print output instead of saving edits to the wiki.
         update_index: Whether to update the index page after updating reports.
@@ -60,7 +60,7 @@ async def _process_wiki(wiki: str, *, dry_run: bool, update_index: bool) -> None
 async def _run_all(wikis: list[str], *, dry_run: bool, update_index: bool) -> None:
     """Process every wiki concurrently on a single shared event loop.
 
-    Parameters:
+    Args:
         wikis: The wiki keys to process.
         dry_run: Whether to print output instead of saving edits to the wiki.
         update_index: Whether to update the index page after updating reports.
