@@ -54,6 +54,7 @@ class ParsedPageview:
         if self.page_id is None:
             return False
 
+        # TODO: ignore all titles that isn't Articles.
         invalid_title_prefixes = {
             "en.wikipedia": ("Special:",),
             "ar.wikipedia": ("خاص:",),

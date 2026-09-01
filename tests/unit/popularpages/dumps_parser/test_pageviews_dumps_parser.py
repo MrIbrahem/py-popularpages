@@ -286,7 +286,75 @@ def test_full_fixture_aggregation_by_title_matches_expected_totals():
     assert totals[("ar.wikipedia", '"W"_تشير_الى_المنتهي')] == 9
 
 class TestIsValid:
-    def test_with_title_start_with_special(self):
+    # ---- page_id is None -> invalid regardless of title --------------------
+
+    def test_null_page_id_is_invalid(self):
         obj = ParsedPageview.parse("de.wikipedia Special:WantedPages/ null mobile-web 4 A1B1G2")
+        # null page_id makes it invalid; the "Special:" prefix is irrelevant
+        # here because de.wikipedia has no prefix map.
+        assert obj.page_id is None
         assert obj.is_valid() is False
+
+    def test_null_page_id_with_normal_title_is_invalid(self):
+        obj = ParsedPageview.parse("en.wikipedia Normal_Title null desktop 10 B1")
+        assert obj.page_id is None
+        assert obj.is_valid() is False
+
+    # ---- en.wikipedia: "Special:" prefix -----------------------------------
+
+    def test_en_special_prefix_is_invalid(self):
+        obj = ParsedPageview.parse("en.wikipedia Special:WantedPages/ 12345 mobile-web 4 A1B1G2")
+        assert obj.page_id == 12345
+        assert obj.is_valid() is False
+
+    def test_en_normal_title_is_valid(self):
+        obj = ParsedPageview.parse("en.wikipedia Main_Page 67890 desktop 100 B1")
+        assert obj.page_id == 67890
+        assert obj.is_valid() is True
+
+    def test_en_partial_special_substring_is_valid(self):
+        # "Special" without the trailing colon must NOT be treated as invalid.
+        obj = ParsedPageview.parse("en.wikipedia SpecialPages 101 desktop 5 B1")
+        assert obj.is_valid() is True
+
+    # ---- ar.wikipedia: "خاص:" prefix ---------------------------------------
+
+    def test_ar_special_prefix_is_invalid(self):
+        obj = ParsedPageview.parse("ar.wikipedia خاص:صفحات_مطلوبة 202 desktop 7 B1")
+        assert obj.page_id == 202
+        assert obj.is_valid() is False
+
+    def test_ar_normal_title_is_valid(self):
+        obj = ParsedPageview.parse("ar.wikipedia القاهرة 303 mobile-web 12 B1")
+        assert obj.page_id == 303
+        assert obj.is_valid() is True
+
+    # ---- unknown wiki code: no prefixes defined -> valid if page_id set ---
+
+    def test_unknown_wiki_code_with_special_like_title_is_valid(self):
+        obj = ParsedPageview.parse("de.wikipedia Special:WantedPages/ 404 desktop 3 B1")
+        assert obj.page_id == 404
+        assert obj.is_valid() is True
+
+    # ---- direct construction (no parse) for full branch coverage -----------
+
+    def test_construct_directly_with_none_page_id(self):
+        obj = ParsedPageview(
+            wiki_code="en.wikipedia",
+            title="Special:Foo",
+            page_id=None,
+            agent="desktop",
+            daily_total=1,
+        )
+        assert obj.is_valid() is False
+
+    def test_construct_directly_en_valid(self):
+        obj = ParsedPageview(
+            wiki_code="en.wikipedia",
+            title="Portal:Science",
+            page_id=999,
+            agent="desktop",
+            daily_total=1,
+        )
+        assert obj.is_valid() is True
 

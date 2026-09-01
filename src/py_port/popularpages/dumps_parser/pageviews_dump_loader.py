@@ -291,7 +291,7 @@ class PageviewsDumpLoader:
                 accumulated_titles += 1
 
             # skip lines without page_id such as disambiguation pages
-            if parsed.page_id is None:
+            if not parsed.is_valid():
                 continue
 
             if parsed.daily_total == 0:
