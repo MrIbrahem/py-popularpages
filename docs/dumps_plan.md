@@ -82,7 +82,7 @@ wiki_code  title  page_id  agent  daily_total  [hourly_counts]
 
 ## ParsedPageview class
 
-[src/dumps_parser/bz2_dump_parser.py](../src/py_port/dumps_parser/bz2_dump_parser.py)
+[src/dumps_parser/bz2_dump_parser.py](../src/py_port/popularpages/dumps_parser/bz2_dump_parser.py)
 
 ```python
 class MalformedLineError(ValueError):

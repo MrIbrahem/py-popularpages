@@ -18,14 +18,14 @@ from pathlib import Path
 
 import pytest
 
-from src.py_port.popularpages.pageviews.pageviews_db import PageviewsDb
-from src.py_port.dumps_parser.pageviews_dump_loader import (
+from src.py_port.popularpages.dumps_parser.pageviews_dump_loader import (
     DumpNotFoundError,
     aggregate_dump,
     dump_path_for_month,
     iter_dump_lines,
     load_dump_into_cache,
 )
+from src.py_port.popularpages.pageviews.pageviews_db import PageviewsDb
 
 # The exact ar.wikipedia lines from the real dump sample, plus lines for a
 # wiki that is NOT configured (aa.wikipedia) and a wiki that IS (en.wikipedia),
@@ -69,6 +69,7 @@ def _write_fixture_dump(dumps_root: Path, year: int, month: int, lines: list[str
 # dump_path_for_month
 # ---------------------------------------------------------------------------
 
+
 def test_dump_path_for_month_pattern(tmp_path: Path):
     path = dump_path_for_month(2026, 7, root=tmp_path)
     assert path == tmp_path / "2026" / "2026-07" / "pageviews-202607-user.bz2"
@@ -83,6 +84,7 @@ def test_dump_path_for_month_pads_single_digit_month(tmp_path: Path):
 # ---------------------------------------------------------------------------
 # iter_dump_lines
 # ---------------------------------------------------------------------------
+
 
 def test_iter_dump_lines_missing_file_raises(tmp_path: Path):
     missing = tmp_path / "does_not_exist.bz2"
@@ -100,6 +102,7 @@ def test_iter_dump_lines_streams_real_bz2_file(tmp_path: Path):
 # ---------------------------------------------------------------------------
 # aggregate_dump
 # ---------------------------------------------------------------------------
+
 
 def test_aggregate_dump_filters_unwanted_wikis():
     totals = aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES)
@@ -148,6 +151,7 @@ def test_aggregate_dump_title_filtering_optimization():
 # ---------------------------------------------------------------------------
 # End-to-end: load_dump_into_cache -> real SQLite file -> read via PageviewsDb
 # ---------------------------------------------------------------------------
+
 
 def test_load_dump_into_cache_end_to_end(tmp_path: Path):
     dumps_root = tmp_path / "dumps"

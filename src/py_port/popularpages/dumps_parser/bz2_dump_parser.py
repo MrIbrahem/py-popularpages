@@ -65,7 +65,6 @@ class ParsedPageview:
         # If not wrapped in quotes, return as-is
         return raw_title
 
-
     @classmethod
     def parse(cls, line: str) -> "ParsedPageview":
         """
@@ -80,9 +79,7 @@ class ParsedPageview:
 
         parts = line.split(" ", maxsplit=4)
         if len(parts) < 5:
-            raise MalformedLineError(
-                f"expected at least 5 space-separated fields, got {len(parts)}: {line!r}"
-            )
+            raise MalformedLineError(f"expected at least 5 space-separated fields, got {len(parts)}: {line!r}")
 
         wiki_code, raw_title, page_id, agent, rest = parts
 
@@ -92,9 +89,7 @@ class ParsedPageview:
         try:
             daily_total = int(daily_total_str)
         except ValueError as exc:
-            raise MalformedLineError(
-                f"could not parse daily_total from {daily_total_str!r} in line: {line!r}"
-            ) from exc
+            raise MalformedLineError(f"could not parse daily_total from {daily_total_str!r} in line: {line!r}") from exc
 
         title = cls.unescape_title(raw_title)
 
@@ -105,6 +100,7 @@ class ParsedPageview:
             agent=agent,
             daily_total=daily_total,
         )
+
 
 __all__ = [
     "ParsedPageview",

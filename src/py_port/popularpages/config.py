@@ -94,8 +94,24 @@ class ProjectPathsConfig:
             wikis_config_file=base_dir / "config" / "wikis.yaml",
         )
 
-    def load_wikis_config(self) -> dict:
-        """Load the wikis configuration from config/wikis.yaml."""
+    def load_wikis_config(self) -> dict[str, dict[str, str]]:
+        """
+        Load the wikis configuration from config/wikis.yaml.
+        Data example: {
+            "en.wikipedia": {
+                "database": "enwiki",
+                "index": "User:Community Tech bot/Popular pages",
+                "config": "Wikipedia:WikiProject/Popular pages config.json",
+                "category": "Category:Lists of popular pages by WikiProject"
+            },
+            "ar.wikipedia": {
+                "database": "arwiki",
+                "index": "ويكيبيديا:قائمة الصفحات الأكثر مشاهدة حسب مشروع الويكي",
+                "config": "ويكيبيديا:قائمة الصفحات الأكثر مشاهدة حسب مشروع الويكي/الإعدادات.json",
+                "category": "تصنيف:قائمة الصفحات الأكثر مشاهدة حسب مشروع الويكي"
+            }
+        }
+        """
         logger.debug("Loading wikis config from %s", self.wikis_config_file)
 
         data = yaml.safe_load(self.wikis_config_file.read_text(encoding="utf-8"))

@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from src.py_port.dumps_parser.bz2_dump_parser import (
+from src.py_port.popularpages.dumps_parser.bz2_dump_parser import (
     MalformedLineError,
     ParsedPageview,
 )
@@ -17,6 +17,7 @@ AR_SAMPLE_PATH = os.path.join(FIXTURES_DIR, "ar_wikipedia_sample.txt")
 # ---------------------------------------------------------------------------
 # 1. page_id variants: numeric vs "null"
 # ---------------------------------------------------------------------------
+
 
 def test_page_id_numeric():
     line = "ar.wikipedia ! 199256 desktop 5 A1S1V1Y1^1"
@@ -29,7 +30,7 @@ def test_page_id_numeric():
 
 
 def test_page_id_null_string():
-    line = '''ar.wikipedia "\\"_لفيرجينيا_وولف" null desktop 1 ]1'''
+    line = """ar.wikipedia "\\"_لفيرجينيا_وولف" null desktop 1 ]1"""
     result = ParsedPageview.parse(line)
     assert result.page_id == "null"
     assert result.daily_total == 1
@@ -39,6 +40,7 @@ def test_page_id_null_string():
 # ---------------------------------------------------------------------------
 # 2. Titles with leading special characters (!, ', ()
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize(
     "line,expected_title,expected_page_id,expected_agent,expected_total",
@@ -63,9 +65,7 @@ def test_page_id_null_string():
         ),
     ],
 )
-def test_leading_special_character_titles(
-    line, expected_title, expected_page_id, expected_agent, expected_total
-):
+def test_leading_special_character_titles(line, expected_title, expected_page_id, expected_agent, expected_total):
     result = ParsedPageview.parse(line)
     assert result.title == expected_title
     assert result.page_id == expected_page_id
@@ -76,6 +76,7 @@ def test_leading_special_character_titles(
 # ---------------------------------------------------------------------------
 # 3. Escaped double-quote titles (\" -> ") — the key new edge case
 # ---------------------------------------------------------------------------
+
 
 def test_unescape_title_helper_directly():
     # Bare titles (no outer wrapping quotes) pass through unchanged.
@@ -129,13 +130,11 @@ def test_quoted_english_title_with_internal_apostrophe():
     # Confirms apostrophes inside an already-quoted title survive untouched
     # (they are NOT escape sequences, just literal characters).
     line = (
-        'ar.wikipedia "\\"Schumer_announces_\'Maple_Tap_Act\'_has_passed_the_Senate'
+        "ar.wikipedia \"\\\"Schumer_announces_'Maple_Tap_Act'_has_passed_the_Senate"
         '_at_part_of_Farm_Bill\\"" null desktop 1 A1'
     )
     result = ParsedPageview.parse(line)
-    assert result.title == (
-        '"Schumer_announces_\'Maple_Tap_Act\'_has_passed_the_Senate_at_part_of_Farm_Bill"'
-    )
+    assert result.title == ("\"Schumer_announces_'Maple_Tap_Act'_has_passed_the_Senate_at_part_of_Farm_Bill\"")
     assert result.page_id == "null"
     assert result.daily_total == 1
 
@@ -162,6 +161,7 @@ def test_quoted_arabic_only_title():
 # 4. hourly_counts is discarded regardless of its (absent/odd) content
 # ---------------------------------------------------------------------------
 
+
 def test_hourly_counts_with_backslash_is_ignored_safely():
     # hourly_counts here contains a literal backslash char - must not
     # affect title/daily_total parsing since it's never inspected.
@@ -181,6 +181,7 @@ def test_daily_total_parses_even_with_trailing_junk():
 # 5. Same page_id, different title strings -> must NOT be treated as identical
 # ---------------------------------------------------------------------------
 
+
 def test_same_page_id_different_titles_are_distinct():
     line_a = 'ar.wikipedia "\\"_\\"" 3347002 desktop 6 O1S1T1W1Y2'
     line_b = "ar.wikipedia ! 199256 desktop 5 A1S1V1Y1^1"  # different page_id, sanity
@@ -198,6 +199,7 @@ def test_same_page_id_different_titles_are_distinct():
 # ---------------------------------------------------------------------------
 # 6. Malformed lines
 # ---------------------------------------------------------------------------
+
 
 def test_malformed_line_too_few_fields():
     with pytest.raises(MalformedLineError):
@@ -217,6 +219,7 @@ def test_empty_line_raises():
 # ---------------------------------------------------------------------------
 # 7. Full fixture file: every line in the real sample must parse cleanly
 # ---------------------------------------------------------------------------
+
 
 def test_full_fixture_file_all_lines_parse_without_error():
     with open(AR_SAMPLE_PATH, "r", encoding="utf-8") as f:

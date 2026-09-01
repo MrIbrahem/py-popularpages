@@ -28,8 +28,8 @@ import logging
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from .bz2_dump_parser import ParsedPageview, MalformedLineError
-from ..popularpages.pageviews.pageviews_db import PageviewsDb
+from ..pageviews.pageviews_db import PageviewsDb
+from .bz2_dump_parser import MalformedLineError, ParsedPageview
 
 logger = logging.getLogger(__name__)
 
