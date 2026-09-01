@@ -36,6 +36,7 @@ def test_page_id_null_string():
     result = parse_pageview_line(line)
     assert result.page_id == "null"
     assert result.daily_total == 1
+    assert result.title == '"_لفيرجينيا_وولف'
 
 
 # ---------------------------------------------------------------------------

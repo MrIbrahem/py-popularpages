@@ -40,61 +40,88 @@ class ParsedPageview:
     agent: str
     daily_total: int
 
+    @staticmethod
+    def unescape_title(raw_title: str) -> str:
+        """Convert a raw dump title field into its true string form.
+
+        The dump uses CSV-style conditional quoting: a title is wrapped in
+        an outer, unescaped pair of double-quotes IF AND ONLY IF it contains
+        a literal double-quote character; any literal " inside such a title
+        is escaped as \". Titles without a " character are left bare with
+        no wrapping at all.
+
+        Examples (raw field -> true title):
+            '!'                 -> '!'                  (no quote char, bare)
+            '"\\""'             -> '"'                  (wrapped + escaped)
+            '"\\"W\\"_x"'       -> '"W"_x'               (wrapped + escaped)
+        """
+        # Check if the raw_title is wrapped in double quotes
+        if len(raw_title) >= 2 and raw_title.startswith('"') and raw_title.endswith('"'):
+            # Extract the inner content by removing the outer quotes
+            inner = raw_title[1:-1]
+            # Replace escaped quotes (\") with actual quotes (")
+            return inner.replace('\\"', '"')
+        # If not wrapped in quotes, return as-is
+        return raw_title
+
+
+    @classmethod
+    def parse(cls, line: str) -> "ParsedPageview":
+        """Parse a single line of the pageview_complete dump.
+
+        Raises MalformedLineError if the line doesn't have at least the
+        5 fixed-position fields (wiki_code, title, page_id, agent, rest).
+        """
+        line = line.rstrip("\n")
+        if not line:
+            raise MalformedLineError("empty line")
+
+        parts = line.split(" ", maxsplit=4)
+        if len(parts) < 5:
+            raise MalformedLineError(
+                f"expected at least 5 space-separated fields, got {len(parts)}: {line!r}"
+            )
+
+        wiki_code, raw_title, page_id, agent, rest = parts
+
+        # rest is "daily_total" or "daily_total hourly_counts"; we only need
+        # the first token. hourly_counts (if present) is discarded untouched.
+        daily_total_str = rest.split(" ", maxsplit=1)[0]
+        try:
+            daily_total = int(daily_total_str)
+        except ValueError as exc:
+            raise MalformedLineError(
+                f"could not parse daily_total from {daily_total_str!r} in line: {line!r}"
+            ) from exc
+
+        title = cls.unescape_title(raw_title)
+
+        return cls(
+            wiki_code=wiki_code,
+            title=title,
+            page_id=page_id,
+            agent=agent,
+            daily_total=daily_total,
+        )
 
 def unescape_title(raw_title: str) -> str:
-    """Convert a raw dump title field into its true string form.
-
-    The dump uses CSV-style conditional quoting: a title is wrapped in
-    an outer, unescaped pair of double-quotes IF AND ONLY IF it contains
-    a literal double-quote character; any literal " inside such a title
-    is escaped as \". Titles without a " character are left bare with
-    no wrapping at all.
-
-    Examples (raw field -> true title):
-        '!'                 -> '!'                  (no quote char, bare)
-        '"\\""'             -> '"'                  (wrapped + escaped)
-        '"\\"W\\"_x"'       -> '"W"_x'               (wrapped + escaped)
     """
-    if len(raw_title) >= 2 and raw_title.startswith('"') and raw_title.endswith('"'):
-        inner = raw_title[1:-1]
-        return inner.replace('\\"', '"')
-    return raw_title
+    Convert a raw dump title field into its true string form.
+    """
+    return ParsedPageview.unescape_title(raw_title)
 
 
 def parse_pageview_line(line: str) -> ParsedPageview:
-    """Parse a single line of the pageview_complete dump.
+    """
+    Parse a single line of the pageview_complete dump.
 
     Raises MalformedLineError if the line doesn't have at least the
     5 fixed-position fields (wiki_code, title, page_id, agent, rest).
     """
-    line = line.rstrip("\n")
-    if not line:
-        raise MalformedLineError("empty line")
 
-    parts = line.split(" ", maxsplit=4)
-    if len(parts) < 5:
-        raise MalformedLineError(
-            f"expected at least 5 space-separated fields, got {len(parts)}: {line!r}"
-        )
+    return ParsedPageview.parse(line)
 
-    wiki_code, raw_title, page_id, agent, rest = parts
 
-    # rest is "daily_total" or "daily_total hourly_counts"; we only need
-    # the first token. hourly_counts (if present) is discarded untouched.
-    daily_total_str = rest.split(" ", maxsplit=1)[0]
-    try:
-        daily_total = int(daily_total_str)
-    except ValueError as exc:
-        raise MalformedLineError(
-            f"could not parse daily_total from {daily_total_str!r} in line: {line!r}"
-        ) from exc
-
-    title = unescape_title(raw_title)
-
-    return ParsedPageview(
-        wiki_code=wiki_code,
-        title=title,
-        page_id=page_id,
-        agent=agent,
-        daily_total=daily_total,
-    )
+__all__ = [
+    "ParsedPageview",
+]
