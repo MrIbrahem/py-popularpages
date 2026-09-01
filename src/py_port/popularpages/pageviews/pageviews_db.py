@@ -83,7 +83,9 @@ class PageviewsDb:
         if not title_views:
             return
 
-        chunk_size = 900 if sqlite3.sqlite_version else 30_000
+        # sqlite_version_info is a tuple (major, minor, patch); >= 3.32.0
+        # raises SQLITE_MAX_VARIABLE_NUMBER from 999 to 32766.
+        chunk_size = 30_000 if sqlite3.sqlite_version_info >= (3, 32, 0) else 900
         if len(title_views) < chunk_size:
             self.upsert_many(title_views)
             return
