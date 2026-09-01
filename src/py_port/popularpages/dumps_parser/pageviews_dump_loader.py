@@ -170,32 +170,6 @@ class PageviewsDumpLoader:
 
             logger.info("[%s] Upsert done", wiki_code)
 
-    def _count_titles_in_cache(
-        self,
-        wiki_codes: set[str],
-        yyyy_mm: str,
-    ) -> dict[str, int]:
-        """
-        Return ``{wiki_code: number_of_distinct_titles}`` for every wiki that
-        has a cache file written for this month.
-
-        The exact distinct-title count is read back from the SQLite cache
-        with a single ``COUNT(*)`` per wiki. This is accurate (a title that
-        spanned multiple flushes was upserted, not inserted twice) and keeps
-        memory bounded -- we never hold all distinct titles in RAM.
-        """
-        counts: dict[str, int] = {}
-        for wiki_code in wiki_codes:
-            db_file_path = app_config.data_paths.build_db_file_path(wiki_code, yyyy_mm, self.views_dir)
-            if not db_file_path.exists():
-                continue
-            db = PageviewsDb(db_file_path)
-            try:
-                counts[wiki_code] = db.count_titles()
-            finally:
-                db.close_db()
-        return counts
-
     def _process_dump_lines(
         self,
         lines: Iterable[str],
@@ -258,13 +232,6 @@ class PageviewsDumpLoader:
             for wiki_code, rows in totals.items():
                 totals_len[wiki_code] += len(rows)
 
-            # Write the current batch of buffered titles to the SQLite cache
-            # and free the in-memory dict so peak memory stays bounded. A
-            # title that reappears after a flush is upserted again (updating
-            # its running total); the buffer deliberately does NOT track
-            # distinct titles across flushes -- the exact distinct-title
-            # total is read back from the cache itself after the run (see
-            # _count_titles_in_cache).
             # 2. save batch to cache
             self._write_totals_to_cache(
                 totals_by_wiki=totals,
@@ -335,11 +302,8 @@ class PageviewsDumpLoader:
             f"{valid_lines_count:,}",
         )
 
-        # The exact distinct-title total is read back from the SQLite cache
-        # (a single COUNT(*) per wiki) rather than tracked in memory -- that
-        # keeps peak memory bounded regardless of how titles are distributed.
-        # return totals_len
-        return self._count_titles_in_cache(wanted_wiki_codes, yyyy_mm)
+        # The exact distinct-title total is not required
+        return totals_len
 
     def load_dump_into_cache(
         self,

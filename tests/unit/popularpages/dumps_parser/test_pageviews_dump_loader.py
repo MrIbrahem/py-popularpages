@@ -112,6 +112,7 @@ def test_aggregate_dump_filters_unwanted_wikis(tmp_path: Path):
     totals = loader._process_dump_lines(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
     assert "aa.wikipedia" not in totals
     assert set(totals.keys()) == {"ar.wikipedia", "en.wikipedia"}
+    assert totals == {"ar.wikipedia": 4, "en.wikipedia": 1}
 
 
 class TestAggregateDump:
