@@ -279,3 +279,87 @@ class TestChunking:
 
         cached = load_db.query_titles_cache(list(title_views))
         assert len(cached) == 1000
+
+
+# ---------------------------------------------------
+# count_titles
+# ---------------------------------------------------
+class TestCountTitles:
+    def test_empty_db_returns_zero(self, load_db):
+        assert load_db.count_titles() == 0
+
+    def test_counts_distinct_titles(self, load_db):
+        load_db.upsert_many({"Cairo": 10, "Alexandria": 20})
+        assert load_db.count_titles() == 2
+
+    def test_reupserting_same_title_does_not_inflate_count(self, load_db):
+        load_db.upsert_many({"Cairo": 10})
+        load_db.upsert_many({"Cairo": 99})
+        assert load_db.count_titles() == 1
+
+
+# ---------------------------------------------------
+# upsert_many_chunks (SQLite bound-variable limit workaround)
+# ---------------------------------------------------
+class TestUpsertManyChunks:
+    def test_empty_dict_is_a_noop(self, load_db):
+        load_db.upsert_many_chunks({})
+        assert load_db.query_titles_cache(["Cairo"]) == set()
+
+    def test_small_batch_delegates_to_upsert_many(self, load_db):
+        """A batch smaller than the chunk_size takes the early-return path
+        straight to ``upsert_many``."""
+        load_db.upsert_many_chunks({"Cairo": 10, "Giza": 5})
+        assert load_db.get_views("Cairo", []) == 10
+        assert load_db.get_views("Giza", []) == 5
+
+    def test_large_batch_is_split_into_chunks(self, load_db: PageviewsDb, monkeypatch):
+        """Force the small SQLite bound limit so a modest batch still exercises
+        the multi-chunk write loop inside ``upsert_many_chunks``."""
+        monkeypatch.setattr("sqlite3.sqlite_version_info", (3, 31, 0))
+        n = 2500
+        title_views = {f"Bulk {i}": i for i in range(n)}
+        load_db.upsert_many_chunks(title_views)
+
+        # Every title was written despite spanning 3 chunks (900 + 900 + 700).
+        assert load_db.count_titles() == n
+        assert load_db.get_views("Bulk 0", []) == 0
+        assert load_db.get_views(f"Bulk {n - 1}", []) == n - 1
+
+    def test_large_batch_preserves_values_across_chunks(self, load_db: PageviewsDb, monkeypatch):
+        monkeypatch.setattr("sqlite3.sqlite_version_info", (3, 31, 0))
+        title_views = {f"T{i}": i * 3 for i in range(2000)}
+        load_db.upsert_many_chunks(title_views)
+
+        sampled = load_db.get_views_many({f"T{i}": [] for i in (0, 500, 1999)})
+        assert sampled == {"T0": 0, "T500": 1500, "T1999": 5997}
+
+
+# ---------------------------------------------------
+# Underscore -> space normalization in upsert_many
+# ---------------------------------------------------
+class TestUnderscoreNormalization:
+    def test_underscores_converted_to_spaces_on_upsert(self, load_db):
+        load_db.upsert_many({"New_York_City": 100})
+        # The stored key uses spaces, so the underscore form is not found...
+        assert load_db.get_views("New_York_City", []) == 0
+        # ...and the space form is.
+        assert load_db.get_views("New York City", []) == 100
+        assert _rows(load_db.db_file_path) == {"New York City": 100}
+
+    def test_mixed_underscore_and_space_titles(self, load_db):
+        load_db.upsert_many({"Los_Angeles": 5, "San Francisco": 7})
+        assert load_db.get_views("Los Angeles", []) == 5
+        assert load_db.get_views("San Francisco", []) == 7
+        assert set(_rows(load_db.db_file_path)) == {"Los Angeles", "San Francisco"}
+
+    def test_normalization_applies_in_chunked_upsert(self, load_db: PageviewsDb, monkeypatch):
+        monkeypatch.setattr("sqlite3.sqlite_version_info", (3, 31, 0))
+        load_db.upsert_many_chunks({f"Title_{i}": i for i in range(2000)})
+
+        assert load_db.one_title_views("Title 0") == 0
+        assert load_db.get_views("Title 0", []) == 0
+
+        assert load_db.get_views("Title 1999", []) == 1999
+        assert "Title 0" in _rows(load_db.db_file_path)
+        assert "Title_0" not in _rows(load_db.db_file_path)
