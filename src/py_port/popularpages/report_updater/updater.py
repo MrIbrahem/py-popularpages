@@ -28,9 +28,17 @@ class ReportUpdater:
 
     def __init__(self, wiki: str = "en.wikipedia", dry_run: bool = False):
         """
-        :param wiki: Target wiki, e.g. 'en.wikipedia'.
-        :param dry_run: Passed through to WikiRepository -- if True, prints
-            instead of saving edits to the wiki.
+        Initialize the report updater for a single wiki.
+
+        Constructs the :class:`WikiRepository`, sets up the Jinja environment
+        with the project's template helpers, and records the wiki/i18n context.
+        ``dry_run`` is forwarded to the repository so edits are printed rather
+        than saved.
+
+        Args:
+            wiki (str): Target wiki, e.g. 'en.wikipedia'.
+            dry_run (bool): Passed through to WikiRepository -- if True, prints
+                instead of saving edits to the wiki.
         """
         self.wiki_repository = WikiRepository(wiki, dry_run)
         self.wiki = wiki
@@ -112,7 +120,12 @@ class ReportUpdater:
         """
         Process a WikiProject and update its monthly popular-pages report.
 
-        Parameters:
+        Loads the project's page rows (titles, assessments, redirects), fetches
+        and aggregates pageviews, populates assessment categories and averages,
+        then renders the report template and saves it to the wiki (or writes it
+        to disk in dry-run mode).
+
+        Args:
             project (str): WikiProject key or title.
             config (dict | WikiProjectConfig): WikiProject report configuration.
             cache (PageviewsCache | None): Shared pageview cache, if available.
@@ -257,7 +270,16 @@ class ReportUpdater:
         Validate a WikiProject config entry: required keys, target
         namespace, and target page existence.
 
-        :return: True if valid, else False (with the reason logged).
+        Checks that the config is complete, that the report target is not in the
+        main namespace, and that the project's main page exists on the wiki. Any
+        failure is logged with its reason.
+
+        Args:
+            project (str): WikiProject key or title.
+            config (dict | WikiProjectConfig): WikiProject report configuration.
+
+        Returns:
+            bool: True if valid, else False (with the reason logged).
         """
         logger.debug("Validating project config for '%s'", project)
         if isinstance(config, dict):
