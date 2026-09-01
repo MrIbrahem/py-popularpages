@@ -24,10 +24,18 @@ class WikiDatabaseRepository:
 
     def __init__(self, wiki: str, wiki_config: dict, username: str):
         """
-        :param wiki: Wiki in the form lang.project, e.g. 'en.wikipedia'.
-        :param wiki_config: This wiki's config (index/config/category/database).
-        :param username: Bot username (without the @clientname suffix), used
-            to look up the bot's own edits.
+        Initialize replica-database access for a single wiki.
+
+        Stores the wiki identity, its config, and the bot username, then opens a
+        connection to the wiki's replica database (the ``_p`` suffix is stripped
+        from the configured database name). All subsequent queries run through
+        this connection.
+
+        Args:
+            wiki (str): Wiki in the form lang.project, e.g. 'en.wikipedia'.
+            wiki_config (dict): This wiki's config (index/config/category/database).
+            username (str): Bot username (without the @clientname suffix), used
+                to look up the bot's own edits.
         """
         self.wiki = wiki
         self.wiki_config = wiki_config
