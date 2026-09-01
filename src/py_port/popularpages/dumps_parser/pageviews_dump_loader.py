@@ -24,6 +24,7 @@ Only ``wiki_code``, ``title``, and ``daily_total`` are used; ``page_id`` and
 from __future__ import annotations
 
 import bz2
+from collections import defaultdict
 import logging
 from collections.abc import Iterable, Iterator
 from pathlib import Path
@@ -246,6 +247,8 @@ class PageviewsDumpLoader:
 
             accumulated_titles = 0
 
+        wikis_count = defaultdict(int)
+
         for line in lines:
             line_count += 1
             if line_count % self._PROGRESS_LOG_EVERY == 0:
@@ -267,6 +270,9 @@ class PageviewsDumpLoader:
                 continue
 
             wiki_code = line[:space_idx]
+
+            wikis_count[wiki_code] += 1
+
             if wiki_code not in wanted_wiki_codes:
                 continue
 
@@ -315,6 +321,14 @@ class PageviewsDumpLoader:
             f"{valid_lines_count:,}",
             f"{zero_daily_total_count:,}",
         )
+
+        # sort wikis_count by value
+        wikis_count = dict(sorted(wikis_count.items(), key=lambda x: x[1], reverse=True))
+
+        logger.info("Found %d wiki:", len(wikis_count))
+
+        for wiki_code, count in wikis_count.items():
+            logger.info("Processed %s lines for %s", f"{count:,}", wiki_code)
 
         # The exact distinct-title total is not required
         return totals_len
