@@ -12,11 +12,11 @@ that requires SQL.
 
 from __future__ import annotations
 
-from collections import defaultdict
 import json
 import logging
 import re
 import time
+from collections import defaultdict
 from pathlib import Path
 
 import httpx
@@ -373,9 +373,10 @@ class WikiRepository:
                     "summary": summary,
                     "section": section_number,
                     "bot": True,
+                    "dry-run": True,
+                    "edit": False,
                 }
             )
-
             return None
 
         page = self.site.pages[page_title]
