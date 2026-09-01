@@ -292,7 +292,7 @@ class PageviewsDumpLoader:
 
             if parsed.daily_total == 0:
                 zero_daily_total_count += 1
-                # continue
+                continue
 
             wiki_totals[cache_title] = wiki_totals.get(cache_title, 0) + parsed.daily_total
 

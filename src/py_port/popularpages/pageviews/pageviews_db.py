@@ -60,6 +60,14 @@ class PageviewsDb:
         for i in range(0, len(items), size):
             yield items[i : i + size]
 
+    def one_title_views(self, title: str) -> int | None:
+        """
+        """
+        with self._Session() as session:
+            query = select(PageView.title, PageView.views).where(PageView.title == title)
+            result = session.execute(query).first()
+            return result.views if result else None
+
     def _query_views_by_title(self, titles: list[str]) -> dict[str, int]:
         """
         Resolve title -> views for many titles, reusing a single session and

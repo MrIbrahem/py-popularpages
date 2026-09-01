@@ -276,6 +276,40 @@ def test_load_dump_into_cache_missing_dump_raises(tmp_path: Path):
         )
 
 
+def test_aggregate_dump_zero_daily_total_reaches_branch(tmp_path: Path):
+    """
+    Covers the ``if parsed.daily_total == 0:`` branch in
+    :meth:`_process_dump_lines` (lines 293-294). The zero-total line must be on
+    a *wanted* wiki -- the shared ``FIXTURE_LINES`` has a zero-total line too,
+    but it's on ``de.wikipedia`` (unwanted) and is filtered out by the wiki
+    prefix check before this branch is ever reached.
+
+    With the ``# continue`` on line 295 currently commented, the zero-total
+    title is still aggregated (with 0 views). If that ``continue`` is ever
+    uncommented, this assertion flips: the title would be skipped and
+    ``query_titles_cache`` would no longer contain it.
+    """
+    views_dir = tmp_path / "views"
+    loader = PageviewsDumpLoader(views_dir=views_dir, dumps_root=tmp_path / "dumps")
+    lines = [
+        "en.wikipedia Real_Page 1 desktop 500 A1",
+        "en.wikipedia Zero_Total_Page 0 desktop 0 A1",  # wanted wiki, daily_total == 0
+    ]
+    loader._process_dump_lines(lines, {"en.wikipedia"}, "2026-08")
+
+    db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
+    try:
+        # Both titles are present; the zero-total one has 0 views.
+        # assert db.query_titles_cache(["Zero Total Page", "Real Page"]) == {"Zero Total Page", "Real Page"}
+
+        # The zero-total one is skipped when the continue is uncommented.
+        assert db.query_titles_cache(["Zero Total Page", "Real Page"]) == {"Real Page"}
+        assert db.get_views("Zero Total Page", []) == 0
+        assert db.get_views("Real Page", []) == 500
+    finally:
+        db.close_db()
+
+
 def test_load_dump_into_cache_is_upsert_not_replace(tmp_path: Path):
     """
     Running the loader twice for the same wiki/month must upsert (update
