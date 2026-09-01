@@ -284,6 +284,7 @@ def load_dump_into_cache(
         wanted_wiki_codes=wanted_wiki_codes,
         yyyy_mm=yyyy_mm,
         wanted_titles_by_wiki=wanted_titles_by_wiki,
+        views_dir=views_dir,
     )
 
     return totals_by_wiki
