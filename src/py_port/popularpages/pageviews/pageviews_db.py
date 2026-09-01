@@ -92,7 +92,7 @@ class PageviewsDb:
         written = 0
 
         for i in range(0, len(title_views), chunk_size):
-            batch = dict(list(title_views.items())[i:i + chunk_size])
+            batch = dict(list(title_views.items())[i : i + chunk_size])
             self.upsert_many(batch)
             written += len(batch)
             logger.debug("Upserted %d/%d rows", written, total)

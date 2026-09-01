@@ -1,4 +1,5 @@
 import logging
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -20,4 +21,6 @@ except Exception as e:
 from .logger_config import setup_logging  # noqa: E402
 
 # setup_logging(name=".", level="INFO")
-setup_logging(name="popularpages", level="INFO")
+
+level = "DEBUG" if "debug" in sys.argv else "INFO"
+setup_logging(name="popularpages", level=level)
