@@ -1,3 +1,5 @@
+# Plan: Replace REST-API Pageview Fetching with Direct Dump Processing
+
 ## Problem
 
 `pageviews_repository.py` currently fetches monthly view counts by issuing **one Wikimedia Pageviews REST API request per article title**, deduplicated once per wiki per month. For large wikis like `en.wikipedia`, this still means hundreds of thousands to millions of HTTP requests per run, which is:
