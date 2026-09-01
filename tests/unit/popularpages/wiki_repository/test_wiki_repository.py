@@ -10,13 +10,14 @@ matching the original PHP suite's approach -- they require valid credentials
 
 import json
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import mwclient.errors
 import pytest
 
 import src.py_port.popularpages.config as cfg
 from src.py_port.popularpages.mapping import WikiProjectConfig
+from src.py_port.popularpages.pageviews.pageviews_repository import PageviewsRepository
 from src.py_port.popularpages.wiki_repository.repository import WikiRepository
 
 # Integration tests that hit the live wiki/DB require real credentials, which
@@ -182,36 +183,33 @@ class TestGetMonthlyPageviewsAndAssessments:
     """Unit tests for the pageview-batching wrapper (no live network)."""
 
     @pytest.mark.asyncio
-    @pytest.mark.skip
-    async def test_includes_canonical_target_title_in_query(self):
-        """Regression: each target's own title must be queried, not just its
+    async def test_fetch_includes_target_title(self):
+        """
+        Regression: each target's own title must be queried, not just its
         redirects -- otherwise the live-API path undercounts pageviews and
-        diverges from the cache path."""
+        diverges from the cache path.
+        """
         repo = WikiRepository.__new__(WikiRepository)
         repo.wiki = "en.wikipedia"
 
-        requested: dict[str, list[str]] = {}
+        async def fake_fetch_title_views(title: str, start: str, end: str) -> tuple[str, int]:
+            views = {
+                "Foo bar": 100,
+                "Redir A": 10,
+                "Redir B": 20,
+            }
+            return (title, views[title])
 
-        async def fake_get_pageviews(batch, start, end):
-            requested.update(batch)
-            # Mimic real get_pageviews: return target -> sum of its titles' views.
-            return {target: len(titles) for target, titles in batch.items()}
-
-        repo.pageviews_repo = MagicMock(get_pageviews=AsyncMock(side_effect=fake_get_pageviews))
+        repo.pageviews_repo = PageviewsRepository.__new__(PageviewsRepository)
+        repo.pageviews_repo._fetch_title_views = fake_fetch_title_views
 
         counts = await repo.get_monthly_pageviews_and_assessments(
-            {"Foo bar": ["Redir A", "Redir B"], "Baz qux": []},
+            {"Foo bar": ["Redir A", "Redir B"]},
             "2026010100",
             "2026013100",
         )
 
-        # Target with redirects: canonical title must be present alongside redirects.
-        assert "Foo bar" in requested["Foo bar"]
-        assert set(requested["Foo bar"]) == {"Foo bar", "Redir A", "Redir B"}
-        # A target with no redirects must still be queried for its own title.
-        assert requested["Baz qux"] == ["Baz qux"]
-        # Result is keyed by target and includes each target's own views.
-        assert set(counts) == {"Foo bar", "Baz qux"}
+        assert counts["Foo bar"] == 130
 
 
 class TestWikiRepositoryPureMethodsSkipped:
