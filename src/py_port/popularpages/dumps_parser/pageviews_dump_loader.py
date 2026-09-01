@@ -178,9 +178,11 @@ def write_totals_to_cache(
         if not title_views:
             continue
 
-        wiki_dir = views_dir / wiki_code
-        wiki_dir.mkdir(parents=True, exist_ok=True)
-        db_file_path = wiki_dir / f"{yyyy_mm}.sqlite3"
+        db_file_path = app_config.data_paths.build_db_file_path(
+            wiki_code,
+            yyyy_mm,
+            views_dir,
+        )
 
         db = PageviewsDb(db_file_path)
         try:

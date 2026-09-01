@@ -158,7 +158,23 @@ class DataPathsConfig:
         return data
 
     def build_db_file_path(self, wiki: str, year_month: str, path_dir: Path | None = None) -> Path:
-        """"""
+        """Constructs and returns the database file path for a given wiki and month.
+
+        Creates the parent directories for the database file if they do not already exist.
+
+        Args:
+            wiki (str): The name or identifier of the wiki.
+            year_month (str): The year and month string, typically formatted as 'YYYY-MM'.
+            path_dir (Path | None, optional): The base directory where the database
+                file should be stored. Defaults to None, which falls back to
+                `self.views_data_dir`.
+
+        Returns:
+            Path: The full path to the SQLite3 database file.
+
+        Usage:
+            app_config.data_paths.build_db_file_path(wiki, year_month)
+        """
         _path_dir: Path = path_dir or self.views_data_dir
 
         _path: Path = _path_dir / wiki / f"{year_month}.sqlite3"
