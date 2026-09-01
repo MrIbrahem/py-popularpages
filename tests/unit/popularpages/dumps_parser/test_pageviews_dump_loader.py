@@ -39,6 +39,7 @@ FIXTURE_LINES = [
     "ar.wikipedia !! 2481200 mobile-web 1 J1",
     'ar.wikipedia "\\"" 3347002 desktop 26 C1D1L4Q1S1T1U1Y1Z2[6\\3^3_1',
     'ar.wikipedia "\\"" 3347002 mobile-web 6 E1F1J1K1L1N1',
+    # Third " line, daily_total 1 -> confiremd by comment: 26 + 6 + 1 = 33.
     'ar.wikipedia "\\"" 3371336 desktop 1 B1',
     'ar.wikipedia "\\"W\\"_تشير_الى_المنتهي" 7858501 desktop 7 E1F1J1P1T1U1X1',
     'ar.wikipedia "\\"W\\"_تشير_الى_المنتهي" 7858501 mobile-web 2 H1J1',
@@ -104,54 +105,96 @@ def test_iter_dump_lines_streams_real_bz2_file(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-def test_aggregate_dump_filters_unwanted_wikis():
-    totals = _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
+def test_aggregate_dump_filters_unwanted_wikis(tmp_path: Path):
+    views_dir = tmp_path / "views"
+    totals = _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08", views_dir=views_dir)
     assert "aa.wikipedia" not in totals
     assert set(totals.keys()) == {"ar.wikipedia", "en.wikipedia"}
 
 
-REASON = "_aggregate_dump dose not keep data to save memory, it save data to cache by _BATCH_SIZE"
-
-
 class TestAggregateDump:
+    """Aggregation behavior, verified through the real SQLite cache read path.
 
-    @pytest.mark.skip(reason=REASON)
-    def test_aggregate_dump_sums_across_agents_and_page_ids(self):
-        totals = _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
-        ar_totals = totals["ar.wikipedia"]
+    ``_aggregate_dump`` now streams aggregated titles into the SQLite cache in
+    bounded-memory batches instead of returning them in memory, so these tests
+    run the aggregation against a fixture and read the upserted totals back via
+    :class:`PageviewsDb` (the same interface downstream code uses).
+    """
+
+    @pytest.fixture
+    def views_dir(self, tmp_path: Path) -> Path:
+        return tmp_path / "views"
+
+    def test_aggregate_dump_sums_across_agents_and_page_ids(self, views_dir: Path):
+        _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08", views_dir=views_dir)
+
+        db = PageviewsDb(views_dir / "ar.wikipedia" / "2026-08.sqlite3")
+        try:
+            views = db.get_views_many(
+                {
+                    "!": [],
+                    "!!": [],
+                    '"': [],
+                    '"W" تشير الى المنتهي': [],
+                }
+            )
+        finally:
+            db.close_db()
 
         # "!" : 199256/desktop(5) + 496583/desktop(5) + 199256/mobile-web(2) = 12
-        assert ar_totals["!"] == 12
+        assert views["!"] == 12
         # "!!" : 2482800/desktop(6) + 2481200/desktop(4) + 2481200/mobile-web(1) = 11
-        assert ar_totals["!!"] == 11
+        assert views["!!"] == 11
         # '"' appears under 3 different page_ids: 26 + 6 + 1 = 33
-        assert ar_totals['"'] == 33
-        # '"W"_تشير_الى_المنتهي' : same page_id, two agents: 7 + 2 = 9
-        assert ar_totals['"W"_تشير_الى_المنتهي'] == 9
+        assert views['"'] == 33
+        # '"W"_تشير_اللى_المنتهي' : same page_id, two agents: 7 + 2 = 9
+        assert views['"W" تشير الى المنتهي'] == 9
 
-    @pytest.mark.skip(reason=REASON)
-    def test_aggregate_dump_sums_across_agents_for_en_wikipedia(self):
-        totals = _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
-        en_totals = totals["en.wikipedia"]
-        # Main_Page: desktop(1000) + mobile-web(500) = 1500
-        assert en_totals["Main_Page"] == 1500
+    def test_aggregate_dump_sums_across_agents_for_en_wikipedia(self, views_dir: Path):
+        _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08", views_dir=views_dir)
 
-    @pytest.mark.skip(reason=REASON)
-    def test_aggregate_dump_skips_malformed_line_without_crashing(self):
-        totals = _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
-        # "Some_Page" had a non-numeric daily_total and must not appear at all.
-        assert "Some_Page" not in totals["en.wikipedia"]
+        db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
+        try:
+            # Main_Page: desktop(1000) + mobile-web(500) = 1500
+            assert db.get_views("Main Page", []) == 1500
+        finally:
+            db.close_db()
 
-    @pytest.mark.skip(reason=REASON)
-    def test_aggregate_dump_title_filtering_optimization(self):
+    def test_aggregate_dump_skips_malformed_line_without_crashing(self, views_dir: Path):
+        _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08", views_dir=views_dir)
+
+        db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
+        try:
+            # "Some_Page" had a non-numeric daily_total and must not appear at all.
+            assert db.get_views("Some_Page", []) == 0
+        finally:
+            db.close_db()
+
+    def test_aggregate_dump_title_filtering_optimization(self, views_dir: Path):
         # Only keep "!" for ar.wikipedia; en.wikipedia unfiltered (no entry).
         wanted_titles = {"ar.wikipedia": {"!"}}
-        totals = _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08", wanted_titles_by_wiki=wanted_titles)
+        _aggregate_dump(
+            FIXTURE_LINES,
+            WANTED_WIKI_CODES,
+            "2026-08",
+            wanted_titles_by_wiki=wanted_titles,
+            views_dir=views_dir,
+        )
 
-        assert set(totals["ar.wikipedia"].keys()) == {"!"}
-        assert totals["ar.wikipedia"]["!"] == 12
-        # en.wikipedia had no filter entry -> everything (valid) still aggregated.
-        assert totals["en.wikipedia"]["Main_Page"] == 1500
+        ar_db = PageviewsDb(views_dir / "ar.wikipedia" / "2026-08.sqlite3")
+        try:
+            assert ar_db.get_views("!", []) == 12
+            # Only "!" was requested, so other ar titles must not be present.
+            assert ar_db.get_views("!!", []) == 0
+        finally:
+            ar_db.close_db()
+
+        en_db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
+        try:
+            # en.wikipedia had no filter entry -> everything (valid) still aggregated.
+            assert en_db.get_views("Main Page", []) == 1500
+        finally:
+            en_db.close_db()
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +233,7 @@ def test_load_dump_into_cache_end_to_end(tmp_path: Path):
                 "!": [],
                 "!!": [],
                 '"': [],
-                '"W"_تشير_الى_المنتهي': [],
+                '"W" تشير الى المنتهي': [],
             }
         )
     finally:
@@ -200,12 +243,12 @@ def test_load_dump_into_cache_end_to_end(tmp_path: Path):
         "!": 12,
         "!!": 11,
         '"': 33,
-        '"W"_تشير_الى_المنتهي': 9,
+        '"W" تشير الى المنتهي': 9,
     }
 
     en_db = PageviewsDb(en_db_path)
     try:
-        assert en_db.get_views("Main_Page", []) == 1500
+        assert en_db.get_views("Main Page", []) == 1500
         # The malformed line's title must simply not exist in the cache.
         assert en_db.get_views("Some_Page", []) == 0
     finally:

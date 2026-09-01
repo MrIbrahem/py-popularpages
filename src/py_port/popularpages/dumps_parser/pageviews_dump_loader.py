@@ -125,6 +125,33 @@ def _write_totals_to_cache(
         logger.info("[%s] Upsert done", wiki_code)
 
 
+def _count_titles_in_cache(
+    wiki_codes: set[str],
+    views_dir: Path,
+    yyyy_mm: str,
+) -> dict[str, int]:
+    """
+    Return ``{wiki_code: number_of_distinct_titles}`` for every wiki that has a
+    cache file written for this month.
+
+    The exact distinct-title count is read back from the SQLite cache with a
+    single ``COUNT(*)`` per wiki. This is accurate (a title that spanned
+    multiple flushes was upserted, not inserted twice) and keeps memory
+    bounded -- we never hold all distinct titles in RAM.
+    """
+    counts: dict[str, int] = {}
+    for wiki_code in wiki_codes:
+        db_file_path = app_config.data_paths.build_db_file_path(wiki_code, yyyy_mm, views_dir)
+        if not db_file_path.exists():
+            continue
+        db = PageviewsDb(db_file_path)
+        try:
+            counts[wiki_code] = db.count_titles()
+        finally:
+            db.close_db()
+    return counts
+
+
 def _aggregate_dump(
     lines: Iterable[str],
     wanted_wiki_codes: set[str],
@@ -174,12 +201,19 @@ def _aggregate_dump(
         for wiki_code, rows in totals.items():
             totals_len[wiki_code] += len(rows)
 
+        # Write the current batch of buffered titles to the SQLite cache and
+        # free the in-memory dict so peak memory stays bounded. A title that
+        # reappears after a flush is upserted again (updating its running
+        # total); the buffer deliberately does NOT track distinct titles across
+        # flushes -- the exact distinct-title total is read back from the cache
+        # itself after the run (see _count_titles_in_cache).
         # 2. save batch to cache
         _write_totals_to_cache(
             totals_by_wiki=totals,
             views_dir=views_dir,
             yyyy_mm=yyyy_mm,
         )
+
         # 3. clear the dicts to free memory, but keep the outer dict keys for the next batch
         for wiki_code in totals.keys():
             totals[wiki_code] = {}
@@ -212,7 +246,7 @@ def _aggregate_dump(
             logger.debug("Skipping malformed line: %r", line)
             continue
 
-        cache_title = parsed.title  # .replace("_", " ")
+        cache_title = parsed.title.replace("_", " ")
 
         if wanted_titles_by_wiki is not None:
             wanted_titles = wanted_titles_by_wiki.get(parsed.wiki_code)
@@ -239,7 +273,11 @@ def _aggregate_dump(
         "Finished processing %s total dump lines., valid_lines_count: %s", f"{line_count:,}", f"{valid_lines_count:,}"
     )
 
-    return totals_len
+    # The exact distinct-title total is read back from the SQLite cache (a
+    # single COUNT(*) per wiki) rather than tracked in memory -- that keeps
+    # peak memory bounded regardless of how titles are distributed.
+    # return totals_len
+    return _count_titles_in_cache(wanted_wiki_codes, views_dir, yyyy_mm)
 
 
 def load_dump_into_cache(
@@ -263,8 +301,9 @@ def load_dump_into_cache(
     :param dumps_root: Override for the dumps root directory (mainly for tests).
     :param wanted_titles_by_wiki: Optional per-wiki title allow-list; see
         :func:`_aggregate_dump`.
-    :return: ``{wiki_code: number_of_titles_written}`` for every wiki that had
-        at least one matching line in the dump.
+    :return: ``{wiki_code: number_of_distinct_titles}`` for every wiki that had
+        at least one matching line in the dump (read back from the SQLite
+        cache after writing).
     :raises DumpNotFoundError: if the dump for ``year``/``month`` isn't
         present on disk yet -- callers should catch this and fall back to the
         REST API path (``--source=api``) per the plan.
