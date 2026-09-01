@@ -93,7 +93,7 @@ class IndexUpdater:
         # attach each timestamp to the right WikiProjectConfig. Without this
         # mapping every `Updated` stayed `None` and rendered as the literal
         # string "None" in the index table.
-        report_to_project = {x.report_without_ns: x.project_main_page for x in list_config_obj}
+        report_to_project = {x.report_title: x.project_main_page for x in list_config_obj}
 
         last_edits_times = {
             report_to_project[row["page_title"]]: row["rev_timestamp"]

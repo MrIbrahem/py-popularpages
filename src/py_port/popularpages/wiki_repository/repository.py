@@ -169,7 +169,7 @@ class WikiRepository:
         :return: List of dicts with 'page_title', 'rev_timestamp', and 'name'.
         """
         config = self.get_config()
-        projects = {x.report_without_ns: x.project_main_page for x in config}
+        projects = {x.report_title: x.project_main_page for x in config}
 
         titles = list(projects.keys())
         logger.debug("Looking up last-bot timestamps for %d project(s)", len(titles))
@@ -401,7 +401,7 @@ class WikiRepository:
         logger.info("Checking for stale projects on '%s'", self.wiki)
 
         _config = self.get_config()
-        projects = {x.report_without_ns: x.project_main_page for x in _config}
+        projects = {x.report_title: x.project_main_page for x in _config}
 
         if not projects:
             return _config

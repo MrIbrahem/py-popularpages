@@ -80,6 +80,10 @@ class PageviewsDb:
         if not title_views:
             return
 
+        # Store titles without underscores (display form) from the moment they
+        # enter the cache, so lookups never have to guess at the title format.
+        title_views = {title.replace("_", " "): views for title, views in title_views.items()}
+
         with self._Session() as session:
             stmt = sqlite_insert(PageView).values(
                 [{"title": title, "views": views} for title, views in title_views.items()]

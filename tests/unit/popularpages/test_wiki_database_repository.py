@@ -58,7 +58,7 @@ class TestGetProjectPagesDecoding:
 
         result = repo.get_project_pages("X")
 
-        assert result[0]["page_title"] == "Foo_Bar"
+        assert result[0]["page_title"] == "Foo Bar"
         assert result[0]["redir_title"] == "Foo"
         assert result[0]["pa_class"] == ""
         assert result[0]["pa_importance"] == "FA"
@@ -80,7 +80,7 @@ class TestGetProjectsTimestampsDecoding:
         projects = {"Popular_pages": "MyProject"}
         result = repo.get_projects_timestamps(["Popular_pages"])
 
-        assert result[0]["page_title"] == "Popular_pages"
+        assert result[0]["page_title"] == "Popular pages"
         assert result[0]["rev_timestamp"] == "20230115000000"
         # assert result[0]["name"] == "MyProject"
 
@@ -92,4 +92,4 @@ class TestGetProjectsTimestampsDecoding:
 
         updated = repo.get_projects_timestamps(["Popular_pages"])
 
-        assert updated == [{"page_title": "Popular_pages", "rev_timestamp": "20990101000000"}]
+        assert updated == [{"page_title": "Popular pages", "rev_timestamp": "20990101000000"}]
