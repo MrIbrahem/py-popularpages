@@ -3,12 +3,12 @@ End-to-end tests for the dump-to-SQLite-cache pipeline.
 
 These build small real bz2 fixture files (using the same lines confirmed
 against the actual Wikimedia dump) and run them through the full
-:func:`load_dump_into_cache` pipeline, then verify the results through the
-*real* :class:`PageviewsDb` read path -- the same interface
-``ReportUpdater`` and friends will use -- rather than peeking at SQLite
-internals directly. This is the check called for in the plan: "test that the
-aggregation + SQLite write path produces a PageView table matching what the
-REST-based path currently produces, for a small fixture wiki."
+:meth:`PageviewsDumpLoader.load_dump_into_cache` pipeline, then verify the
+results through the *real* :class:`PageviewsDb` read path -- the same
+interface ``ReportUpdater`` and friends will use -- rather than peeking at
+SQLite internals directly. This is the check called for in the plan: "test
+that the aggregation + SQLite write path produces a PageView table matching
+what the REST-based path currently produces, for a small fixture wiki."
 """
 
 from __future__ import annotations
@@ -20,10 +20,7 @@ import pytest
 
 from src.py_port.popularpages.dumps_parser.pageviews_dump_loader import (
     DumpNotFoundError,
-    _aggregate_dump,
-    _dump_path_for_month,
-    _iter_dump_lines,
-    load_dump_into_cache,
+    PageviewsDumpLoader,
 )
 from src.py_port.popularpages.pageviews.pageviews_db import PageviewsDb
 
@@ -56,9 +53,9 @@ FIXTURE_LINES = [
 WANTED_WIKI_CODES = {"ar.wikipedia", "en.wikipedia"}
 
 
-def _write_fixture_dump(dumps_root: Path, year: int, month: int, lines: list[str]) -> Path:
+def _write_fixture_dump(loader: PageviewsDumpLoader, year: int, month: int, lines: list[str]) -> Path:
     """Write ``lines`` into a real bz2 file at the expected dump path."""
-    dump_file = _dump_path_for_month(year, month, root=dumps_root)
+    dump_file = loader._dump_path_for_month(year, month)
     dump_file.parent.mkdir(parents=True, exist_ok=True)
     with bz2.open(dump_file, "wt", encoding="utf-8") as f:
         for line in lines:
@@ -72,12 +69,14 @@ def _write_fixture_dump(dumps_root: Path, year: int, month: int, lines: list[str
 
 
 def test__dump_path_for_month_pattern(tmp_path: Path):
-    path = _dump_path_for_month(2026, 7, root=tmp_path)
+    loader = PageviewsDumpLoader(views_dir=tmp_path / "views", dumps_root=tmp_path)
+    path = loader._dump_path_for_month(2026, 7)
     assert path == tmp_path / "2026" / "2026-07" / "pageviews-202607-user.bz2"
 
 
 def test__dump_path_for_month_pads_single_digit_month(tmp_path: Path):
-    path = _dump_path_for_month(2026, 1, root=tmp_path)
+    loader = PageviewsDumpLoader(views_dir=tmp_path / "views", dumps_root=tmp_path)
+    path = loader._dump_path_for_month(2026, 1)
     assert path.name == "pageviews-202601-user.bz2"
     assert path.parent.name == "2026-01"
 
@@ -88,14 +87,16 @@ def test__dump_path_for_month_pads_single_digit_month(tmp_path: Path):
 
 
 def test_iter_dump_lines_missing_file_raises(tmp_path: Path):
+    loader = PageviewsDumpLoader(views_dir=tmp_path / "views", dumps_root=tmp_path)
     missing = tmp_path / "does_not_exist.bz2"
     with pytest.raises(DumpNotFoundError):
-        list(_iter_dump_lines(missing))
+        list(loader._iter_dump_lines(missing))
 
 
 def test_iter_dump_lines_streams_real_bz2_file(tmp_path: Path):
-    dump_file = _write_fixture_dump(tmp_path, 2026, 7, FIXTURE_LINES)
-    lines = list(_iter_dump_lines(dump_file))
+    loader = PageviewsDumpLoader(views_dir=tmp_path / "views", dumps_root=tmp_path / "dumps")
+    dump_file = _write_fixture_dump(loader, 2026, 7, FIXTURE_LINES)
+    lines = list(loader._iter_dump_lines(dump_file))
     assert len(lines) == len(FIXTURE_LINES)
     assert lines[0].startswith("ar.wikipedia ! 199256")
 
@@ -107,7 +108,8 @@ def test_iter_dump_lines_streams_real_bz2_file(tmp_path: Path):
 
 def test_aggregate_dump_filters_unwanted_wikis(tmp_path: Path):
     views_dir = tmp_path / "views"
-    totals = _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08", views_dir=views_dir)
+    loader = PageviewsDumpLoader(views_dir=views_dir, dumps_root=tmp_path / "dumps")
+    totals = loader._aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
     assert "aa.wikipedia" not in totals
     assert set(totals.keys()) == {"ar.wikipedia", "en.wikipedia"}
 
@@ -115,7 +117,7 @@ def test_aggregate_dump_filters_unwanted_wikis(tmp_path: Path):
 class TestAggregateDump:
     """Aggregation behavior, verified through the real SQLite cache read path.
 
-    ``_aggregate_dump`` now streams aggregated titles into the SQLite cache in
+    ``_aggregate_dump`` streams aggregated titles into the SQLite cache in
     bounded-memory batches instead of returning them in memory, so these tests
     run the aggregation against a fixture and read the upserted totals back via
     :class:`PageviewsDb` (the same interface downstream code uses).
@@ -125,8 +127,12 @@ class TestAggregateDump:
     def views_dir(self, tmp_path: Path) -> Path:
         return tmp_path / "views"
 
-    def test_aggregate_dump_sums_across_agents_and_page_ids(self, views_dir: Path):
-        _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08", views_dir=views_dir)
+    @pytest.fixture
+    def loader(self, views_dir: Path, tmp_path: Path) -> PageviewsDumpLoader:
+        return PageviewsDumpLoader(views_dir=views_dir, dumps_root=tmp_path / "dumps")
+
+    def test_aggregate_dump_sums_across_agents_and_page_ids(self, loader: PageviewsDumpLoader, views_dir: Path):
+        loader._aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
 
         db = PageviewsDb(views_dir / "ar.wikipedia" / "2026-08.sqlite3")
         try:
@@ -150,8 +156,8 @@ class TestAggregateDump:
         # '"W"_تشير_اللى_المنتهي' : same page_id, two agents: 7 + 2 = 9
         assert views['"W" تشير الى المنتهي'] == 9
 
-    def test_aggregate_dump_sums_across_agents_for_en_wikipedia(self, views_dir: Path):
-        _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08", views_dir=views_dir)
+    def test_aggregate_dump_sums_across_agents_for_en_wikipedia(self, loader: PageviewsDumpLoader, views_dir: Path):
+        loader._aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
 
         db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
         try:
@@ -160,8 +166,8 @@ class TestAggregateDump:
         finally:
             db.close_db()
 
-    def test_aggregate_dump_skips_malformed_line_without_crashing(self, views_dir: Path):
-        _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08", views_dir=views_dir)
+    def test_aggregate_dump_skips_malformed_line_without_crashing(self, loader: PageviewsDumpLoader, views_dir: Path):
+        loader._aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, "2026-08")
 
         db = PageviewsDb(views_dir / "en.wikipedia" / "2026-08.sqlite3")
         try:
@@ -170,15 +176,14 @@ class TestAggregateDump:
         finally:
             db.close_db()
 
-    def test_aggregate_dump_title_filtering_optimization(self, views_dir: Path):
+    def test_aggregate_dump_title_filtering_optimization(self, loader: PageviewsDumpLoader, views_dir: Path):
         # Only keep "!" for ar.wikipedia; en.wikipedia unfiltered (no entry).
         wanted_titles = {"ar.wikipedia": {"!"}}
-        _aggregate_dump(
+        loader._aggregate_dump(
             FIXTURE_LINES,
             WANTED_WIKI_CODES,
             "2026-08",
             wanted_titles_by_wiki=wanted_titles,
-            views_dir=views_dir,
         )
 
         ar_db = PageviewsDb(views_dir / "ar.wikipedia" / "2026-08.sqlite3")
@@ -205,14 +210,13 @@ class TestAggregateDump:
 def test_load_dump_into_cache_end_to_end(tmp_path: Path):
     dumps_root = tmp_path / "dumps"
     views_dir = tmp_path / "data" / "views"
-    _write_fixture_dump(dumps_root, 2026, 7, FIXTURE_LINES)
+    loader = PageviewsDumpLoader(views_dir=views_dir, dumps_root=dumps_root)
+    _write_fixture_dump(loader, 2026, 7, FIXTURE_LINES)
 
-    result = load_dump_into_cache(
+    result = loader.load_dump_into_cache(
         year=2026,
         month=7,
         wanted_wiki_codes=WANTED_WIKI_CODES,
-        views_dir=views_dir,
-        dumps_root=dumps_root,
     )
 
     assert result == {"ar.wikipedia": 4, "en.wikipedia": 1}
@@ -256,13 +260,15 @@ def test_load_dump_into_cache_end_to_end(tmp_path: Path):
 
 
 def test_load_dump_into_cache_missing_dump_raises(tmp_path: Path):
+    loader = PageviewsDumpLoader(
+        views_dir=tmp_path / "views",
+        dumps_root=tmp_path / "empty_dumps_dir",
+    )
     with pytest.raises(DumpNotFoundError):
-        load_dump_into_cache(
+        loader.load_dump_into_cache(
             year=2099,
             month=1,
             wanted_wiki_codes=WANTED_WIKI_CODES,
-            views_dir=tmp_path / "views",
-            dumps_root=tmp_path / "empty_dumps_dir",
         )
 
 
@@ -274,24 +280,21 @@ def test_load_dump_into_cache_is_upsert_not_replace(tmp_path: Path):
     """
     dumps_root = tmp_path / "dumps"
     views_dir = tmp_path / "data" / "views"
-    _write_fixture_dump(dumps_root, 2026, 7, FIXTURE_LINES)
+    loader = PageviewsDumpLoader(views_dir=views_dir, dumps_root=dumps_root)
+    _write_fixture_dump(loader, 2026, 7, FIXTURE_LINES)
 
-    load_dump_into_cache(
+    loader.load_dump_into_cache(
         year=2026,
         month=7,
         wanted_wiki_codes=WANTED_WIKI_CODES,
-        views_dir=views_dir,
-        dumps_root=dumps_root,
     )
 
     # Second run, same input -> totals should be identical (upsert of the
     # same values), not doubled.
-    load_dump_into_cache(
+    loader.load_dump_into_cache(
         year=2026,
         month=7,
         wanted_wiki_codes=WANTED_WIKI_CODES,
-        views_dir=views_dir,
-        dumps_root=dumps_root,
     )
 
     db = PageviewsDb(views_dir / "ar.wikipedia" / "2026-07.sqlite3")

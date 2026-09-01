@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 from src.py_port.load_pageviews_dump import EXIT_DUMP_NOT_FOUND, EXIT_ERROR, EXIT_OK, main
-from src.py_port.popularpages.dumps_parser.pageviews_dump_loader import _dump_path_for_month
+from src.py_port.popularpages.dumps_parser.pageviews_dump_loader import PageviewsDumpLoader
 from src.py_port.popularpages.pageviews.pageviews_db import PageviewsDb
 
 FIXTURE_LINES = [
@@ -49,14 +49,17 @@ def project(tmp_path: Path):
     wikis_yaml = tmp_path / "wikis.yaml"
     wikis_yaml.write_text(WIKIS_YAML_CONTENT, encoding="utf-8")
 
+    views_dir = tmp_path / "data" / "views"
+
     dumps_root = tmp_path / "dumps"
-    dump_file = _dump_path_for_month(2026, 7, root=dumps_root)
+
+    loader = PageviewsDumpLoader(views_dir=views_dir, dumps_root=dumps_root)
+    dump_file = loader._dump_path_for_month(2026, 7)
+
     dump_file.parent.mkdir(parents=True, exist_ok=True)
     with bz2.open(dump_file, "wt", encoding="utf-8") as f:
         for line in FIXTURE_LINES:
             f.write(line + "\n")  # pyright: ignore[reportArgumentType]
-
-    views_dir = tmp_path / "data" / "views"
 
     return {
         "wikis_yaml": wikis_yaml,

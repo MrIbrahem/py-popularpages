@@ -45,9 +45,8 @@ from pathlib import Path
 
 from popularpages.config import app_config
 from popularpages.dumps_parser.pageviews_dump_loader import (
-    DUMPS_ROOT,
     DumpNotFoundError,
-    load_dump_into_cache,
+    PageviewsDumpLoader,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,8 +90,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--dumps-root",
         type=Path,
-        default=DUMPS_ROOT,
-        help=f"Root directory of the pageview_complete monthly dumps (default: {DUMPS_ROOT}).",
+        default=PageviewsDumpLoader.DUMPS_ROOT,
+        help=f"Root directory of the pageview_complete monthly dumps (default: {PageviewsDumpLoader.DUMPS_ROOT}).",
     )
     parser.add_argument(
         "--views-dir",
@@ -152,12 +151,11 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
-        result = load_dump_into_cache(
+        loader = PageviewsDumpLoader(views_dir=args.views_dir, dumps_root=args.dumps_root)
+        result = loader.load_dump_into_cache(
             year=args.year,
             month=args.month,
             wanted_wiki_codes=wanted_wiki_codes,
-            views_dir=args.views_dir,
-            dumps_root=args.dumps_root,
         )
     except DumpNotFoundError as exc:
         # Not a bug -- this month's dump likely hasn't been published yet.

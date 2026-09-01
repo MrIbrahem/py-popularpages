@@ -5,9 +5,10 @@ pageviews db.
 from __future__ import annotations
 
 import logging
+import sqlite3
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-import sqlite3
+
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, sessionmaker

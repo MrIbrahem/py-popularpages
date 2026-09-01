@@ -35,299 +35,319 @@ from .pageviews_dumps_parser import MalformedLineError, ParsedPageview
 
 logger = logging.getLogger(__name__)
 
-# Toolforge NFS mount root for the pageview_complete dumps. Confirmed present
-# at this path per the plan; not yet verified against the live mount for the
-# exact monthly filename pattern (open question in the plan).
-DUMPS_ROOT = Path("/public/dumps/public/other/pageview_complete/monthly")
-
-# How often to log progress while streaming a multi-GB file, in lines.
-_PROGRESS_LOG_EVERY = 1_000_000
-
-# Upper bound on the number of distinct (wiki, title) entries held in memory
-# at once across all wikis. The dump can contain billions of distinct titles,
-# so memory is driven by how many we accumulate *between* cache flushes, not
-# by the number of raw lines. We flush (and free) as soon as this many distinct
-# titles are buffered, which keeps peak memory bounded regardless of how the
-# titles are distributed across wikis or how many lines the dump has.
-_MAX_ACCUMULATED_TITLES = 500_000
-
 
 class DumpNotFoundError(FileNotFoundError):
     """Raised when the expected monthly dump file doesn't exist on disk."""
 
 
-def _dump_path_for_month(year: int, month: int, root: Path = DUMPS_ROOT) -> Path:
+class PageviewsDumpLoader:
     """
-    Build the on-disk path to a monthly ``pageview_complete`` dump.
+    Loads monthly ``pageview_complete`` dumps into the per-wiki/month SQLite
+    pageviews cache.
 
-    :param year: e.g. 2026.
-    :param month: 1-12.
-    :param root: Override for the dumps root (mainly for tests).
-    :return: e.g.
-        ``/public/dumps/public/other/pageview_complete/monthly/2026/2026-07/pageviews-202607-user.bz2``
-    """
-    yyyymm = f"{year:04d}{month:02d}"
-    return root / f"{year:04d}" / f"{year:04d}-{month:02d}" / f"pageviews-{yyyymm}-user.bz2"
-
-
-def _iter_dump_lines(dump_file: Path) -> Iterator[str]:
-    """
-    Stream lines from a bz2-compressed dump file, one at a time.
-
-    Never decompresses the whole file to disk or into memory at once --
-    ``bz2.open`` in text mode streams and decompresses incrementally as the
-    file object is iterated.
-
-    :raises DumpNotFoundError: if ``dump_file`` doesn't exist.
-    """
-    if not dump_file.exists():
-        raise DumpNotFoundError(f"Pageviews dump not found: {dump_file}")
-
-    with bz2.open(dump_file, "rt", encoding="utf-8", errors="replace") as f:
-        yield from f
-
-
-def _write_totals_to_cache(
-    totals_by_wiki: dict[str, dict[str, int]],
-    views_dir: Path,
-    yyyy_mm: str,
-) -> None:
-    """
-    Write aggregated per-wiki totals into the existing per-wiki/month SQLite
-    cache, via :class:`PageviewsDb`, using batched upserts.
-
-    :param totals_by_wiki: ``{wiki_code: {title: total_titles}}``, as returned
-        by :func:`_aggregate_dump`.
-    :param views_dir: Root ``data/views`` directory. Each wiki's cache file is
-        written to ``<views_dir>/<wiki_code>/<YYYY-MM>.sqlite3``.
-    :param year: Dump year, used to build the ``YYYY-MM`` cache filename.
-    :param month: Dump month, used to build the ``YYYY-MM`` cache filename.
+    An instance is bound to a ``views_dir`` (where per-wiki/month SQLite
+    caches are written) and a ``dumps_root`` (where the monthly dumps are
+    read from on the Toolforge NFS mount). Both default to the real
+    locations and are only overridden in tests.
     """
 
-    for wiki_code, title_views in totals_by_wiki.items():
-        if not title_views:
-            continue
+    # Toolforge NFS mount root for the pageview_complete dumps. Confirmed
+    # present at this path per the plan; not yet verified against the live
+    # mount for the exact monthly filename pattern (open question in the
+    # plan).
+    DUMPS_ROOT: Path = Path("/public/dumps/public/other/pageview_complete/monthly")
 
-        db_file_path = app_config.data_paths.build_db_file_path(
-            wiki_code,
-            yyyy_mm,
-            views_dir,
-        )
+    # How often to log progress while streaming a multi-GB file, in lines.
+    _PROGRESS_LOG_EVERY = 1_000_000
 
-        logger.info("[%s] Writing %s titles to %s", wiki_code, f"{len(title_views):,}", db_file_path.name)
-        db = PageviewsDb(db_file_path)
-        try:
-            # upsert_many_chunks will handle the batch_size
-            db.upsert_many_chunks(title_views)
-        finally:
-            db.close_db()
+    # Upper bound on the number of distinct (wiki, title) entries held in
+    # memory at once across all wikis. The dump can contain billions of
+    # distinct titles, so memory is driven by how many we accumulate
+    # *between* cache flushes, not by the number of raw lines. We flush (and
+    # free) as soon as this many distinct titles are buffered, which keeps
+    # peak memory bounded regardless of how the titles are distributed across
+    # wikis or how many lines the dump has.
+    _MAX_ACCUMULATED_TITLES = 500_000
 
-        logger.info("[%s] Upsert done", wiki_code)
+    def __init__(
+        self,
+        views_dir: Path = app_config.paths.views_dir,
+        dumps_root: Path = DUMPS_ROOT,
+    ) -> None:
+        """
+        :param views_dir: Root ``data/views`` directory. Each wiki's cache
+            file is written to ``<views_dir>/<wiki_code>/<YYYY-MM>.sqlite3``.
+        :param dumps_root: Override for the dumps root directory (mainly for
+            tests).
+        """
+        self.views_dir = views_dir
+        self.dumps_root = dumps_root
 
+    def _dump_path_for_month(self, year: int, month: int) -> Path:
+        """
+        Build the on-disk path to a monthly ``pageview_complete`` dump.
 
-def _count_titles_in_cache(
-    wiki_codes: set[str],
-    views_dir: Path,
-    yyyy_mm: str,
-) -> dict[str, int]:
-    """
-    Return ``{wiki_code: number_of_distinct_titles}`` for every wiki that has a
-    cache file written for this month.
+        :param year: e.g. 2026.
+        :param month: 1-12.
+        :return: e.g.
+            ``/public/dumps/public/other/pageview_complete/monthly/2026/2026-07/pageviews-202607-user.bz2``
+        """
+        yyyymm = f"{year:04d}{month:02d}"
+        return self.dumps_root / f"{year:04d}" / f"{year:04d}-{month:02d}" / f"pageviews-{yyyymm}-user.bz2"
 
-    The exact distinct-title count is read back from the SQLite cache with a
-    single ``COUNT(*)`` per wiki. This is accurate (a title that spanned
-    multiple flushes was upserted, not inserted twice) and keeps memory
-    bounded -- we never hold all distinct titles in RAM.
-    """
-    counts: dict[str, int] = {}
-    for wiki_code in wiki_codes:
-        db_file_path = app_config.data_paths.build_db_file_path(wiki_code, yyyy_mm, views_dir)
-        if not db_file_path.exists():
-            continue
-        db = PageviewsDb(db_file_path)
-        try:
-            counts[wiki_code] = db.count_titles()
-        finally:
-            db.close_db()
-    return counts
+    def _iter_dump_lines(self, dump_file: Path) -> Iterator[str]:
+        """
+        Stream lines from a bz2-compressed dump file, one at a time.
 
+        Never decompresses the whole file to disk or into memory at once --
+        ``bz2.open`` in text mode streams and decompresses incrementally as
+        the file object is iterated.
 
-def _aggregate_dump(
-    lines: Iterable[str],
-    wanted_wiki_codes: set[str],
-    yyyy_mm: str,
-    wanted_titles_by_wiki: dict[str, set[str]] | None = None,
-    views_dir: Path = app_config.paths.views_dir,
-) -> dict[str, int]:
-    """
-    Single pass over dump lines, aggregating ``daily_total`` per (wiki, title).
+        :raises DumpNotFoundError: if ``dump_file`` doesn't exist.
+        """
+        if not dump_file.exists():
+            raise DumpNotFoundError(f"Pageviews dump not found: {dump_file}")
 
-    :param lines: An iterable of raw dump lines (e.g. from :func:`_iter_dump_lines`).
-    :param wanted_wiki_codes: Only lines whose ``wiki_code`` is in this set are
-        kept; everything else is skipped immediately (before any title
-        unescaping/aggregation work).
-    :param wanted_titles_by_wiki: Optional per-wiki set of titles to keep.
-        When a wiki code has an entry here, only those titles are aggregated
-        for that wiki (memory optimization for wikis where the full set of
-        titles we'll ever need is known ahead of time from WikiProject
-        configs, mirroring the old REST-API approach's per-title fetching).
-        A wiki code with *no* entry in this dict (or when the whole parameter
-        is ``None``) has all its titles aggregated, unfiltered.
-    :return: ``{wiki_code: total_titles}`` for every wiki in
-        ``wanted_wiki_codes`` that had at least one matching line.
+        with bz2.open(dump_file, "rt", encoding="utf-8", errors="replace") as f:
+            yield from f
 
-    Malformed lines are logged and skipped rather than aborting the whole
-    (multi-hour, multi-GB) run over a handful of bad rows.
-    """
-    totals_len: dict[str, int] = {}
-    totals: dict[str, dict[str, int]] = {}
+    def _write_totals_to_cache(
+        self,
+        totals_by_wiki: dict[str, dict[str, int]],
+        yyyy_mm: str,
+    ) -> None:
+        """
+        Write aggregated per-wiki totals into the existing per-wiki/month
+        SQLite cache, via :class:`PageviewsDb`, using batched upserts.
 
-    malformed_count = 0
-    line_count = 0
-    valid_lines_count = 0
-    accumulated_titles = 0
-
-    for wiki in wanted_wiki_codes:
-        totals[wiki] = {}
-        totals_len[wiki] = 0
-
-    def _flush() -> None:
-        nonlocal accumulated_titles
-        # Update per-wiki distinct-title counts (titles only count once, even
-        # though the dict holds their running total which may change on later
-        # flushes for the same title).
-
-        # 1. update totals lengths
-        for wiki_code, rows in totals.items():
-            totals_len[wiki_code] += len(rows)
-
-        # Write the current batch of buffered titles to the SQLite cache and
-        # free the in-memory dict so peak memory stays bounded. A title that
-        # reappears after a flush is upserted again (updating its running
-        # total); the buffer deliberately does NOT track distinct titles across
-        # flushes -- the exact distinct-title total is read back from the cache
-        # itself after the run (see _count_titles_in_cache).
-        # 2. save batch to cache
-        _write_totals_to_cache(
-            totals_by_wiki=totals,
-            views_dir=views_dir,
-            yyyy_mm=yyyy_mm,
-        )
-
-        # 3. clear the dicts to free memory, but keep the outer dict keys for the next batch
-        for wiki_code in totals.keys():
-            totals[wiki_code] = {}
-
-        accumulated_titles = 0
-
-    for line in lines:
-        line_count += 1
-        if line_count % _PROGRESS_LOG_EVERY == 0:
-            logger.info(get_memory())
-            logger.info("Processed %s dump lines so far...", f"{line_count:,}")
-            logger.info("malformed_count: %s, valid_lines_count: %s", f"{malformed_count:,}", f"{valid_lines_count:,}")
-
-        # Cheap pre-filter before doing any real parsing work: every line
-        # starts with "wiki_code ", so we can reject the vast majority of
-        # lines (wikis we don't care about) with a simple prefix check
-        # instead of splitting+parsing every single line in the file.
-        space_idx = line.find(" ")
-        if space_idx == -1:
-            continue
-
-        wiki_code = line[:space_idx]
-        if wiki_code not in wanted_wiki_codes:
-            continue
-
-        try:
-            parsed = ParsedPageview.parse(line)
-        except MalformedLineError:
-            malformed_count += 1
-            logger.debug("Skipping malformed line: %r", line)
-            continue
-
-        cache_title = parsed.title.replace("_", " ")
-
-        if wanted_titles_by_wiki is not None:
-            wanted_titles = wanted_titles_by_wiki.get(parsed.wiki_code)
-            if wanted_titles is not None and cache_title not in wanted_titles:
+        :param totals_by_wiki: ``{wiki_code: {title: total_titles}}``, as
+            returned by :meth:`_aggregate_dump`.
+        :param yyyy_mm: ``YYYY-MM`` string used to build the cache filename.
+        """
+        for wiki_code, title_views in totals_by_wiki.items():
+            if not title_views:
                 continue
 
-        valid_lines_count += 1
+            db_file_path = app_config.data_paths.build_db_file_path(
+                wiki_code,
+                yyyy_mm,
+                self.views_dir,
+            )
 
-        wiki_totals = totals[parsed.wiki_code]
-        if cache_title not in wiki_totals:
-            accumulated_titles += 1
-        wiki_totals[cache_title] = wiki_totals.get(cache_title, 0) + parsed.daily_total
+            logger.info("[%s] Writing %s titles to %s", wiki_code, f"{len(title_views):,}", db_file_path.name)
+            db = PageviewsDb(db_file_path)
+            try:
+                # upsert_many_chunks will handle the batch_size
+                db.upsert_many_chunks(title_views)
+            finally:
+                db.close_db()
 
-        if accumulated_titles >= _MAX_ACCUMULATED_TITLES:
-            _flush()
+            logger.info("[%s] Upsert done", wiki_code)
 
-    # Save any remaining buffered titles to cache.
-    _flush()
+    def _count_titles_in_cache(
+        self,
+        wiki_codes: set[str],
+        yyyy_mm: str,
+    ) -> dict[str, int]:
+        """
+        Return ``{wiki_code: number_of_distinct_titles}`` for every wiki that
+        has a cache file written for this month.
 
-    if malformed_count:
-        logger.warning("Skipped %d malformed line(s) while processing dump.", malformed_count)
+        The exact distinct-title count is read back from the SQLite cache
+        with a single ``COUNT(*)`` per wiki. This is accurate (a title that
+        spanned multiple flushes was upserted, not inserted twice) and keeps
+        memory bounded -- we never hold all distinct titles in RAM.
+        """
+        counts: dict[str, int] = {}
+        for wiki_code in wiki_codes:
+            db_file_path = app_config.data_paths.build_db_file_path(wiki_code, yyyy_mm, self.views_dir)
+            if not db_file_path.exists():
+                continue
+            db = PageviewsDb(db_file_path)
+            try:
+                counts[wiki_code] = db.count_titles()
+            finally:
+                db.close_db()
+        return counts
 
-    logger.info(
-        "Finished processing %s total dump lines., valid_lines_count: %s", f"{line_count:,}", f"{valid_lines_count:,}"
-    )
+    def _aggregate_dump(
+        self,
+        lines: Iterable[str],
+        wanted_wiki_codes: set[str],
+        yyyy_mm: str,
+        wanted_titles_by_wiki: dict[str, set[str]] | None = None,
+    ) -> dict[str, int]:
+        """
+        Single pass over dump lines, aggregating ``daily_total`` per (wiki, title).
 
-    # The exact distinct-title total is read back from the SQLite cache (a
-    # single COUNT(*) per wiki) rather than tracked in memory -- that keeps
-    # peak memory bounded regardless of how titles are distributed.
-    # return totals_len
-    return _count_titles_in_cache(wanted_wiki_codes, views_dir, yyyy_mm)
+        :param lines: An iterable of raw dump lines (e.g. from
+            :meth:`_iter_dump_lines`).
+        :param wanted_wiki_codes: Only lines whose ``wiki_code`` is in this
+            set are kept; everything else is skipped immediately (before any
+            title unescaping/aggregation work).
+        :param yyyy_mm: ``YYYY-MM`` string used to build the cache filename.
+        :param wanted_titles_by_wiki: Optional per-wiki set of titles to
+            keep. When a wiki code has an entry here, only those titles are
+            aggregated for that wiki (memory optimization for wikis where the
+            full set of titles we'll ever need is known ahead of time from
+            WikiProject configs, mirroring the old REST-API approach's
+            per-title fetching). A wiki code with *no* entry in this dict (or
+            when the whole parameter is ``None``) has all its titles
+            aggregated, unfiltered.
+        :return: ``{wiki_code: total_titles}`` for every wiki in
+            ``wanted_wiki_codes`` that had at least one matching line.
 
+        Malformed lines are logged and skipped rather than aborting the whole
+        (multi-hour, multi-GB) run over a handful of bad rows.
+        """
+        totals_len: dict[str, int] = {}
+        totals: dict[str, dict[str, int]] = {}
 
-def load_dump_into_cache(
-    year: int,
-    month: int,
-    wanted_wiki_codes: set[str],
-    views_dir: Path = app_config.paths.views_dir,
-    dumps_root: Path = DUMPS_ROOT,
-    wanted_titles_by_wiki: dict[str, set[str]] | None = None,
-) -> dict[str, int]:
-    """
-    End-to-end entry point: locate the monthly dump, stream-parse it,
-    aggregate totals for the configured wikis, and write them into the
-    per-wiki/month SQLite cache.
+        malformed_count = 0
+        line_count = 0
+        valid_lines_count = 0
+        accumulated_titles = 0
 
-    :param year: Dump year, e.g. 2026.
-    :param month: Dump month, 1-12.
-    :param wanted_wiki_codes: Wiki codes to keep, e.g. the keys of
-        ``config/wikis.yaml`` (``{"en.wikipedia", "ar.wikipedia", ...}``).
-    :param views_dir: Root ``data/views`` directory to write caches into.
-    :param dumps_root: Override for the dumps root directory (mainly for tests).
-    :param wanted_titles_by_wiki: Optional per-wiki title allow-list; see
-        :func:`_aggregate_dump`.
-    :return: ``{wiki_code: number_of_distinct_titles}`` for every wiki that had
-        at least one matching line in the dump (read back from the SQLite
-        cache after writing).
-    :raises DumpNotFoundError: if the dump for ``year``/``month`` isn't
-        present on disk yet -- callers should catch this and fall back to the
-        REST API path (``--source=api``) per the plan.
-    """
-    dump_file = _dump_path_for_month(year, month, root=dumps_root)
-    logger.info("Loading pageviews dump for %04d-%02d from %s", year, month, dump_file)
+        for wiki in wanted_wiki_codes:
+            totals[wiki] = {}
+            totals_len[wiki] = 0
 
-    yyyy_mm = f"{year:04d}-{month:02d}"
+        def _flush() -> None:
+            nonlocal accumulated_titles
+            # Update per-wiki distinct-title counts (titles only count once,
+            # even though the dict holds their running total which may
+            # change on later flushes for the same title).
 
-    lines = _iter_dump_lines(dump_file)
+            # 1. update totals lengths
+            for wiki_code, rows in totals.items():
+                totals_len[wiki_code] += len(rows)
 
-    totals_by_wiki = _aggregate_dump(
-        lines=lines,
-        wanted_wiki_codes=wanted_wiki_codes,
-        yyyy_mm=yyyy_mm,
-        wanted_titles_by_wiki=wanted_titles_by_wiki,
-        views_dir=views_dir,
-    )
+            # Write the current batch of buffered titles to the SQLite cache
+            # and free the in-memory dict so peak memory stays bounded. A
+            # title that reappears after a flush is upserted again (updating
+            # its running total); the buffer deliberately does NOT track
+            # distinct titles across flushes -- the exact distinct-title
+            # total is read back from the cache itself after the run (see
+            # _count_titles_in_cache).
+            # 2. save batch to cache
+            self._write_totals_to_cache(
+                totals_by_wiki=totals,
+                yyyy_mm=yyyy_mm,
+            )
 
-    return totals_by_wiki
+            # 3. clear the dicts to free memory, but keep the outer dict keys
+            # for the next batch
+            for wiki_code in totals.keys():
+                totals[wiki_code] = {}
+
+            accumulated_titles = 0
+
+        for line in lines:
+            line_count += 1
+            if line_count % self._PROGRESS_LOG_EVERY == 0:
+                logger.info(get_memory())
+                logger.info("Processed %s dump lines so far...", f"{line_count:,}")
+                logger.info(
+                    "malformed_count: %s, valid_lines_count: %s", f"{malformed_count:,}", f"{valid_lines_count:,}"
+                )
+
+            # Cheap pre-filter before doing any real parsing work: every line
+            # starts with "wiki_code ", so we can reject the vast majority of
+            # lines (wikis we don't care about) with a simple prefix check
+            # instead of splitting+parsing every single line in the file.
+            space_idx = line.find(" ")
+            if space_idx == -1:
+                continue
+
+            wiki_code = line[:space_idx]
+            if wiki_code not in wanted_wiki_codes:
+                continue
+
+            try:
+                parsed = ParsedPageview.parse(line)
+            except MalformedLineError:
+                malformed_count += 1
+                logger.debug("Skipping malformed line: %r", line)
+                continue
+
+            cache_title = parsed.title.replace("_", " ")
+
+            if wanted_titles_by_wiki is not None:
+                wanted_titles = wanted_titles_by_wiki.get(parsed.wiki_code)
+                if wanted_titles is not None and cache_title not in wanted_titles:
+                    continue
+
+            valid_lines_count += 1
+
+            wiki_totals = totals[parsed.wiki_code]
+            if cache_title not in wiki_totals:
+                accumulated_titles += 1
+            wiki_totals[cache_title] = wiki_totals.get(cache_title, 0) + parsed.daily_total
+
+            if accumulated_titles >= self._MAX_ACCUMULATED_TITLES:
+                _flush()
+
+        # Save any remaining buffered titles to cache.
+        _flush()
+
+        if malformed_count:
+            logger.warning("Skipped %d malformed line(s) while processing dump.", malformed_count)
+
+        logger.info(
+            "Finished processing %s total dump lines., valid_lines_count: %s",
+            f"{line_count:,}",
+            f"{valid_lines_count:,}",
+        )
+
+        # The exact distinct-title total is read back from the SQLite cache
+        # (a single COUNT(*) per wiki) rather than tracked in memory -- that
+        # keeps peak memory bounded regardless of how titles are distributed.
+        # return totals_len
+        return self._count_titles_in_cache(wanted_wiki_codes, yyyy_mm)
+
+    def load_dump_into_cache(
+        self,
+        year: int,
+        month: int,
+        wanted_wiki_codes: set[str],
+        wanted_titles_by_wiki: dict[str, set[str]] | None = None,
+    ) -> dict[str, int]:
+        """
+        End-to-end entry point: locate the monthly dump, stream-parse it,
+        aggregate totals for the configured wikis, and write them into the
+        per-wiki/month SQLite cache.
+
+        :param year: Dump year, e.g. 2026.
+        :param month: Dump month, 1-12.
+        :param wanted_wiki_codes: Wiki codes to keep, e.g. the keys of
+            ``config/wikis.yaml`` (``{"en.wikipedia", "ar.wikipedia", ...}``).
+        :param wanted_titles_by_wiki: Optional per-wiki title allow-list; see
+            :meth:`_aggregate_dump`.
+        :return: ``{wiki_code: number_of_distinct_titles}`` for every wiki
+            that had at least one matching line in the dump (read back from
+            the SQLite cache after writing).
+        :raises DumpNotFoundError: if the dump for ``year``/``month`` isn't
+            present on disk yet -- callers should catch this and fall back to
+            the REST API path (``--source=api``) per the plan.
+        """
+        dump_file = self._dump_path_for_month(year, month)
+        logger.info("Loading pageviews dump for %04d-%02d from %s", year, month, dump_file)
+
+        yyyy_mm = f"{year:04d}-{month:02d}"
+
+        lines = self._iter_dump_lines(dump_file)
+
+        totals_by_wiki = self._aggregate_dump(
+            lines=lines,
+            wanted_wiki_codes=wanted_wiki_codes,
+            yyyy_mm=yyyy_mm,
+            wanted_titles_by_wiki=wanted_titles_by_wiki,
+        )
+
+        return totals_by_wiki
 
 
 __all__ = [
-    "DUMPS_ROOT",
     "DumpNotFoundError",
-    "load_dump_into_cache",
+    "PageviewsDumpLoader",
 ]
