@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 DUMPS_ROOT = Path("/public/dumps/public/other/pageview_complete/monthly")
 
 # How often to log progress while streaming a multi-GB file, in lines.
-_PROGRESS_LOG_EVERY = 5_000_000
+_PROGRESS_LOG_EVERY = 1_000_000
 
 # Upper bound on the number of distinct (wiki, title) entries held in memory
 # at once across all wikis. The dump can contain billions of distinct titles,
