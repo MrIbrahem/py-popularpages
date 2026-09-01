@@ -32,6 +32,12 @@ def main() -> None:
         action="store_true",
         help="Print output instead of saving edits to the wiki.",
     )
+    parser.add_argument(
+        "--debug",
+        "-v",
+        action="store_true",
+        help="Enable DEBUG-level logging (default: INFO).",
+    )
     args = parser.parse_args()
 
     if not re.match(r"^\w+\.\w+$", args.wiki):

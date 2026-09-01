@@ -5,10 +5,11 @@ pageviews db.
 from __future__ import annotations
 
 import logging
+import sqlite3
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-import sqlite3
-from sqlalchemy import create_engine, select
+
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -90,7 +91,9 @@ class PageviewsDb:
             # raises SQLITE_MAX_VARIABLE_NUMBER from 999 to 32766.
             chunk_size = 30_000 if sqlite3.sqlite_version_info >= (3, 32, 0) else 900
         else:
-            chunk_size = 3_000 # TODO: check it
+            # Non-SQLite dialects (Postgres/MySQL) don't enforce SQLite's
+            # SQLITE_MAX_VARIABLE_NUMBER; use a conservative batch size.
+            chunk_size = 10_000
 
         if len(title_views) < chunk_size:
             self.upsert_many(title_views)
@@ -134,6 +137,11 @@ class PageviewsDb:
         views_by_title = self._query_views_by_title(wanted)
 
         return set(views_by_title)
+
+    def count_titles(self) -> int:
+        """Return the number of distinct titles currently cached in this file."""
+        with self._Session() as session:
+            return int(session.scalar(select(func.count()).select_from(PageView)) or 0)
 
     def get_views(self, target: str, redirects: list[str]) -> int:
         """

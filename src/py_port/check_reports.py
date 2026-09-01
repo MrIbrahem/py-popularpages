@@ -85,6 +85,12 @@ def main() -> None:
         action="store_true",
         help="Update the index page after updating reports.",
     )
+    parser.add_argument(
+        "--debug",
+        "-v",
+        action="store_true",
+        help="Enable DEBUG-level logging (default: INFO).",
+    )
     args = parser.parse_args()
 
     wikis_config = app_config.paths.load_wikis_config()
