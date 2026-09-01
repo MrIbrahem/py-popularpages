@@ -54,6 +54,7 @@ def load_db(db_factory) -> PageviewsDb:
     """A single default PageviewsDb instance for tests that don't need custom params."""
     return db_factory()
 
+
 @pytest.fixture
 def load_db_no_underscore_converte(db_factory) -> PageviewsDb:
     return db_factory(converte_underscore_to_space=False)

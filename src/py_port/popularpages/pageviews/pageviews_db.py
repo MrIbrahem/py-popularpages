@@ -25,7 +25,11 @@ class PageviewsDb:
     # See: https://www.sqlite.org/limits.html#max_variable_number
     _SELECT_IN_CHUNK_SIZE = 500
 
-    def __init__(self, db_file_path: Path, converte_underscore_to_space: bool = True,) -> None:
+    def __init__(
+        self,
+        db_file_path: Path,
+        converte_underscore_to_space: bool = True,
+    ) -> None:
         """
         Open (creating if needed) the SQLite pageviews cache at the given path.
 
