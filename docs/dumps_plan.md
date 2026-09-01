@@ -49,9 +49,6 @@ wiki_code  title  page_id  agent  daily_total  [hourly_counts]
 
     ```python
     def unescape_title(raw_title: str) -> str:
-        if len(raw_title) >= 2 and raw_title.startswith('"') and raw_title.endswith('"'):
-            return raw_title[1:-1].replace('\\"', '"')
-        return raw_title
     ```
 
 -   The same logical page can appear under **multiple different title strings** with the same `page_id` (e.g. an Arabic-script alias vs. a Latin transliteration). `page_id` must **not** be used as the aggregation key — aggregation is by `title` string only (post-unescaping), matching current REST-based behavior (which queries by exact title).
@@ -64,7 +61,7 @@ wiki_code  title  page_id  agent  daily_total  [hourly_counts]
     -   Extract `daily_total = int(rest.split(' ', maxsplit=1)[0])`. This works whether `hourly_counts` is present or absent — anything after `daily_total` in `rest` is discarded, never inspected or parsed.
     -   **Unescape the title using the corrected wrap-then-unescape logic above** (`unescape_title`), not a plain string replace — a plain replace was tried, tested, and shown to produce incorrect output (leftover wrapper quotes) for every title containing a literal `"`.
     -   `page_id` is parsed but discarded (not used downstream).
-    -   **Implementation validated**: a reference implementation (`pageviews_parser.py`) and a full pytest suite (`test_pageviews_parser.py`, 25 tests) have been written and pass against a real fixture built from actual `ar.wikipedia` dump lines. This can be used as the starting point for the production parser.
+    -   **Implementation validated**: a reference implementation (`bz2_dump_parser.py`) and a full pytest suite (`test_bz2_dump_parser.py`, 25 tests) have been written and pass against a real fixture built from actual `ar.wikipedia` dump lines. This can be used as the starting point for the production parser.
 -   [ ] **Wiki filtering**: only keep lines where `wiki_code` matches one of the configured wikis.
 -   [ ] **Title filtering (optional optimization)**: if the set of needed titles per wiki is known ahead of time (from WikiProject configs, same as current REST approach), skip totals for titles we'll never use — reduces memory footprint. Note this filtering must happen post-unescaping, so titles are compared in their true (unescaped) form.
 -   [ ] **Aggregation**: single pass over the file, summing `daily_total` per `(wiki, title)` — **`title` (post-unescaping) is the sole aggregation key; `page_id` is explicitly not used for merging**, since the same `page_id` can legitimately appear under multiple distinct title strings and each must be kept/aggregated separately to match current REST behavior. Keep running totals per wiki in memory (or batch to disk if memory is a concern for very large wikis).
@@ -83,6 +80,88 @@ wiki_code  title  page_id  agent  daily_total  [hourly_counts]
     -   Full-fixture aggregation test: sums `daily_total` per `(wiki, title)` across multiple lines/agents and checks against hand-computed expected totals
     -   Remaining item: extend the DB write path test so the aggregation + SQLite write produces a `PageView` table matching what the REST-based path currently produces, for a small fixture wiki (not yet covered — the current suite tests parsing/aggregation logic only, not the DB layer).
 
+## ParsedPageview class
+
+[src/dumps_parser/bz2_dump_parser.py](../src/py_port/dumps_parser/bz2_dump_parser.py)
+
+```python
+class MalformedLineError(ValueError):
+    """Raised when a line does not have the minimum expected structure."""
+
+
+@dataclass(frozen=True)
+class ParsedPageview:
+    wiki_code: str
+    title: str
+    page_id: str  # kept as-is (numeric string or "null"); unused downstream
+    agent: str
+    daily_total: int
+
+    @staticmethod
+    def unescape_title(raw_title: str) -> str:
+        """Convert a raw dump title field into its true string form.
+
+        The dump uses CSV-style conditional quoting: a title is wrapped in
+        an outer, unescaped pair of double-quotes IF AND ONLY IF it contains
+        a literal double-quote character; any literal " inside such a title
+        is escaped as \". Titles without a " character are left bare with
+        no wrapping at all.
+
+        Examples (raw field -> true title):
+            '!'                 -> '!'                  (no quote char, bare)
+            '"\\""'             -> '"'                  (wrapped + escaped)
+            '"\\"W\\"_x"'       -> '"W"_x'               (wrapped + escaped)
+        """
+        # Check if the raw_title is wrapped in double quotes
+        if len(raw_title) >= 2 and raw_title.startswith('"') and raw_title.endswith('"'):
+            # Extract the inner content by removing the outer quotes
+            inner = raw_title[1:-1]
+            # Replace escaped quotes (\") with actual quotes (")
+            return inner.replace('\\"', '"')
+        # If not wrapped in quotes, return as-is
+        return raw_title
+
+
+    @classmethod
+    def parse(cls, line: str) -> "ParsedPageview":
+        """Parse a single line of the pageview_complete dump.
+
+        Raises MalformedLineError if the line doesn't have at least the
+        5 fixed-position fields (wiki_code, title, page_id, agent, rest).
+        """
+        line = line.rstrip("\n")
+        if not line:
+            raise MalformedLineError("empty line")
+
+        parts = line.split(" ", maxsplit=4)
+        if len(parts) < 5:
+            raise MalformedLineError(
+                f"expected at least 5 space-separated fields, got {len(parts)}: {line!r}"
+            )
+
+        wiki_code, raw_title, page_id, agent, rest = parts
+
+        # rest is "daily_total" or "daily_total hourly_counts"; we only need
+        # the first token. hourly_counts (if present) is discarded untouched.
+        daily_total_str = rest.split(" ", maxsplit=1)[0]
+        try:
+            daily_total = int(daily_total_str)
+        except ValueError as exc:
+            raise MalformedLineError(
+                f"could not parse daily_total from {daily_total_str!r} in line: {line!r}"
+            ) from exc
+
+        title = cls.unescape_title(raw_title)
+
+        return cls(
+            wiki_code=wiki_code,
+            title=title,
+            page_id=page_id,
+            agent=agent,
+            daily_total=daily_total,
+        )
+```
+
 ## Open questions
 
 -   Exact NFS path pattern — confirm by listing `/public/dumps/public/other/pageview_complete/monthly/` directly on Toolforge.
@@ -97,4 +176,4 @@ wiki_code  title  page_id  agent  daily_total  [hourly_counts]
 -   https://wikitech.wikimedia.org/wiki/Data_Platform/Data_Lake/Traffic/Pageviews
 -   Local Toolforge path: `/public/dumps/public/other/pageview_complete/`
 -   Existing cache model: `PageView` (`title: str` PK, `views: int`) in `pageviews_models.py`
--   Reference parser + test suite (validated against real sample data): `pageviews_parser.py`, `test_pageviews_parser.py`, `fixtures/ar_wikipedia_sample.txt`
+-   Reference parser + test suite (validated against real sample data): `bz2_dump_parser.py`, `test_bz2_dump_parser.py`, `fixtures/ar_wikipedia_sample.txt`

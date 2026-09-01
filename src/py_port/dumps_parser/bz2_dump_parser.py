@@ -42,7 +42,8 @@ class ParsedPageview:
 
     @staticmethod
     def unescape_title(raw_title: str) -> str:
-        """Convert a raw dump title field into its true string form.
+        """
+        Convert a raw dump title field into its true string form.
 
         The dump uses CSV-style conditional quoting: a title is wrapped in
         an outer, unescaped pair of double-quotes IF AND ONLY IF it contains
@@ -67,7 +68,8 @@ class ParsedPageview:
 
     @classmethod
     def parse(cls, line: str) -> "ParsedPageview":
-        """Parse a single line of the pageview_complete dump.
+        """
+        Parse a single line of the pageview_complete dump.
 
         Raises MalformedLineError if the line doesn't have at least the
         5 fixed-position fields (wiki_code, title, page_id, agent, rest).
@@ -103,24 +105,6 @@ class ParsedPageview:
             agent=agent,
             daily_total=daily_total,
         )
-
-def unescape_title(raw_title: str) -> str:
-    """
-    Convert a raw dump title field into its true string form.
-    """
-    return ParsedPageview.unescape_title(raw_title)
-
-
-def parse_pageview_line(line: str) -> ParsedPageview:
-    """
-    Parse a single line of the pageview_complete dump.
-
-    Raises MalformedLineError if the line doesn't have at least the
-    5 fixed-position fields (wiki_code, title, page_id, agent, rest).
-    """
-
-    return ParsedPageview.parse(line)
-
 
 __all__ = [
     "ParsedPageview",

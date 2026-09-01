@@ -6,16 +6,13 @@ import os
 
 import pytest
 
-from src.dumps_parser.bz2_dump_parser import (
+from src.py_port.dumps_parser.bz2_dump_parser import (
     MalformedLineError,
     ParsedPageview,
-    parse_pageview_line,
-    unescape_title,
 )
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 AR_SAMPLE_PATH = os.path.join(FIXTURES_DIR, "ar_wikipedia_sample.txt")
-
 
 # ---------------------------------------------------------------------------
 # 1. page_id variants: numeric vs "null"
@@ -23,7 +20,7 @@ AR_SAMPLE_PATH = os.path.join(FIXTURES_DIR, "ar_wikipedia_sample.txt")
 
 def test_page_id_numeric():
     line = "ar.wikipedia ! 199256 desktop 5 A1S1V1Y1^1"
-    result = parse_pageview_line(line)
+    result = ParsedPageview.parse(line)
     assert result.page_id == "199256"
     assert result.wiki_code == "ar.wikipedia"
     assert result.title == "!"
@@ -33,7 +30,7 @@ def test_page_id_numeric():
 
 def test_page_id_null_string():
     line = '''ar.wikipedia "\\"_لفيرجينيا_وولف" null desktop 1 ]1'''
-    result = parse_pageview_line(line)
+    result = ParsedPageview.parse(line)
     assert result.page_id == "null"
     assert result.daily_total == 1
     assert result.title == '"_لفيرجينيا_وولف'
@@ -69,7 +66,7 @@ def test_page_id_null_string():
 def test_leading_special_character_titles(
     line, expected_title, expected_page_id, expected_agent, expected_total
 ):
-    result = parse_pageview_line(line)
+    result = ParsedPageview.parse(line)
     assert result.title == expected_title
     assert result.page_id == expected_page_id
     assert result.agent == expected_agent
@@ -82,22 +79,22 @@ def test_leading_special_character_titles(
 
 def test_unescape_title_helper_directly():
     # Bare titles (no outer wrapping quotes) pass through unchanged.
-    assert unescape_title("no_quotes_here") == "no_quotes_here"
-    assert unescape_title("!") == "!"
+    assert ParsedPageview.unescape_title("no_quotes_here") == "no_quotes_here"
+    assert ParsedPageview.unescape_title("!") == "!"
 
     # Titles containing a literal quote are wrapped in an outer pair of
     # unescaped quotes, with inner quotes escaped as \" — this wrapper
     # must be stripped and the inner escaping undone.
-    assert unescape_title('"\\""') == '"'
-    assert unescape_title('"\\"W\\"_تشير_الى_المنتهي"') == '"W"_تشير_الى_المنتهي'
-    assert unescape_title('"\\"_\\""') == '"_"'
+    assert ParsedPageview.unescape_title('"\\""') == '"'
+    assert ParsedPageview.unescape_title('"\\"W\\"_تشير_الى_المنتهي"') == '"W"_تشير_الى_المنتهي'
+    assert ParsedPageview.unescape_title('"\\"_\\""') == '"_"'
 
 
 def test_pure_quote_title():
     # Raw dump line: title field is literally "\"" which represents a
     # single-character title: "
     line = 'ar.wikipedia "\\"" 3347002 desktop 26 C1D1L4Q1S1T1U1Y1Z2[6\\3^3_1'
-    result = parse_pageview_line(line)
+    result = ParsedPageview.parse(line)
     assert result.title == '"'
     assert result.page_id == "3347002"
     assert result.daily_total == 26
@@ -105,7 +102,7 @@ def test_pure_quote_title():
 
 def test_pure_quote_title_different_page_id():
     line = 'ar.wikipedia "\\"" 3371336 desktop 1 B1'
-    result = parse_pageview_line(line)
+    result = ParsedPageview.parse(line)
     assert result.title == '"'
     assert result.page_id == "3371336"
     assert result.daily_total == 1
@@ -113,7 +110,7 @@ def test_pure_quote_title_different_page_id():
 
 def test_mixed_quote_and_arabic_title():
     line = 'ar.wikipedia "\\"W\\"_تشير_الى_المنتهي" 7858501 desktop 7 E1F1J1P1T1U1X1'
-    result = parse_pageview_line(line)
+    result = ParsedPageview.parse(line)
     assert result.title == '"W"_تشير_الى_المنتهي'
     assert result.page_id == "7858501"
     assert result.daily_total == 7
@@ -122,7 +119,7 @@ def test_mixed_quote_and_arabic_title():
 def test_quote_underscore_quote_title():
     # title field "\"_\"" -> unescaped: "_"
     line = 'ar.wikipedia "\\"_\\"" 3347002 desktop 6 O1S1T1W1Y2'
-    result = parse_pageview_line(line)
+    result = ParsedPageview.parse(line)
     assert result.title == '"_"'
     assert result.page_id == "3347002"
     assert result.daily_total == 6
@@ -135,7 +132,7 @@ def test_quoted_english_title_with_internal_apostrophe():
         'ar.wikipedia "\\"Schumer_announces_\'Maple_Tap_Act\'_has_passed_the_Senate'
         '_at_part_of_Farm_Bill\\"" null desktop 1 A1'
     )
-    result = parse_pageview_line(line)
+    result = ParsedPageview.parse(line)
     assert result.title == (
         '"Schumer_announces_\'Maple_Tap_Act\'_has_passed_the_Senate_at_part_of_Farm_Bill"'
     )
@@ -146,7 +143,7 @@ def test_quoted_english_title_with_internal_apostrophe():
 def test_quote_prefix_no_suffix_arabic_title():
     # title field "\"_لفيرجينيا_وولف (no closing internal quote in this one)
     line = 'ar.wikipedia "\\"_لفيرجينيا_وولف" null desktop 1 ]1'
-    result = parse_pageview_line(line)
+    result = ParsedPageview.parse(line)
     assert result.title == '"_لفيرجينيا_وولف'
     assert result.page_id == "null"
     assert result.daily_total == 1
@@ -154,7 +151,7 @@ def test_quote_prefix_no_suffix_arabic_title():
 
 def test_quoted_arabic_only_title():
     line = 'ar.wikipedia "\\"أول_مكرر\\"" null mobile-web 1 E1'
-    result = parse_pageview_line(line)
+    result = ParsedPageview.parse(line)
     assert result.title == '"أول_مكرر"'
     assert result.page_id == "null"
     assert result.agent == "mobile-web"
@@ -169,14 +166,14 @@ def test_hourly_counts_with_backslash_is_ignored_safely():
     # hourly_counts here contains a literal backslash char - must not
     # affect title/daily_total parsing since it's never inspected.
     line = "ar.wikipedia !! 2481200 desktop 4 R1V1\\2"
-    result = parse_pageview_line(line)
+    result = ParsedPageview.parse(line)
     assert result.title == "!!"
     assert result.daily_total == 4
 
 
 def test_daily_total_parses_even_with_trailing_junk():
     line = "ar.wikipedia !_(توضيح) 2481196 desktop 15 F2G1I1J2L1R1T1V1X1Y2]1_1"
-    result = parse_pageview_line(line)
+    result = ParsedPageview.parse(line)
     assert result.daily_total == 15
 
 
@@ -189,8 +186,8 @@ def test_same_page_id_different_titles_are_distinct():
     line_b = "ar.wikipedia ! 199256 desktop 5 A1S1V1Y1^1"  # different page_id, sanity
     line_c = 'ar.wikipedia "\\"" 3347002 desktop 26 C1D1L4Q1S1T1U1Y1Z2[6\\3^3_1'
 
-    result_a = parse_pageview_line(line_a)  # title '"_"', page_id 3347002
-    result_c = parse_pageview_line(line_c)  # title '"',   page_id 3347002
+    result_a = ParsedPageview.parse(line_a)  # title '"_"', page_id 3347002
+    result_c = ParsedPageview.parse(line_c)  # title '"',   page_id 3347002
 
     assert result_a.page_id == result_c.page_id == "3347002"
     assert result_a.title != result_c.title
@@ -204,17 +201,17 @@ def test_same_page_id_different_titles_are_distinct():
 
 def test_malformed_line_too_few_fields():
     with pytest.raises(MalformedLineError):
-        parse_pageview_line("ar.wikipedia only_two_fields")
+        ParsedPageview.parse("ar.wikipedia only_two_fields")
 
 
 def test_malformed_line_non_numeric_daily_total():
     with pytest.raises(MalformedLineError):
-        parse_pageview_line("ar.wikipedia title 123 desktop NOTANUMBER extra")
+        ParsedPageview.parse("ar.wikipedia title 123 desktop NOTANUMBER extra")
 
 
 def test_empty_line_raises():
     with pytest.raises(MalformedLineError):
-        parse_pageview_line("")
+        ParsedPageview.parse("")
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +224,7 @@ def test_full_fixture_file_all_lines_parse_without_error():
 
     assert len(lines) == 22, "fixture line count changed unexpectedly"
 
-    results = [parse_pageview_line(line) for line in lines]
+    results = [ParsedPageview.parse(line) for line in lines]
 
     for r in results:
         assert isinstance(r, ParsedPageview)
@@ -242,7 +239,7 @@ def test_full_fixture_file_no_double_escaped_quotes_remain():
     with open(AR_SAMPLE_PATH, "r", encoding="utf-8") as f:
         lines = [line for line in f if line.strip()]
 
-    results = [parse_pageview_line(line) for line in lines]
+    results = [ParsedPageview.parse(line) for line in lines]
     quote_titles = [r.title for r in results if '"' in r.title]
 
     # Sanity: we do expect several titles to legitimately contain a quote
@@ -263,7 +260,7 @@ def test_full_fixture_aggregation_by_title_matches_expected_totals():
 
     totals = {}
     for line in lines:
-        r = parse_pageview_line(line)
+        r = ParsedPageview.parse(line)
         key = (r.wiki_code, r.title)
         totals[key] = totals.get(key, 0) + r.daily_total
 
