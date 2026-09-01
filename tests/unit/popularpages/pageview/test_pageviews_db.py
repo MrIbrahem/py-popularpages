@@ -38,7 +38,12 @@ def db_factory(db_dir, converte_underscore_to_space: bool = True):
     ensure they are all closed on teardown."""
     created: list[PageviewsDb] = []
 
-    def _make(wiki: str = "en.wikipedia", year_month: str = "2024-01", base_dir=None) -> PageviewsDb:
+    def _make(
+        wiki: str = "en.wikipedia",
+        year_month: str = "2024-01",
+        base_dir=None,
+        converte_underscore_to_space: bool = converte_underscore_to_space,
+    ) -> PageviewsDb:
         db_file_path = PageviewsCache.build_db_file_path(wiki, year_month, base_dir or db_dir)
         db = PageviewsDb(db_file_path, converte_underscore_to_space=converte_underscore_to_space)
         created.append(db)
@@ -373,3 +378,40 @@ class TestUnderscoreNormalization:
         assert load_db.get_views("Title 1999", []) == 1999
         assert "Title 0" in _rows(load_db.db_file_path)
         assert "Title_0" not in _rows(load_db.db_file_path)
+
+
+# ---------------------------------------------------
+# converte_underscore_to_space = False (titles kept verbatim)
+# ---------------------------------------------------
+class TestNoUnderscoreConversion:
+    def test_underscores_preserved_on_upsert(self, load_db_no_underscore_converte: PageviewsDb):
+        load_db_no_underscore_converte.upsert_many({"New_York_City": 100})
+        # Underscores are kept as-is, so the underscore form IS found...
+        assert load_db_no_underscore_converte.get_views("New_York_City", []) == 100
+        # ...and the space form is NOT.
+        assert load_db_no_underscore_converte.get_views("New York City", []) == 0
+        assert _rows(load_db_no_underscore_converte.db_file_path) == {"New_York_City": 100}
+
+    def test_mixed_titles_kept_verbatim(self, load_db_no_underscore_converte: PageviewsDb):
+        load_db_no_underscore_converte.upsert_many({"Los_Angeles": 5, "San Francisco": 7})
+        assert load_db_no_underscore_converte.get_views("Los_Angeles", []) == 5
+        assert load_db_no_underscore_converte.get_views("San Francisco", []) == 7
+        assert set(_rows(load_db_no_underscore_converte.db_file_path)) == {
+            "Los_Angeles",
+            "San Francisco",
+        }
+
+    def test_no_conversion_in_chunked_upsert(self, load_db_no_underscore_converte: PageviewsDb, monkeypatch):
+        monkeypatch.setattr("sqlite3.sqlite_version_info", (3, 31, 0))
+        load_db_no_underscore_converte.upsert_many_chunks({f"Title_{i}": i for i in range(2000)})
+        assert load_db_no_underscore_converte.get_views("Title_0", []) == 0
+        assert load_db_no_underscore_converte.get_views("Title_1999", []) == 1999
+        assert "Title_0" in _rows(load_db_no_underscore_converte.db_file_path)
+        assert "Title 0" not in _rows(load_db_no_underscore_converte.db_file_path)
+
+    def test_default_flag_is_true(self, load_db: PageviewsDb):
+        # Guard the default flag value so a regression flips the behavior loudly.
+        assert load_db.converte_underscore_to_space is True
+
+
+# ---------------------------------------------------
