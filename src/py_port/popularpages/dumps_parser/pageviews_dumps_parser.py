@@ -30,6 +30,61 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+# Per-wiki denylist of namespace prefixes. Any title starting with one
+# of these is a non-article namespace and must be ignored. Wikis not
+# present in this map have no namespace filtering applied.
+
+INVALID_TITLE_PREFIXES: dict[str, tuple[str, ...]] = {
+    "en.wikipedia": (
+        "Wikipedia:",
+        "Wikipedia talk:",
+        "Category:",
+        "Draft talk:",
+        "Draft:",
+        "File talk:",
+        "File:",
+        "Event:",
+        "Help talk:",
+        "Help:",
+        "MediaWiki:",
+        "Module:",
+        "Portal talk:",
+        "Portal:",
+        "Special:",
+        "Talk:",
+        "Template talk:",
+        "Template:",
+        "User talk:",
+        "User:",
+        "Subject:",
+    ),
+    "ar.wikipedia": (
+        "بوابة:",  # Portal
+        "تصنيف:",  # Category
+        "خاص:",  # Special
+        "فعالية:",  # Event
+        "قالب:",  # Template
+        "مساعدة:",  # Help
+        "مستخدم:",  # User
+        "مستخدمة:",  # User (feminine form)
+        "ملف:",  # File
+        "ميدياويكي:",  # MediaWiki
+        "نقاش البوابة:",  # Portal talk
+        "نقاش التصنيف:",  # Category talk
+        "نقاش القالب:",  # Template talk
+        "نقاش المساعدة:",  # Help talk
+        "نقاش المستخدم:",  # User talk
+        "نقاش الملف:",  # File talk
+        "نقاش:",  # Talk
+        "وحدة:",  # Module
+        "موضوع:",  # Subject
+        "نقاش الفعالية:",  # Event talk
+        "نقاش الوحدة:",  # Module talk
+        "ويكيبيديا:",  # Wikipedia
+        "نقاش ويكيبيديا:",  # Wikipedia talk
+    ),
+}
+
 
 class MalformedLineError(ValueError):
     """Raised when a line does not have the minimum expected structure."""
@@ -46,22 +101,28 @@ class ParsedPageview:
 
     def is_valid(self) -> bool:
         """
-        Check if the current page is valid based on its page ID and title prefix.
+        Check if the current page is a valid article based on its page ID and
+        title prefix.
+
+        Only main-namespace (Article) titles are kept. Titles from non-article
+        namespaces (Talk, User, Category, File, Template, Help, Special, etc.)
+        are rejected via a per-wiki denylist of namespace prefixes. A title that
+        matches no denylist entry (including wikis with no configured denylist)
+        is treated as a valid article.
 
         Returns:
-            bool: True if the page is valid, False otherwise.
+            bool: True if the page is a valid article, False otherwise.
         """
         if self.page_id is None:
             return False
 
-        # TODO: ignore all titles that isn't Articles.
-        invalid_title_prefixes = {
-            "en.wikipedia": ("Special:",),
-            "ar.wikipedia": ("خاص:",),
-        }
+        # Dump titles encode spaces as underscores (e.g. "User_talk:Foo"),
+        # so normalize back to spaces before matching the denylist (which uses
+        # the canonical "Namespace:" form with a real space).
+        title = self.title.replace("_", " ")
 
-        prefixes = invalid_title_prefixes.get(self.wiki_code, ())
-        if self.title.startswith(prefixes):
+        prefixes = INVALID_TITLE_PREFIXES.get(self.wiki_code, ())
+        if title.startswith(prefixes):
             return False
 
         return True
@@ -127,7 +188,7 @@ class ParsedPageview:
             page_id = None
 
         return cls(
-            wiki_code=wiki_code,
+            wiki_code=wiki_code,  # pyright: ignore[reportArgumentType]
             title=title,
             page_id=page_id,
             agent=agent,
