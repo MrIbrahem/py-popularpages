@@ -58,20 +58,8 @@ class PageviewsDb:
         logger.debug("Closed pageviews cache %s", self.db_file_path)
 
     # ---------------------------------------------------
-    # Internal helpers
+    # Generic services
     # ---------------------------------------------------
-    def _converte_underscore_to_space(self, title: str) -> str:
-        if not self.converte_underscore_to_space:
-            return title
-
-        return title.replace("_", " ")
-
-    @staticmethod
-    def _chunked(items: Sequence[str], size: int) -> Iterator[Sequence[str]]:
-        """Yield successive chunks of ``items`` of at most ``size`` elements."""
-        for i in range(0, len(items), size):
-            yield items[i : i + size]
-
     def one_title_views(self, title: str) -> int | None:
         """
         Retrieve the total number of page views for a specific title.
@@ -86,6 +74,41 @@ class PageviewsDb:
             query = select(PageView.title, PageView.views).where(PageView.title == title)
             result = session.execute(query).first()
             return result.views if result else None
+
+    def _chunk_views(self, session, chunk: Sequence[str]):
+        query = select(PageView.title, PageView.views).where(PageView.title.in_(chunk))
+        query_results = session.execute(query).all()
+        return query_results
+
+    def _upsert_data(self, data: list[dict[str, str | int]]) -> None:
+        with self._Session() as session:
+            stmt = sqlite_insert(PageView).values(data)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[PageView.title],
+                set_={"views": stmt.excluded.views},
+            )
+            session.execute(stmt)
+            session.commit()
+
+    def count_titles(self) -> int:
+        """Return the number of distinct titles currently cached in this file."""
+        with self._Session() as session:
+            return int(session.scalar(select(func.count()).select_from(PageView)) or 0)
+
+    # ---------------------------------------------------
+    # Internal helpers
+    # ---------------------------------------------------
+    def _converte_underscore_to_space(self, title: str) -> str:
+        if not self.converte_underscore_to_space:
+            return title
+
+        return title.replace("_", " ")
+
+    @staticmethod
+    def _chunked(items: Sequence[str], size: int) -> Iterator[Sequence[str]]:
+        """Yield successive chunks of ``items`` of at most ``size`` elements."""
+        for i in range(0, len(items), size):
+            yield items[i : i + size]
 
     def _query_views_by_title(self, titles: list[str]) -> dict[str, int]:
         """
@@ -103,8 +126,8 @@ class PageviewsDb:
 
         with self._Session() as session:
             for chunk in self._chunked(titles, self._SELECT_IN_CHUNK_SIZE):
-                query = select(PageView.title, PageView.views).where(PageView.title.in_(chunk))
-                for title, views in session.execute(query).all():
+                query_results = self._chunk_views(session, chunk)
+                for title, views in query_results:
                     views_by_title[title] = views
 
         return views_by_title
@@ -152,17 +175,9 @@ class PageviewsDb:
         # Store titles without underscores (display form) from the moment they
         # enter the cache, so lookups never have to guess at the title format.
         title_views = {self._converte_underscore_to_space(title): views for title, views in title_views.items()}
+        upsert_data = [{"title": title, "views": views} for title, views in title_views.items()]
 
-        with self._Session() as session:
-            stmt = sqlite_insert(PageView).values(
-                [{"title": title, "views": views} for title, views in title_views.items()]
-            )
-            stmt = stmt.on_conflict_do_update(
-                index_elements=[PageView.title],
-                set_={"views": stmt.excluded.views},
-            )
-            session.execute(stmt)
-            session.commit()
+        self._upsert_data(upsert_data)
 
         logger.debug("Upserted %d titles into %s", len(title_views), self.db_file_path)
 
@@ -177,11 +192,6 @@ class PageviewsDb:
         views_by_title = self._query_views_by_title(wanted)
 
         return set(views_by_title)
-
-    def count_titles(self) -> int:
-        """Return the number of distinct titles currently cached in this file."""
-        with self._Session() as session:
-            return int(session.scalar(select(func.count()).select_from(PageView)) or 0)
 
     def get_views_many(
         self,
