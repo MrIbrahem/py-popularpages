@@ -87,16 +87,19 @@ class TestRetrieveProjectUpdatesNew:
         assert all(c.Updated is None for c in result)
 
     def test_with_timestamps_present(self) -> None:
-        # With the current keying (config keyed by project_main_page, rows keyed
-        # by report db-title) the guard ``row["page_title"] in projects_config``
-        # is never satisfied, so every row is dropped and the method returns the
-        # projects with ``Updated`` left as ``None``. This documents the key-
-        # mapping gap (the last-edit timestamp is never attached).
+        # Rows are keyed by the report db-title (report_without_ns), which is
+        # mapped back to the project main page so the last-edit timestamp is
+        # attached to the correct WikiProjectConfig as ``Updated``.
         db_rows = _db_rows({"Dinosaurs": "20230115000000", "Medicine": "20230110000000"})
         updater = _make_updater(_build_json_config(), db_rows)
         result = updater.retrieve_project_updates()
         assert len(result) == 3
-        assert all(c.Updated is None for c in result)
+
+        by_name = {c.Name: c for c in result}
+        assert by_name["Dinosaurs"].Updated == "2023-01-15"
+        assert by_name["Medicine"].Updated == "2023-01-10"
+        # Physics had no last-edit row, so its Updated stays None.
+        assert by_name["Physics"].Updated is None
 
     def test_returned_objects_are_wikiprojectconfig(self) -> None:
         updater = _make_updater(_build_json_config(), [])

@@ -20,7 +20,7 @@
 | [[{{ config.project_main_page }}|{{ config.Name }}]]
 | [[{{ config.Report }}]]
 | {% raw %}{{FORMATNUM:{% endraw %}{{ config.Limit }}}}
-| {% if loop.index0 == 0 %}style="white-space:nowrap" | {% endif %}{{ config.Updated }}
+| {% if loop.index0 == 0 %}style="white-space:nowrap" | {% endif %}{{ config.Updated if config.Updated else "" }}
 |-
 {% endfor %}
 |}
