@@ -373,9 +373,10 @@ class WikiRepository:
                     "summary": summary,
                     "section": section_number,
                     "bot": True,
+                    "dry-run": True,
+                    "edit": False,
                 }
             )
-
             return None
 
         page = self.site.pages[page_title]
