@@ -213,6 +213,7 @@ class PageviewsDumpLoader:
         totals_len: dict[str, int] = {}
         totals: dict[str, dict[str, int]] = {}
 
+        zero_daily_total_count = 0
         malformed_count = 0
         line_count = 0
         valid_lines_count = 0
@@ -251,7 +252,10 @@ class PageviewsDumpLoader:
                 logger.info(get_memory())
                 logger.info("Processed %s dump lines so far...", f"{line_count:,}")
                 logger.info(
-                    "malformed_count: %s, valid_lines_count: %s", f"{malformed_count:,}", f"{valid_lines_count:,}"
+                    "malformed_count: %s, with valid lines: %s, with zero total: %s",
+                    f"{malformed_count:,}",
+                    f"{valid_lines_count:,}",
+                    f"{zero_daily_total_count:,}",
                 )
 
             # Cheap pre-filter before doing any real parsing work: every line
@@ -285,6 +289,11 @@ class PageviewsDumpLoader:
             wiki_totals = totals[parsed.wiki_code]
             if cache_title not in wiki_totals:
                 accumulated_titles += 1
+
+            if parsed.daily_total == 0:
+                zero_daily_total_count += 1
+                # continue
+
             wiki_totals[cache_title] = wiki_totals.get(cache_title, 0) + parsed.daily_total
 
             if accumulated_titles >= self._MAX_ACCUMULATED_TITLES:
@@ -297,9 +306,10 @@ class PageviewsDumpLoader:
             logger.warning("Skipped %d malformed line(s) while processing dump.", malformed_count)
 
         logger.info(
-            "Finished processing %s total dump lines., valid_lines_count: %s",
+            "Finished processing %s total dump lines., with valid lines: %s, with zero total: %s",
             f"{line_count:,}",
             f"{valid_lines_count:,}",
+            f"{zero_daily_total_count:,}",
         )
 
         # The exact distinct-title total is not required

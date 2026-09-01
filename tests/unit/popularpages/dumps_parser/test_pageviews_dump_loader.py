@@ -48,7 +48,7 @@ FIXTURE_LINES = [
     "en.wikipedia Main_Page 15580374 mobile-web 500 A50B50",
     # Malformed (non-numeric daily_total) -> must be skipped, not crash the run.
     "en.wikipedia Some_Page 999 desktop NOTANUMBER A1",
-    "en.wikipedia page_zero_total_count 0 desktop 0 A1",
+    "de.wikipedia page_zero_total_count 0 desktop 0 A1",
 ]
 
 WANTED_WIKI_CODES = {"ar.wikipedia", "en.wikipedia"}
