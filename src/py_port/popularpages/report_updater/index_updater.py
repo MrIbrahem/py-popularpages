@@ -28,9 +28,17 @@ class IndexUpdater:
 
     def __init__(self, wiki: str = "en.wikipedia", dry_run: bool = False):
         """
-        :param wiki: Target wiki, e.g. 'en.wikipedia'.
-        :param dry_run: Passed through to WikiRepository -- if True, prints
-            instead of saving edits to the wiki.
+        Initialize the index updater for a single wiki.
+
+        Constructs the :class:`WikiRepository`, configures the Jinja environment
+        with the project's template helpers, and records the wiki/i18n context.
+        ``dry_run`` is forwarded to the repository so edits are printed rather
+        than saved.
+
+        Args:
+            wiki (str): Target wiki, e.g. 'en.wikipedia'.
+            dry_run (bool): Passed through to WikiRepository -- if True, prints
+                instead of saving edits to the wiki.
         """
         self.wiki_repository = WikiRepository(wiki, dry_run)
         self.wiki = wiki
