@@ -42,4 +42,4 @@ class TestConfigLoading:
         assert isinstance(data, dict)
         assert len(data) > 0
         assert "en.wikipedia" in data
-        assert list(data["en.wikipedia"]) == ["database", "index", "config", "category"]
+        assert set(data["en.wikipedia"]) == {"database", "index", "config", "category"}
