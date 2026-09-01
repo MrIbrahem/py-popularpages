@@ -54,7 +54,7 @@ class DumpNotFoundError(FileNotFoundError):
     """Raised when the expected monthly dump file doesn't exist on disk."""
 
 
-def dump_path_for_month(year: int, month: int, root: Path = DUMPS_ROOT) -> Path:
+def _dump_path_for_month(year: int, month: int, root: Path = DUMPS_ROOT) -> Path:
     """
     Build the on-disk path to a monthly ``pageview_complete`` dump.
 
@@ -68,7 +68,7 @@ def dump_path_for_month(year: int, month: int, root: Path = DUMPS_ROOT) -> Path:
     return root / f"{year:04d}" / f"{year:04d}-{month:02d}" / f"pageviews-{yyyymm}-user.bz2"
 
 
-def iter_dump_lines(dump_file: Path) -> Iterator[str]:
+def _iter_dump_lines(dump_file: Path) -> Iterator[str]:
     """
     Stream lines from a bz2-compressed dump file, one at a time.
 
@@ -85,7 +85,7 @@ def iter_dump_lines(dump_file: Path) -> Iterator[str]:
         yield from f
 
 
-def aggregate_dump(
+def _aggregate_dump(
     lines: Iterable[str],
     wanted_wiki_codes: set[str],
     wanted_titles_by_wiki: dict[str, set[str]] | None = None,
@@ -93,7 +93,7 @@ def aggregate_dump(
     """
     Single pass over dump lines, aggregating ``daily_total`` per (wiki, title).
 
-    :param lines: An iterable of raw dump lines (e.g. from :func:`iter_dump_lines`).
+    :param lines: An iterable of raw dump lines (e.g. from :func:`_iter_dump_lines`).
     :param wanted_wiki_codes: Only lines whose ``wiki_code`` is in this set are
         kept; everything else is skipped immediately (before any title
         unescaping/aggregation work).
@@ -152,7 +152,7 @@ def aggregate_dump(
     return totals
 
 
-def write_totals_to_cache(
+def _write_totals_to_cache(
     totals_by_wiki: dict[str, dict[str, int]],
     views_dir: Path,
     year: int,
@@ -164,7 +164,7 @@ def write_totals_to_cache(
     cache, via :class:`PageviewsDb`, using batched upserts.
 
     :param totals_by_wiki: ``{wiki_code: {title: total_views}}``, as returned
-        by :func:`aggregate_dump`.
+        by :func:`_aggregate_dump`.
     :param views_dir: Root ``data/views`` directory. Each wiki's cache file is
         written to ``<views_dir>/<wiki_code>/<YYYY-MM>.sqlite3``.
     :param year: Dump year, used to build the ``YYYY-MM`` cache filename.
@@ -219,20 +219,20 @@ def load_dump_into_cache(
     :param views_dir: Root ``data/views`` directory to write caches into.
     :param dumps_root: Override for the dumps root directory (mainly for tests).
     :param wanted_titles_by_wiki: Optional per-wiki title allow-list; see
-        :func:`aggregate_dump`.
+        :func:`_aggregate_dump`.
     :return: ``{wiki_code: number_of_titles_written}`` for every wiki that had
         at least one matching line in the dump.
     :raises DumpNotFoundError: if the dump for ``year``/``month`` isn't
         present on disk yet -- callers should catch this and fall back to the
         REST API path (``--source=api``) per the plan.
     """
-    dump_file = dump_path_for_month(year, month, root=dumps_root)
+    dump_file = _dump_path_for_month(year, month, root=dumps_root)
     logger.info("Loading pageviews dump for %04d-%02d from %s", year, month, dump_file)
 
-    lines = iter_dump_lines(dump_file)
-    totals_by_wiki = aggregate_dump(lines, wanted_wiki_codes, wanted_titles_by_wiki)
+    lines = _iter_dump_lines(dump_file)
+    totals_by_wiki = _aggregate_dump(lines, wanted_wiki_codes, wanted_titles_by_wiki)
 
-    write_totals_to_cache(totals_by_wiki, views_dir, year, month)
+    _write_totals_to_cache(totals_by_wiki, views_dir, year, month)
 
     return {wiki_code: len(titles) for wiki_code, titles in totals_by_wiki.items()}
 
@@ -240,9 +240,5 @@ def load_dump_into_cache(
 __all__ = [
     "DUMPS_ROOT",
     "DumpNotFoundError",
-    "aggregate_dump",
-    "dump_path_for_month",
-    "iter_dump_lines",
     "load_dump_into_cache",
-    "write_totals_to_cache",
 ]

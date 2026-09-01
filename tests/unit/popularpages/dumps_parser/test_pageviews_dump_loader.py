@@ -20,9 +20,9 @@ import pytest
 
 from src.py_port.popularpages.dumps_parser.pageviews_dump_loader import (
     DumpNotFoundError,
-    aggregate_dump,
-    dump_path_for_month,
-    iter_dump_lines,
+    _aggregate_dump,
+    _dump_path_for_month,
+    _iter_dump_lines,
     load_dump_into_cache,
 )
 from src.py_port.popularpages.pageviews.pageviews_db import PageviewsDb
@@ -57,7 +57,7 @@ WANTED_WIKI_CODES = {"ar.wikipedia", "en.wikipedia"}
 
 def _write_fixture_dump(dumps_root: Path, year: int, month: int, lines: list[str]) -> Path:
     """Write ``lines`` into a real bz2 file at the expected dump path."""
-    dump_file = dump_path_for_month(year, month, root=dumps_root)
+    dump_file = _dump_path_for_month(year, month, root=dumps_root)
     dump_file.parent.mkdir(parents=True, exist_ok=True)
     with bz2.open(dump_file, "wt", encoding="utf-8") as f:
         for line in lines:
@@ -66,52 +66,52 @@ def _write_fixture_dump(dumps_root: Path, year: int, month: int, lines: list[str
 
 
 # ---------------------------------------------------------------------------
-# dump_path_for_month
+# _dump_path_for_month
 # ---------------------------------------------------------------------------
 
 
 def test_dump_path_for_month_pattern(tmp_path: Path):
-    path = dump_path_for_month(2026, 7, root=tmp_path)
+    path = _dump_path_for_month(2026, 7, root=tmp_path)
     assert path == tmp_path / "2026" / "2026-07" / "pageviews-202607-user.bz2"
 
 
 def test_dump_path_for_month_pads_single_digit_month(tmp_path: Path):
-    path = dump_path_for_month(2026, 1, root=tmp_path)
+    path = _dump_path_for_month(2026, 1, root=tmp_path)
     assert path.name == "pageviews-202601-user.bz2"
     assert path.parent.name == "2026-01"
 
 
 # ---------------------------------------------------------------------------
-# iter_dump_lines
+# _iter_dump_lines
 # ---------------------------------------------------------------------------
 
 
 def test_iter_dump_lines_missing_file_raises(tmp_path: Path):
     missing = tmp_path / "does_not_exist.bz2"
     with pytest.raises(DumpNotFoundError):
-        list(iter_dump_lines(missing))
+        list(_iter_dump_lines(missing))
 
 
 def test_iter_dump_lines_streams_real_bz2_file(tmp_path: Path):
     dump_file = _write_fixture_dump(tmp_path, 2026, 7, FIXTURE_LINES)
-    lines = list(iter_dump_lines(dump_file))
+    lines = list(_iter_dump_lines(dump_file))
     assert len(lines) == len(FIXTURE_LINES)
     assert lines[0].startswith("ar.wikipedia ! 199256")
 
 
 # ---------------------------------------------------------------------------
-# aggregate_dump
+# _aggregate_dump
 # ---------------------------------------------------------------------------
 
 
 def test_aggregate_dump_filters_unwanted_wikis():
-    totals = aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES)
+    totals = _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES)
     assert "aa.wikipedia" not in totals
     assert set(totals.keys()) == {"ar.wikipedia", "en.wikipedia"}
 
 
 def test_aggregate_dump_sums_across_agents_and_page_ids():
-    totals = aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES)
+    totals = _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES)
     ar_totals = totals["ar.wikipedia"]
 
     # "!" : 199256/desktop(5) + 496583/desktop(5) + 199256/mobile-web(2) = 12
@@ -125,14 +125,14 @@ def test_aggregate_dump_sums_across_agents_and_page_ids():
 
 
 def test_aggregate_dump_sums_across_agents_for_en_wikipedia():
-    totals = aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES)
+    totals = _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES)
     en_totals = totals["en.wikipedia"]
     # Main_Page: desktop(1000) + mobile-web(500) = 1500
     assert en_totals["Main_Page"] == 1500
 
 
 def test_aggregate_dump_skips_malformed_line_without_crashing():
-    totals = aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES)
+    totals = _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES)
     # "Some_Page" had a non-numeric daily_total and must not appear at all.
     assert "Some_Page" not in totals["en.wikipedia"]
 
@@ -140,7 +140,7 @@ def test_aggregate_dump_skips_malformed_line_without_crashing():
 def test_aggregate_dump_title_filtering_optimization():
     # Only keep "!" for ar.wikipedia; en.wikipedia unfiltered (no entry).
     wanted_titles = {"ar.wikipedia": {"!"}}
-    totals = aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, wanted_titles_by_wiki=wanted_titles)
+    totals = _aggregate_dump(FIXTURE_LINES, WANTED_WIKI_CODES, wanted_titles_by_wiki=wanted_titles)
 
     assert set(totals["ar.wikipedia"].keys()) == {"!"}
     assert totals["ar.wikipedia"]["!"] == 12
