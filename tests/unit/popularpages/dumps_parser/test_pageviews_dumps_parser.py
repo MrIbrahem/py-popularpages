@@ -425,7 +425,7 @@ class TestIsValidArticlesOnly:
             "وحدة:مثال",  # Module
         ],
     )
-    def test_ar_non_article_namespaces_are_invalid(self, title):
+    def test_ar_non_article_namespaces_are_invalid(self, title: str):
         obj = ParsedPageview.parse(f"ar.wikipedia {title} 123 desktop 5 B1")
         assert obj.is_valid() is False
 
