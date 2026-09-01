@@ -143,7 +143,7 @@ class TestProcessProject:
         cache.db.get_views_many.return_value = {"Foo bar": 42}
         page_rows = [
             {
-                "page_title": "Foo_bar",
+                "page_title": "Foo bar",
                 "redir_title": "",
                 "pa_class": "Unknown",
                 "pa_importance": "Unknown",
@@ -182,7 +182,7 @@ class TestProcessProject:
         repo.get_monthly_pageviews_and_assessments = AsyncMock(return_value={"Foo bar": 7})
         page_rows = [
             {
-                "page_title": "Foo_bar",
+                "page_title": "Foo bar",
                 "redir_title": "",
                 "pa_class": "Unknown",
                 "pa_importance": "Unknown",
@@ -203,7 +203,7 @@ class TestProcessProject:
         cache.db.get_views_many.return_value = {}
         page_rows = [
             {
-                "page_title": "Foo_bar",
+                "page_title": "Foo bar",
                 "redir_title": "",
                 "pa_class": "",
                 "pa_importance": "",
@@ -229,7 +229,7 @@ class TestUpdateReports:
         u, repo = updater
         page_rows = [
             {
-                "page_title": "Foo_bar",
+                "page_title": "Foo bar",
                 "redir_title": "",
                 "pa_class": "Unknown",
                 "pa_importance": "Unknown",

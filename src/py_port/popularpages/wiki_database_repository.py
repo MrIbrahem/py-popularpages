@@ -50,6 +50,12 @@ class WikiDatabaseRepository:
         placeholders = ", ".join(["%s"] * len(titles))
         logger.debug("Fetching timestamps for %d project(s)", len(titles))
 
+        # The replica DB stores page_title with underscores, but callers pass
+        # display-form titles (spaces). Convert back to DB form for the lookup,
+        # and normalise the returned page_title to spaces at the DB boundary so
+        # no downstream consumer has to.
+        db_titles = [t.replace(" ", "_") for t in titles]
+
         rows = self.db.select(
             f"""
             SELECT page_title, MAX(rev_timestamp) AS rev_timestamp
@@ -64,8 +70,12 @@ class WikiDatabaseRepository:
             AND page_namespace = 4 -- FIXME: assumes reports are in the Project namespace
             GROUP BY page_title
             """,
-            (self.username, *titles),
+            (self.username, *db_titles),
         )
+
+        for row in rows:
+            # Normalise db-key underscores to display spaces.
+            row["page_title"] = (row["page_title"] or "").replace("_", " ")
 
         return rows  # pyright: ignore[reportReturnType]
 
@@ -96,6 +106,12 @@ class WikiDatabaseRepository:
             AND page_namespace = 0
         """
         rows = self.db.select_safe(query, (project,))
+
+        # MediaWiki stores titles with underscores; normalise to display spaces
+        # at the DB boundary so every consumer receives titles without '_'.
+        for row in rows:
+            row["page_title"] = (row["page_title"] or "").replace("_", " ")
+            row["redir_title"] = (row["redir_title"] or "").replace("_", " ")
 
         return rows
 

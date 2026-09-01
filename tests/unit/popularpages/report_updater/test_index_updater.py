@@ -39,8 +39,8 @@ def _specs() -> list[tuple[str, str, str]]:
 
 
 def _report_key(report: str) -> str:
-    """The db-style title used as the ``page_title`` key in last-edit rows."""
-    return WikiProjectConfig.trim_report_prefix(report)
+    """The display title used as the ``page_title`` key in last-edit rows."""
+    return WikiProjectConfig.trim_report_prefix(report).replace("_", " ")
 
 
 def _build_json_config() -> dict[str, dict]:

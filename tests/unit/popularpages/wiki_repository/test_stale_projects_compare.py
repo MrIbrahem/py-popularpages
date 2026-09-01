@@ -6,11 +6,12 @@ implementations agree.
 
 The two functions differ in how they identify a project to drop:
 
-* ``get_stale_projects`` -> filters ``_config`` by
-  ``x.report_without_ns.replace(" ", "_") not in to_pop``, where ``to_pop``
-  contains ``project_main_page`` values.
+* ``get_stale_projects`` -> maps each project's display-form report title
+  (``x.report_title``) to its ``project_main_page``, looks up the bot's last
+  edit by that title, and keeps every project whose ``project_main_page`` is
+  not in ``to_pop``.
 
-The comparison assertions below document the expected (correct) behaviour and surface any divergence between the two "_".
+The comparison assertions below document the expected (correct) behaviour and _surface any divergence between the two._
 """
 
 from __future__ import annotations
@@ -80,10 +81,10 @@ def _build_configs() -> tuple[list[WikiProjectConfig], dict[str, dict]]:
 
 
 def _report_key(name: str) -> str:
-    """Report key (db-style title) for a project's Name, per the specs above."""
+    """Report key (display title) for a project's Name, per the specs above."""
     for _, report, n in _specs():
         if n == name:
-            return WikiProjectConfig.trim_report_prefix(report).replace(" ", "_")
+            return WikiProjectConfig.trim_report_prefix(report).replace("_", " ")
     raise KeyError(name)
 
 
@@ -102,7 +103,7 @@ def _expected_stale(config_objs: list[WikiProjectConfig], db_rows: list[dict]) -
     updated_pages = {
         r["page_title"] for r in db_rows if mediawiki_timestamp_to_epoch(r["rev_timestamp"]) >= FIRST_OF_MONTH
     }
-    return {c.Name for c in config_objs if c.report_without_ns not in updated_pages}
+    return {c.Name for c in config_objs if c.report_title not in updated_pages}
 
 
 # -- Fixtures ---------------------------------------------------

@@ -93,8 +93,8 @@ class ReportUpdater:
         """
         titles: set[str] = set()
         for row in page_rows:
-            target = (row["page_title"] or "").replace("_", " ")
-            redir = (row["redir_title"] or "").replace("_", " ")
+            target = row["page_title"] or ""
+            redir = row["redir_title"] or ""
             if target:
                 titles.add(target)
             if redir:
@@ -181,8 +181,8 @@ class ReportUpdater:
         unknown_msg = self.i18n.msg("unknown")
 
         for row in page_rows:
-            target = (row["page_title"] or "").replace("_", " ")
-            redir = (row["redir_title"] or "").replace("_", " ")
+            target = row["page_title"] or ""
+            redir = row["redir_title"] or ""
 
             if target not in out:
                 out[target] = {
