@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from src.py_port.popularpages.dumps_parser.bz2_dump_parser import (
+from src.py_port.popularpages.dumps_parser.pageviews_dumps_parser import (
     MalformedLineError,
     ParsedPageview,
 )

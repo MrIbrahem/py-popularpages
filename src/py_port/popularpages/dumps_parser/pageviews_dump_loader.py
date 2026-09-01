@@ -12,7 +12,7 @@ for wikis/months where the bulk dump is available, per the plan:
     3. Filter to only the wiki codes we actually care about (from
        ``config/wikis.yaml``).
     4. Aggregate monthly totals per title (``title`` is the aggregation key,
-       *not* ``page_id`` -- see :mod:`bz2_dump_parser` for why).
+       *not* ``page_id`` -- see :mod:`pageviews_dumps_parser` for why).
     5. Write results into the existing per-wiki/month SQLite cache via
        :class:`PageviewsDb`, using the existing ``PageView`` model, so
        downstream code needs no changes -- only the *source* changes.
@@ -30,7 +30,7 @@ from pathlib import Path
 
 from ..config import app_config
 from ..pageviews.pageviews_db import PageviewsDb
-from .bz2_dump_parser import MalformedLineError, ParsedPageview
+from .pageviews_dumps_parser import MalformedLineError, ParsedPageview
 
 logger = logging.getLogger(__name__)
 
