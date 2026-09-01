@@ -172,6 +172,7 @@ class TestGetViews:
     def test_empty_target_and_no_redirects_returns_zero(self, load_db):
         assert load_db.get_views("", []) == 0
 
+
 # ---------------------------------------------------
 # one_title_views
 # ---------------------------------------------------
@@ -183,6 +184,7 @@ class TestOneTitleViews:
 
     def test_missing_title_returns_zero(self, load_db: PageviewsDb):
         assert load_db.one_title_views("Nonexistent") is None
+
 
 # ---------------------------------------------------
 # get_views_many (bulk lookup used by large projects)
