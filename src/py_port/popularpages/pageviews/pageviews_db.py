@@ -27,7 +27,14 @@ class PageviewsDb:
 
     def __init__(self, db_file_path: Path) -> None:
         """
-        :param db_file_path: Path to the SQLite database file.
+        Open (creating if needed) the SQLite pageviews cache at the given path.
+
+        The SQLAlchemy engine and session factory are initialized here, and the
+        ``PageView`` table schema is created on first connection. The file is
+        created by SQLite automatically if it does not already exist.
+
+        Args:
+            db_file_path (Path): Path to the SQLite database file.
         """
         self.db_file_path = db_file_path
 
@@ -147,9 +154,16 @@ class PageviewsDb:
         """
         Return the total views for a target page plus its redirects.
 
-        :param target: Target page title (spaces).
-        :param redirects: Redirect titles (spaces) associated with the target.
-        :return: Sum of cached views across target + redirects.
+        Looks up the cached view counts for the target title and each of its
+        redirect titles, then sums them. A thin convenience wrapper around
+        :meth:`get_views_many` for the single-target case.
+
+        Args:
+            target (str): Target page title (spaces).
+            redirects (list[str]): Redirect titles (spaces) associated with the target.
+
+        Returns:
+            int: Sum of cached views across target + redirects.
         """
         return self.get_views_many({target: redirects}).get(target, 0)
 
