@@ -94,8 +94,24 @@ class ProjectPathsConfig:
             wikis_config_file=base_dir / "config" / "wikis.yaml",
         )
 
-    def load_wikis_config(self) -> dict:
-        """Load the wikis configuration from config/wikis.yaml."""
+    def load_wikis_config(self) -> dict[str, dict[str, str]]:
+        """
+        Load the wikis configuration from config/wikis.yaml.
+        Data example: {
+            "en.wikipedia": {
+                "database": "enwiki",
+                "index": "User:Community Tech bot/Popular pages",
+                "config": "Wikipedia:WikiProject/Popular pages config.json",
+                "category": "Category:Lists of popular pages by WikiProject"
+            },
+            "ar.wikipedia": {
+                "database": "arwiki",
+                "index": "ويكيبيديا:قائمة الصفحات الأكثر مشاهدة حسب مشروع الويكي",
+                "config": "ويكيبيديا:قائمة الصفحات الأكثر مشاهدة حسب مشروع الويكي/الإعدادات.json",
+                "category": "تصنيف:قائمة الصفحات الأكثر مشاهدة حسب مشروع الويكي"
+            }
+        }
+        """
         logger.debug("Loading wikis config from %s", self.wikis_config_file)
 
         data = yaml.safe_load(self.wikis_config_file.read_text(encoding="utf-8"))
@@ -140,6 +156,31 @@ class DataPathsConfig:
         data.views_data_dir.mkdir(parents=True, exist_ok=True)
 
         return data
+
+    def build_db_file_path(self, wiki: str, year_month: str, path_dir: Path | None = None) -> Path:
+        """Constructs and returns the database file path for a given wiki and month.
+
+        Creates the parent directories for the database file if they do not already exist.
+
+        Args:
+            wiki (str): The name or identifier of the wiki.
+            year_month (str): The year and month string, typically formatted as 'YYYY-MM'.
+            path_dir (Path | None, optional): The base directory where the database
+                file should be stored. Defaults to None, which falls back to
+                `self.views_data_dir`.
+
+        Returns:
+            Path: The full path to the SQLite3 database file.
+
+        Usage:
+            app_config.data_paths.build_db_file_path(wiki, year_month)
+        """
+        _path_dir: Path = path_dir or self.views_data_dir
+
+        _path: Path = _path_dir / wiki / f"{year_month}.sqlite3"
+        _path.parent.mkdir(parents=True, exist_ok=True)
+
+        return _path
 
 
 @dataclass(frozen=True)
