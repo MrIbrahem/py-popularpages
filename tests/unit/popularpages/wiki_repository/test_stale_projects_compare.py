@@ -10,8 +10,7 @@ The two functions differ in how they identify a project to drop:
   ``x.report_without_ns.replace(" ", "_") not in to_pop``, where ``to_pop``
   contains ``project_main_page`` values.
 
-The comparison assertions below document the expected (correct) behaviour and
-surface any divergence between the two.
+The comparison assertions below document the expected (correct) behaviour and surface any divergence between the two "_".
 """
 
 from __future__ import annotations

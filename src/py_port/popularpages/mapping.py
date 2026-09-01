@@ -56,6 +56,16 @@ class WikiProjectConfig:
     project_main_page: str
     report_without_ns: str
 
+    @property
+    def report_title(self) -> str:
+        """Display form of :attr:`report_without_ns` (spaces, not DB underscores).
+
+        The replica DB stores page titles with underscores; the value used for
+        mapping a returned title back to its project must therefore be the
+        space form, not the underscored db-key.
+        """
+        return self.report_without_ns.replace("_", " ")
+
     # These keys with the same name as the JSON keys from "Wikipedia:WikiProject/Popular pages config.json"
     Report: str
     Limit: int
