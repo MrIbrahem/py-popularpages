@@ -45,7 +45,7 @@ from pathlib import Path
 
 from popularpages.config import app_config
 
-from src.py_port.popularpages.dumps_parser.pageviews_dump_loader import (
+from popularpages.dumps_parser.pageviews_dump_loader import (
     DUMPS_ROOT,
     DumpNotFoundError,
     load_dump_into_cache,
