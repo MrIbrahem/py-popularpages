@@ -197,6 +197,9 @@ class ReportUpdater:
             target = row["page_title"] or ""
             redir = row["redir_title"] or ""
 
+            if not target:
+                continue
+
             if target not in out:
                 out[target] = {
                     "pageviews": 0,
@@ -220,10 +223,9 @@ class ReportUpdater:
 
             counts = await self.wiki_repository.get_monthly_pageviews_and_assessments(batches, start_date, end_date)
 
-        total_views = 0
+        total_views = sum(counts.values())
         for target, count in counts.items():
             out[target]["pageviews"] += count
-            total_views += count
 
         logger.info("[%s] Pageviews fetch complete", self.wiki)
         logger.info("Pageviews fetch complete: %d total pageviews", total_views)

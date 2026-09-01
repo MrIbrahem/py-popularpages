@@ -31,6 +31,7 @@ Example Data
     - 439,088,480 total dump lines
     - valid lines: 5,181,891 for ar.wikipedia
 
+Exit codes
 ----------
     0  Success (dump found and processed; individual malformed lines within
        the dump are logged and skipped, not treated as failure).

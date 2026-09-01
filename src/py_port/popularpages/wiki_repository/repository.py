@@ -12,11 +12,11 @@ that requires SQL.
 
 from __future__ import annotations
 
-from collections import defaultdict
 import json
 import logging
 import re
 import time
+from collections import defaultdict
 from pathlib import Path
 
 import httpx

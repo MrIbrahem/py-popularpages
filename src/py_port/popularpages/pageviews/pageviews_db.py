@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from collections import Counter
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 
@@ -218,14 +219,14 @@ class PageviewsDb:
         views_by_title = self._query_views_by_title(list(all_titles))
 
         # 3. Aggregate view counts back to each main target
-        result: dict[str, int] = {}
-        for target, redirects in targets_to_redirects.items():
-            total_views = views_by_title.get(target, 0)
-            for redirect in redirects:
-                total_views += views_by_title.get(redirect, 0)
-            result[target] = total_views
+        result: Counter[str] = Counter()
 
-        return result
+        for target, redirects in targets_to_redirects.items():
+            result[target] = views_by_title.get(target, 0) + sum(
+                views_by_title.get(redirect, 0) for redirect in redirects
+            )
+
+        return dict(result)
 
 
 __all__ = [

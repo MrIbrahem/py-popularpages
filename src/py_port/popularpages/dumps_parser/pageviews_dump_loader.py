@@ -24,10 +24,10 @@ Only ``wiki_code``, ``title``, and ``daily_total`` are used; ``page_id`` and
 from __future__ import annotations
 
 import bz2
-from collections import defaultdict
-from dataclasses import dataclass
 import logging
+from collections import defaultdict
 from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 from ..config import app_config
@@ -36,6 +36,7 @@ from ..utils import get_memory
 from .pageviews_dumps_parser import MalformedLineError, ParsedPageview
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class PageViewStats:
@@ -57,6 +58,7 @@ class PageViewStats:
             f"{self.valid_lines_count:,}",
             f"{self.zero_daily_total_count:,}",
         )
+
 
 class DumpNotFoundError(FileNotFoundError):
     """Raised when the expected monthly dump file doesn't exist on disk."""
@@ -233,11 +235,8 @@ class PageviewsDumpLoader:
         (multi-hour, multi-GB) run over a handful of bad rows.
         """
         totals_len: dict[str, int] = defaultdict(int)
-        totals: dict[str, dict[str, int]] = {}
+        totals: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         stats = PageViewStats()
-
-        for wiki in wanted_wiki_codes:
-            totals[wiki] = {}
 
         def _flush() -> None:
             # Update per-wiki distinct-title counts (titles only count once,
@@ -257,8 +256,7 @@ class PageviewsDumpLoader:
             # 3. clear the dicts to free memory, but keep the outer dict keys
             # for the next batch
             for wiki_code in totals.keys():
-                totals[wiki_code] = {}
-
+                totals[wiki_code] = defaultdict(int)
 
         wikis_count = defaultdict(int)
 
@@ -312,7 +310,7 @@ class PageviewsDumpLoader:
             if cache_title not in wiki_totals:
                 stats.accumulated_titles += 1
 
-            wiki_totals[cache_title] = wiki_totals.get(cache_title, 0) + parsed.daily_total
+            wiki_totals[cache_title] += parsed.daily_total
 
             if stats.accumulated_titles >= self._MAX_ACCUMULATED_TITLES:
                 _flush()
