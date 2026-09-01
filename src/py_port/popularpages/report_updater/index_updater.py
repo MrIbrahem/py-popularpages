@@ -125,7 +125,12 @@ class IndexUpdater:
     def update_index(self) -> None:
         """
         Update the index page listing each WikiProject, its report,
-        and when it was last updated."""
+        and when it was last updated.
+
+        Retrieves the latest project configurations and timestamps, renders the
+        index template with that data, and saves the result back to the wiki's
+        configured index page (or writes it to disk in dry-run mode).
+        """
         logger.info("Updating index page for wiki '%s'", self.wiki)
 
         list_config_obj = self.retrieve_project_updates()

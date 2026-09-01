@@ -54,11 +54,19 @@ class PageviewsCache:
         fetch_batch: int | None = None,
     ) -> None:
         """
-        :param wiki: Wiki domain, e.g. 'en.wikipedia'.
-        :param start: start date in datetime.date format
-        :param end: end date in datetime.date format
-        :param pageviews_repo: A ``PageviewsRepository`` instance used to fetch
-            any titles not already present in the cache.
+        Bind the cache to a wiki and reporting month.
+
+        Normalizes the start/end dates, derives the ``YYYY-MM`` key, and opens
+        (or creates) the backing SQLite file via :class:`PageviewsDb`. The
+        ``pageviews_repo`` is used to fetch any titles that are missing from the
+        cache during :meth:`ensure`.
+
+        Args:
+            wiki (str): Wiki domain, e.g. 'en.wikipedia'.
+            start (date | str): start date in datetime.date format
+            end (date | str): end date in datetime.date format
+            pageviews_repo (PageviewsRepository): A ``PageviewsRepository`` instance used to fetch
+                any titles not already present in the cache.
         """
         if fetch_batch is None:
             fetch_batch = app_config.pageviews.fetch_batch
@@ -102,7 +110,8 @@ class PageviewsCache:
         batches of :data:`config.pageviews.fetch_batch` and upserted into
         SQLite as they accumulate (committing once per batch).
 
-        :param titles: Unique article titles (spaces) to ensure.
+        Args:
+            titles (set[str]): Unique article titles (spaces) to ensure.
         """
         start_date = self.start.strftime("%Y%m%d00")
         end_date = self.end.strftime("%Y%m%d00")
