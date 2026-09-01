@@ -28,6 +28,8 @@ import logging
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
+from ..utils import get_memory
+
 from ..config import app_config
 from ..pageviews.pageviews_db import PageviewsDb
 from .pageviews_dumps_parser import MalformedLineError, ParsedPageview
@@ -121,7 +123,7 @@ def _aggregate_dump(
     for line in lines:
         line_count += 1
         if line_count % _PROGRESS_LOG_EVERY == 0:
-            # TODO: print memory usage
+            logger.info(get_memory())
             logger.info("Processed %s dump lines so far...", f"{line_count:,}")
             logger.info("malformed_count: %s, valid_lines_count: %s", f"{malformed_count:,}", f"{valid_lines_count:,}")
 
