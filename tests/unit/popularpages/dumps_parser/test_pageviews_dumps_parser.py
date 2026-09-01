@@ -79,7 +79,6 @@ def test_leading_special_character_titles(line, expected_title, expected_page_id
 # ---------------------------------------------------------------------------
 
 
-
 class TestTitle:
     def test_unescape_title_helper_directly(self):
         # Bare titles (no outer wrapping quotes) pass through unchanged.
@@ -93,7 +92,6 @@ class TestTitle:
         assert ParsedPageview.unescape_title('"\\"W\\"_تشير_الى_المنتهي"') == '"W"_تشير_الى_المنتهي'
         assert ParsedPageview.unescape_title('"\\"_\\""') == '"_"'
 
-
     def test_pure_quote_title(self):
         # Raw dump line: title field is literally "\"" which represents a
         # single-character title: "
@@ -103,14 +101,12 @@ class TestTitle:
         assert result.page_id == 3347002
         assert result.daily_total == 26
 
-
     def test_pure_quote_title_different_page_id(self):
         line = 'ar.wikipedia "\\"" 3371336 desktop 1 B1'
         result = ParsedPageview.parse(line)
         assert result.title == '"'
         assert result.page_id == 3371336
         assert result.daily_total == 1
-
 
     def test_mixed_quote_and_arabic_title(self):
         line = 'ar.wikipedia "\\"W\\"_تشير_الى_المنتهي" 7858501 desktop 7 E1F1J1P1T1U1X1'
@@ -119,7 +115,6 @@ class TestTitle:
         assert result.page_id == 7858501
         assert result.daily_total == 7
 
-
     def test_quote_underscore_quote_title(self):
         # title field "\"_\"" -> unescaped: "_"
         line = 'ar.wikipedia "\\"_\\"" 3347002 desktop 6 O1S1T1W1Y2'
@@ -127,7 +122,6 @@ class TestTitle:
         assert result.title == '"_"'
         assert result.page_id == 3347002
         assert result.daily_total == 6
-
 
     def test_quoted_english_title_with_internal_apostrophe(self):
         # Confirms apostrophes inside an already-quoted title survive untouched
@@ -141,7 +135,6 @@ class TestTitle:
         assert result.page_id is None
         assert result.daily_total == 1
 
-
     def test_quote_prefix_no_suffix_arabic_title(self):
         # title field "\"_لفيرجينيا_وولف (no closing internal quote in this one)
         line = 'ar.wikipedia "\\"_لفيرجينيا_وولف" null desktop 1 ]1'
@@ -149,7 +142,6 @@ class TestTitle:
         assert result.title == '"_لفيرجينيا_وولف'
         assert result.page_id is None
         assert result.daily_total == 1
-
 
     def test_quoted_arabic_only_title(self):
         line = 'ar.wikipedia "\\"أول_مكرر\\"" null mobile-web 1 E1'
@@ -164,6 +156,7 @@ class TestTitle:
 # 4. hourly_counts is discarded regardless of its (absent/odd) content
 # ---------------------------------------------------------------------------
 
+
 class TestHourlyCounts:
 
     def test_hourly_counts_with_backslash_is_ignored_safely(self):
@@ -173,7 +166,6 @@ class TestHourlyCounts:
         result = ParsedPageview.parse(line)
         assert result.title == "!!"
         assert result.daily_total == 4
-
 
     def test_daily_total_parses_even_with_trailing_junk(self):
         line = "ar.wikipedia !_(توضيح) 2481196 desktop 15 F2G1I1J2L1R1T1V1X1Y2]1_1"
@@ -203,6 +195,7 @@ def test_same_page_id_different_titles_are_distinct():
 # ---------------------------------------------------------------------------
 # 6. Malformed lines
 # ---------------------------------------------------------------------------
+
 
 def test_malformed_line_too_few_fields():
     with pytest.raises(MalformedLineError):
@@ -285,6 +278,7 @@ def test_full_fixture_aggregation_by_title_matches_expected_totals():
     # '"W"_تشير_الى_المنتهي' appears twice, same page_id: 7 + 2 = 9
     assert totals[("ar.wikipedia", '"W"_تشير_الى_المنتهي')] == 9
 
+
 class TestIsValid:
     # ---- page_id is None -> invalid regardless of title --------------------
 
@@ -351,10 +345,90 @@ class TestIsValid:
     def test_construct_directly_en_valid(self):
         obj = ParsedPageview(
             wiki_code="en.wikipedia",
-            title="Portal:Science",
+            title="Main_Page",
             page_id=999,
             agent="desktop",
             daily_total=1,
         )
         assert obj.is_valid() is True
 
+
+# ---------------------------------------------------------------------------
+# 8. Articles-only filter: non-article namespaces rejected per wiki
+# ---------------------------------------------------------------------------
+
+
+class TestIsValidArticlesOnly:
+    # ---- en.wikipedia namespace denylist ----------------------------------
+
+    @pytest.mark.parametrize(
+        "title",
+        [
+            "Special:WantedPages",
+            "Talk:Main_Page",
+            "User:Example",
+            "User_talk:Example",
+            "Category:Animals",
+            "File:Example.png",
+            "File_talk:Example.png",
+            "Template:Navbox",
+            "Template_talk:Navbox",
+            "Help:Contents",
+            "Help_talk:Contents",
+            "Portal:Science",
+            "Portal_talk:Science",
+            "Draft:Example",
+            "Draft_talk:Example",
+            "MediaWiki:Common.css",
+            "Module:Example",
+        ],
+    )
+    def test_en_non_article_namespaces_are_invalid(self, title):
+        obj = ParsedPageview.parse(f"en.wikipedia {title} 123 desktop 5 B1")
+        assert obj.is_valid() is False
+
+    def test_en_article_without_colon_is_valid(self):
+        obj = ParsedPageview.parse("en.wikipedia Main_Page 123 desktop 5 B1")
+        assert obj.is_valid() is True
+
+    def test_en_title_with_internal_colon_is_valid(self):
+        # A colon *inside* the title (not a namespace prefix) must stay valid.
+        obj = ParsedPageview.parse("en.wikipedia AT&T:_A_Time_Warner_Company 123 desktop 5 B1")
+        assert obj.is_valid() is True
+
+    def test_en_partial_namespace_substring_is_valid(self):
+        # "Special" without the trailing colon must NOT be treated as invalid.
+        obj = ParsedPageview.parse("en.wikipedia SpecialPages 101 desktop 5 B1")
+        assert obj.is_valid() is True
+
+    # ---- ar.wikipedia namespace denylist ----------------------------------
+
+    @pytest.mark.parametrize(
+        "title",
+        [
+            "خاص:صفحات_مطلوبة",  # Special
+            "نقاش:القاهرة",  # Talk
+            "نقاش_المستخدم:مثال",  # User talk
+            "مستخدم:مثال",  # User
+            "مستخدمة:مثال",  # User (feminine)
+            "تصنيف:حيوانات",  # Category
+            "نقاش_التصنيف:حيوانات",  # Category talk
+            "ملف:مثال.png",  # File
+            "نقاش_الملف:مثال.png",  # File talk
+            "قالب:ملاحة",  # Template
+            "نقاش_القالب:ملاحة",  # Template talk
+            "مساعدة:محتويات",  # Help
+            "نقاش_المساعدة:محتويات",  # Help talk
+            "بوابة:علم",  # Portal
+            "نقاش_البوابة:علم",  # Portal talk
+            "ميدياويكي:Common.css",  # MediaWiki
+            "وحدة:مثال",  # Module
+        ],
+    )
+    def test_ar_non_article_namespaces_are_invalid(self, title: str):
+        obj = ParsedPageview.parse(f"ar.wikipedia {title} 123 desktop 5 B1")
+        assert obj.is_valid() is False
+
+    def test_ar_article_without_colon_is_valid(self):
+        obj = ParsedPageview.parse("ar.wikipedia القاهرة 123 desktop 5 B1")
+        assert obj.is_valid() is True

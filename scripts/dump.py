@@ -1,9 +1,10 @@
 # python3 -c "
 import bz2
+from collections import defaultdict
 
 i_count = 0
 
-lens = {}
+lens = defaultdict(int)
 
 with bz2.open("pageviews-202607-user.bz2", "rt") as f:
     for line in f:
@@ -17,7 +18,6 @@ with bz2.open("pageviews-202607-user.bz2", "rt") as f:
 
         print(line, end="")
         len_line = len(line.split(" "))
-        lens.setdefault(len_line, 0)
         lens[len_line] += 1
 
 for k, v in lens.items():

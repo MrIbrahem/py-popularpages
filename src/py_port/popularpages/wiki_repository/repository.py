@@ -12,6 +12,7 @@ that requires SQL.
 
 from __future__ import annotations
 
+from collections import defaultdict
 import json
 import logging
 import re
@@ -523,7 +524,7 @@ class WikiRepository:
         items = list(batches.items())
         len_items = len(items)
 
-        views_by_title: dict[str, int] = {}
+        views_by_title: dict[str, int] = defaultdict(int)
 
         for chunk_start in range(0, len_items, chunk_size):
             chunk = dict(items[chunk_start : chunk_start + chunk_size])
@@ -540,7 +541,6 @@ class WikiRepository:
             logger.debug("Batch returned %d result(s)", len(batch_result))
 
             for title, count in batch_result.items():
-                views_by_title.setdefault(title, 0)
                 views_by_title[title] += count
 
         return views_by_title
