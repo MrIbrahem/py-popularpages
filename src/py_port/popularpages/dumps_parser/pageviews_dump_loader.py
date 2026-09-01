@@ -114,12 +114,15 @@ def _write_totals_to_cache(
             views_dir,
         )
 
+        logger.info("[%s] Writing %s titles to %s", wiki_code, f"{len(title_views):,}", db_file_path.name)
         db = PageviewsDb(db_file_path)
         try:
             # upsert_many_chunks will handle the batch_size
             db.upsert_many_chunks(title_views)
         finally:
             db.close_db()
+
+        logger.info("[%s] Upsert done", wiki_code)
 
 
 def _aggregate_dump(
