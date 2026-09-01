@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-
+import sqlite3
 from sqlalchemy import create_engine, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, sessionmaker
@@ -75,6 +75,36 @@ class PageviewsDb:
     # ---------------------------------------------------
     # Writes
     # ---------------------------------------------------
+
+    def upsert_many_chunks(self, title_views: dict[str, int]) -> None:
+        """
+        to solve sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) too many SQL variables
+        """
+        if not title_views:
+            return
+
+        # Only SQLite has the SQLITE_MAX_VARIABLE_NUMBER constraint we're
+        # working around here. For other dialects, fall back to a large chunk.
+        if self._engine.dialect.name == "sqlite":
+            # sqlite_version_info is a tuple (major, minor, patch); >= 3.32.0
+            # raises SQLITE_MAX_VARIABLE_NUMBER from 999 to 32766.
+            chunk_size = 30_000 if sqlite3.sqlite_version_info >= (3, 32, 0) else 900
+        else:
+            chunk_size = 3_000 # TODO: check it
+
+        if len(title_views) < chunk_size:
+            self.upsert_many(title_views)
+            return
+
+        total = len(title_views)
+        written = 0
+
+        for i in range(0, len(title_views), chunk_size):
+            batch = dict(list(title_views.items())[i : i + chunk_size])
+            self.upsert_many(batch)
+            written += len(batch)
+            logger.debug("Upserted %d/%d rows", written, total)
+
     def upsert_many(self, title_views: dict[str, int]) -> None:
         """Upsert a batch of title -> views pairs, committing once for the batch."""
         if not title_views:

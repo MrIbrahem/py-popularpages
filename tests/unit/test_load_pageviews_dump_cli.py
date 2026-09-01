@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 from src.py_port.load_pageviews_dump import EXIT_DUMP_NOT_FOUND, EXIT_ERROR, EXIT_OK, main
-from src.py_port.popularpages.dumps_parser.pageviews_dump_loader import dump_path_for_month
+from src.py_port.popularpages.dumps_parser.pageviews_dump_loader import _dump_path_for_month
 from src.py_port.popularpages.pageviews.pageviews_db import PageviewsDb
 
 FIXTURE_LINES = [
@@ -50,7 +50,7 @@ def project(tmp_path: Path):
     wikis_yaml.write_text(WIKIS_YAML_CONTENT, encoding="utf-8")
 
     dumps_root = tmp_path / "dumps"
-    dump_file = dump_path_for_month(2026, 7, root=dumps_root)
+    dump_file = _dump_path_for_month(2026, 7, root=dumps_root)
     dump_file.parent.mkdir(parents=True, exist_ok=True)
     with bz2.open(dump_file, "wt", encoding="utf-8") as f:
         for line in FIXTURE_LINES:

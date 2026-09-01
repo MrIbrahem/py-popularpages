@@ -25,6 +25,8 @@ Notes (confirmed against real dump samples):
   which we only need the first token (daily_total).
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -57,7 +59,7 @@ class ParsedPageview:
             '"\\"W\\"_x"'       -> '"W"_x'               (wrapped + escaped)
         """
 
-        raw_title = raw_title.replace("_", " ")
+        # raw_title = raw_title.replace("_", " ")
         # Check if the raw_title is wrapped in double quotes
         if len(raw_title) >= 2 and raw_title.startswith('"') and raw_title.endswith('"'):
             # Extract the inner content by removing the outer quotes
@@ -68,7 +70,7 @@ class ParsedPageview:
         return raw_title
 
     @classmethod
-    def parse(cls, line: str) -> "ParsedPageview":
+    def parse(cls, line: str) -> ParsedPageview:
         """
         Parse a single line of the pageview_complete dump.
 
