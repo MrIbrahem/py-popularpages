@@ -16,6 +16,12 @@ class WikiReplicaDB(WikiReplicaBaseDB):
 
     def __init__(self, wiki_identifier: str) -> None:
         self.maps = WikiReplicaMaps.get_instance()
+        # self.maps = WikiReplicaMaps(
+        #     WikiReplicaBaseDB(
+        #         dbname="meta_p",
+        #         host="s7.analytics.db.svc.wikimedia.cloud",
+        #     )
+        # )
 
         # wiki_identifier can be "arwiki", "enwiki", "ar", etc.
         info = self.maps.resolve_wiki(wiki_identifier)
