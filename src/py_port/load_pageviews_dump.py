@@ -25,6 +25,12 @@ Usage examples
         --dumps-root /path/to/fake/dumps \\
         --views-dir /path/to/data/views
 
+Example Data
+----------
+/public/dumps/public/other/pageview_complete/monthly/2026/2026-08/pageviews-202608-user.bz2
+    - 439,088,480 total dump lines
+    - valid lines: 5,181,891 for ar.wikipedia
+
 Exit codes
 ----------
     0  Success (dump found and processed; individual malformed lines within

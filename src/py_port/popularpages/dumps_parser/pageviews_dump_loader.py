@@ -24,9 +24,10 @@ Only ``wiki_code``, ``title``, and ``daily_total`` are used; ``page_id`` and
 from __future__ import annotations
 
 import bz2
-from collections import defaultdict
 import logging
+from collections import defaultdict
 from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 from ..config import app_config
@@ -35,6 +36,28 @@ from ..utils import get_memory
 from .pageviews_dumps_parser import MalformedLineError, ParsedPageview
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PageViewStats:
+    zero_daily_total_count = 0
+    malformed_count = 0
+    line_count = 0
+    valid_lines_count = 0
+    accumulated_titles = 0
+
+    def print_progress(self, finished: bool = False) -> None:
+        if finished:
+            logger.info("Finished processing %s total dump lines.", f"{self.line_count:,}")
+        else:
+            logger.info("Processed %s dump lines so far...", f"{self.line_count:,}")
+
+        logger.info(
+            "malformed_count: %s, with valid lines: %s, with zero total: %s",
+            f"{self.malformed_count:,}",
+            f"{self.valid_lines_count:,}",
+            f"{self.zero_daily_total_count:,}",
+        )
 
 
 class DumpNotFoundError(FileNotFoundError):
@@ -212,19 +235,10 @@ class PageviewsDumpLoader:
         (multi-hour, multi-GB) run over a handful of bad rows.
         """
         totals_len: dict[str, int] = defaultdict(int)
-        totals: dict[str, dict[str, int]] = {}
-
-        zero_daily_total_count = 0
-        malformed_count = 0
-        line_count = 0
-        valid_lines_count = 0
-        accumulated_titles = 0
-
-        for wiki in wanted_wiki_codes:
-            totals[wiki] = {}
+        totals: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        stats = PageViewStats()
 
         def _flush() -> None:
-            nonlocal accumulated_titles
             # Update per-wiki distinct-title counts (titles only count once,
             # even though the dict holds their running total which may
             # change on later flushes for the same title).
@@ -242,23 +256,15 @@ class PageviewsDumpLoader:
             # 3. clear the dicts to free memory, but keep the outer dict keys
             # for the next batch
             for wiki_code in totals.keys():
-                totals[wiki_code] = {}
-
-            accumulated_titles = 0
+                totals[wiki_code] = defaultdict(int)
 
         wikis_count = defaultdict(int)
 
         for line in lines:
-            line_count += 1
-            if line_count % self._PROGRESS_LOG_EVERY == 0:
+            stats.line_count += 1
+            if stats.line_count % self._PROGRESS_LOG_EVERY == 0:
                 logger.info(get_memory())
-                logger.info("Processed %s dump lines so far...", f"{line_count:,}")
-                logger.info(
-                    "malformed_count: %s, with valid lines: %s, with zero total: %s",
-                    f"{malformed_count:,}",
-                    f"{valid_lines_count:,}",
-                    f"{zero_daily_total_count:,}",
-                )
+                stats.print_progress()
 
             # Cheap pre-filter before doing any real parsing work: every line
             # starts with "wiki_code ", so we can reject the vast majority of
@@ -278,7 +284,7 @@ class PageviewsDumpLoader:
             try:
                 parsed = ParsedPageview.parse(line)
             except MalformedLineError:
-                malformed_count += 1
+                stats.malformed_count += 1
                 logger.debug("Skipping malformed line: %r", line)
                 continue
 
@@ -289,37 +295,32 @@ class PageviewsDumpLoader:
                 if wanted_titles is not None and cache_title not in wanted_titles:
                     continue
 
-            valid_lines_count += 1
-
-            wiki_totals = totals[parsed.wiki_code]
-            if cache_title not in wiki_totals:
-                accumulated_titles += 1
+            if parsed.daily_total == 0:
+                stats.zero_daily_total_count += 1
+                continue
 
             # skip invalid lines (non-article namespace or missing page_id).
             if not parsed.is_valid():
                 continue
 
-            if parsed.daily_total == 0:
-                zero_daily_total_count += 1
-                continue
+            # at this point the line is valid
+            stats.valid_lines_count += 1
 
-            wiki_totals[cache_title] = wiki_totals.get(cache_title, 0) + parsed.daily_total
+            wiki_totals = totals[parsed.wiki_code]
+            if cache_title not in wiki_totals:
+                stats.accumulated_titles += 1
 
-            if accumulated_titles >= self._MAX_ACCUMULATED_TITLES:
+            wiki_totals[cache_title] += parsed.daily_total
+
+            if stats.accumulated_titles >= self._MAX_ACCUMULATED_TITLES:
                 _flush()
+                stats.accumulated_titles = 0
 
         # Save any remaining buffered titles to cache.
         _flush()
+        stats.accumulated_titles = 0
 
-        if malformed_count:
-            logger.warning("Skipped %d malformed line(s) while processing dump.", malformed_count)
-
-        logger.info(
-            "Finished processing %s total dump lines., with valid lines: %s, with zero total: %s",
-            f"{line_count:,}",
-            f"{valid_lines_count:,}",
-            f"{zero_daily_total_count:,}",
-        )
+        stats.print_progress(finished=True)
 
         # sort wikis_count by value
         wikis_count = dict(sorted(wikis_count.items(), key=lambda x: x[1], reverse=True))

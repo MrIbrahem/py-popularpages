@@ -5,6 +5,7 @@ Ported from bin/generateReport.php.
 
 Example:
     - python3 src/py_port/generate_report.py --wiki en.wikipedia --project Dinosaurs
+    - python3 py_port/generate_report.py --wiki ar.wikipedia --project عمارة
 """
 
 from __future__ import annotations

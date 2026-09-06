@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import defaultdict
 from typing import Any
 from urllib.parse import quote
 
@@ -188,6 +189,16 @@ class PageviewsRepository:
             all_titles.add(key)
             all_titles.update(t for t in titles if t)
 
+        # Build a title -> targets reverse index so each unique title is mapped
+        # back to its targets in O(1) per title instead of an O(T^2) nested scan.
+        # A set per target de-duplicates titles that appear as both a target key
+        # and an entry in that target's redirect list (which the original
+        # single-add-per-target loop also collapsed via `break`).
+        title_to_targets: dict[str, set[str]] = defaultdict(set)
+        for target, titles in batch.items():
+            for t in (target, *titles):
+                title_to_targets[t].add(target)
+
         logger.info(
             "Fetching pageviews for %d target(s) across %d unique titles (start=%s, end=%s)",
             len(target_titles),
@@ -212,10 +223,8 @@ class PageviewsRepository:
         views_by_title = dict(results)
 
         for title, count in views_by_title.items():
-            for target in target_titles:
-                if title == target or title in batch[target]:
-                    pageviews[target] += count
-                    break
+            for target in title_to_targets.get(title, ()):
+                pageviews[target] += count
 
         return pageviews
 
