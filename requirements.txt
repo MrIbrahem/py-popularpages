@@ -6,7 +6,7 @@ tenacity>=8.2
 httpx>=0.27
 jsonlines>=4.0
 sqlalchemy>=2.0
-wikitextparser
+wikitextparser>=2.0.0
 python-dotenv>=1.0
 tenacity
 jinja2
