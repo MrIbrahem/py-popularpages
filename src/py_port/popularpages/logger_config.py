@@ -65,7 +65,7 @@ def setup_logging(
         return
 
     if use_colorlog is None:
-        use_colorlog = bool(os.getenv("USE_COLORLOG")) or False
+        use_colorlog = sys.stderr.isatty()
 
     numeric_level = getattr(logging, level.upper(), logging.INFO) if isinstance(level, str) else level
     project_logger.setLevel(numeric_level)
