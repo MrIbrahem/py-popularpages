@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 
 class PageviewsDb:
-
     # Conservative chunk size, safely under SQLite's SQLITE_MAX_VARIABLE_NUMBER
     # even on older builds that cap at 999 (vs. 32766 on SQLite >=3.32.0).
     # See: https://www.sqlite.org/limits.html#max_variable_number

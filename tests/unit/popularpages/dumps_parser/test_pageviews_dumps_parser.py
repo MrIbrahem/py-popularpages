@@ -158,7 +158,6 @@ class TestTitle:
 
 
 class TestHourlyCounts:
-
     def test_hourly_counts_with_backslash_is_ignored_safely(self):
         # hourly_counts here contains a literal backslash char - must not
         # affect title/daily_total parsing since it's never inspected.

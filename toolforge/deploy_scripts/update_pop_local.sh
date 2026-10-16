@@ -25,6 +25,8 @@ export COPY_TO_TARGET=""
 
 TARGET_DIR="REPOS_2026/py-popularpages"
 
+export REPO_NAME="popularpages"
+
 # Execute the local deployment script directly without cloning from GitHub
 # We copy the script to ~/deploy_scripts/ first from the github action workflow, then call it
 $HOME/deploy_scripts/deploy_from_local.sh "$REPO_TMP_DIR" "$TARGET_DIR"

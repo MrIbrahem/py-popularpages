@@ -4,8 +4,8 @@
 **Date:** 2025
 **Subject repos:**
 
--   Python (current, under analysis): `/root/codes/py-popularpages` (this project)
--   PHP (original): `https://github.com/MrIbrahem/popularpages` (cloned to `/root/codes/popularpages-php`)
+- Python (current, under analysis): `/root/codes/py-popularpages` (this project)
+- PHP (original): `https://github.com/MrIbrahem/popularpages` (cloned to `/root/codes/popularpages-php`)
 
 **Method.** Both repositories were cloned/checked out and read file‑by‑file at the source level, not just the README. The Python test suite was installed and executed (`pytest`) to confirm real behavior. Targeted micro‑experiments were run to confirm URL‑encoding and PyMySQL binary‑column behavior. Where a claim could not be confirmed at runtime (live wiki/DB needed), it is explicitly labeled **inference** or **unverified**.
 
@@ -39,13 +39,13 @@ Status legend: **Fully implemented**, **Partially implemented**, **Not implement
 | WikiRepository (API + DB)         | `src/WikiRepository.php`                              | `src/popularpages/wiki_repository.py`          | Implemented differently / **Partial** | All public methods ported (login, does_title_exist, has_lead_section, get_project_pages, get_monthly_pageviews_and_assessments, set_text, get_json_config, get_stale_projects, get_projects_with_last_bot_timestamp, get_project, get_bot_last_edit_date, get_assessment_config). SQL identical. **But** mwclient replaces hand‑rolled `apiQuery()`, and the PyMySQL `bytes` issue (§3) likely breaks two paths at runtime. |
 | PageviewsRepository (REST client) | `src/PageviewsRepository.php`                         | `src/popularpages/pageviews_repository.py`     | **Partially implemented**             | Batches, sums, redirects, 404 handling, 3s timeouts ported. **But** confirmed missing URL‑encoding (§3) and narrower retry config.                                                                                                                                                                                                                                                                                          |
 | ReportUpdater (orchestration)     | `src/ReportUpdater.php`                               | `src/popularpages/report_updater.py`           | Fully implemented                     | `update_reports`, `process_project`, `update_index`, `validate_project_config`, Twig helpers all ported to Jinja2. See §3 for date/tz/section nuances.                                                                                                                                                                                                                                                                      |
-| CLI: checkReports                 | `bin/checkReports.php`                                | `src/popularpages/check_reports.py`        | Implemented differently               | Same flow; **adds a multi‑wiki mode** (runs all wikis if `--wiki` omitted). PHP only ever runs one wiki.                                                                                                                                                                                                                                                                                                                    |
-| CLI: generateReport               | `bin/generateReport.php`                              | `src/popularpages/generate_report.py`      | Implemented differently               | Same behavior; uses `argparse` with named `--wiki`/`--dry-run` and a positional `project` (PHP used positional argv[1..3]).                                                                                                                                                                                                                                                                                                 |
-| CLI: generateIndex                | `bin/generateIndex.php`                               | `src/popularpages/generate_index.py`       | Fully implemented                     | Same one‑arg behavior.                                                                                                                                                                                                                                                                                                                                                                                                      |
+| CLI: checkReports                 | `bin/checkReports.php`                                | `src/popularpages/check_reports.py`            | Implemented differently               | Same flow; **adds a multi‑wiki mode** (runs all wikis if `--wiki` omitted). PHP only ever runs one wiki.                                                                                                                                                                                                                                                                                                                    |
+| CLI: generateReport               | `bin/generateReport.php`                              | `src/popularpages/generate_report.py`          | Implemented differently               | Same behavior; uses `argparse` with named `--wiki`/`--dry-run` and a positional `project` (PHP used positional argv[1..3]).                                                                                                                                                                                                                                                                                                 |
+| CLI: generateIndex                | `bin/generateIndex.php`                               | `src/popularpages/generate_index.py`           | Fully implemented                     | Same one‑arg behavior.                                                                                                                                                                                                                                                                                                                                                                                                      |
 | i18n (Intuition)                  | `krinkle/intuition`                                   | `src/popularpages/i18n.py` (`I18n`)            | Fully implemented                     | Custom `$1/$2` substitution reading the **identical** `messages/*.json`. Arabic + English present and byte‑identical to PHP.                                                                                                                                                                                                                                                                                                |
 | Report/index templates            | `views/*.twig`                                        | `views/*.jinja`                                | Fully implemented                     | `{% verbatim %}`→`{% raw %}`, `replace({' ':'_'})`→`replace(' ','_')`, Twig `date('Y-m-d')`→custom `_format_date`. Output is equivalent.                                                                                                                                                                                                                                                                                    |
 | Config: wikis.yaml                | `config/wikis.yaml`                                   | `config/wikis.yaml`                            | Fully implemented                     | **Byte‑identical** between repos.                                                                                                                                                                                                                                                                                                                                                                                           |
-| Config: .env                        | `config.ini.example`                                  | `.env.example`                                 | Implemented differently               | Credentials now sourced from environment variables via python-dotenv (`.env.example` is the template, copied to `.env`). No INI parsing/quote‑stripping; `dbport` defaults to `3306`.                                                                                                                                                                                                                    |
+| Config: .env                      | `config.ini.example`                                  | `.env.example`                                 | Implemented differently               | Credentials now sourced from environment variables via python-dotenv (`.env.example` is the template, copied to `.env`). No INI parsing/quote‑stripping; `dbport` defaults to `3306`.                                                                                                                                                                                                                                       |
 | Assessment config fetch           | `WikiRepository::getAssessmentConfig`                 | `wiki_repository.get_assessment_config`        | Fully implemented                     | Same XTools endpoint, same caching.                                                                                                                                                                                                                                                                                                                                                                                         |
 | Tests                             | `tests/WikiRepositoryTest.php` (PHPUnit, mostly live) | `tests/test_*.py` (pytest + mocks)             | **Partially implemented**             | More granular unit tests added, but the suite fails in a clean checkout (1 fail + 1 error). Two live tests kept as skipped.                                                                                                                                                                                                                                                                                                 |
 | CI                                | `.github/workflows/php.yml` (phpcs only)              | `.github/workflows/python.yml` (ruff + pytest) | Implemented differently               | Python CI actually runs tests; PHP CI only lints.                                                                                                                                                                                                                                                                                                                                                                           |
@@ -58,80 +58,80 @@ Status legend: **Fully implemented**, **Partially implemented**, **Not implement
 
 ### 2.1 Architecture & project structure
 
--   PHP: flat `src/*.php` + global helper `wfLogToFile()`; entry points in `bin/`.
--   Python: package `src/popularpages/` with modules; entry points in `src/popularpages/` exposed as console scripts `popularpages-check|report|index` (`pyproject.toml` `[project.scripts]`). A new `utils.py` holds helpers that were inline in PHP (`uc_first`, `previous_month_range`, timestamp converters). The migration‑plan doc (`popularpages-php-to-python-migration-plan.md`, 28KB) is **added** in the Python repo and has no PHP counterpart.
+- PHP: flat `src/*.php` + global helper `wfLogToFile()`; entry points in `bin/`.
+- Python: package `src/popularpages/` with modules; entry points in `src/popularpages/` exposed as console scripts `popularpages-check|report|index` (`pyproject.toml` `[project.scripts]`). A new `utils.py` holds helpers that were inline in PHP (`uc_first`, `previous_month_range`, timestamp converters). The migration‑plan doc (`popularpages-php-to-python-migration-plan.md`, 28KB) is **added** in the Python repo and has no PHP counterpart.
 
 ### 2.2 Business logic
 
--   Previous‑month range: PHP `strtotime('first day of previous month')`/`('last day of previous month')`; Python `previous_month_range(date.today())` (`utils.py`) returns `date` objects. Verified equivalent for mid‑year and year‑boundary (`tests/test_utils.py`, `test_previous_month_range_*`).
--   Daily average: PHP `floor(pageviews / daysInMonth)`; Python `pageviews // daysInMonth`. Equal for non‑negative counts.
--   Sorting/limit: PHP `uasort` descending + `array_slice`; Python `sorted(..., reverse=True)[:limit]`. Equivalent; PHP <8 sort was not stable (negligible for ties).
--   1,000,000‑row guard (T164178): present and identical in both.
--   Batch threshold of 60: preserved (`config.py::BATCH_SIZE_THRESHOLD`, comment preserved).
+- Previous‑month range: PHP `strtotime('first day of previous month')`/`('last day of previous month')`; Python `previous_month_range(date.today())` (`utils.py`) returns `date` objects. Verified equivalent for mid‑year and year‑boundary (`tests/test_utils.py`, `test_previous_month_range_*`).
+- Daily average: PHP `floor(pageviews / daysInMonth)`; Python `pageviews // daysInMonth`. Equal for non‑negative counts.
+- Sorting/limit: PHP `uasort` descending + `array_slice`; Python `sorted(..., reverse=True)[:limit]`. Equivalent; PHP <8 sort was not stable (negligible for ties).
+- 1,000,000‑row guard (T164178): present and identical in both.
+- Batch threshold of 60: preserved (`config.py::BATCH_SIZE_THRESHOLD`, comment preserved).
 
 ### 2.3 Database schema & operations
 
--   All four SQL statements are **copied verbatim** (escaping the namespace `= 4` assumptions and the `revision_userindex`/`actor` joins). Queries: `get_project_pages`, `get_projects_with_last_bot_timestamp`, plus the stale‑project filter logic.
--   **Driver change (critical):** PHP `mysqli` returns `BINARY(14)`/`VARBINARY(255)` columns (e.g. `rev_timestamp`, `page_title`, `redir_title`) as **strings**; Python **PyMySQL returns them as `bytes`** by default. This is the single biggest DB‑behavior difference. Effects:
-    -   `get_stale_projects()` → `mediawiki_timestamp_to_epoch(row["rev_timestamp"])` calls `datetime.strptime(bytes, …)` → **`TypeError` (hard crash)**.
-    -   `update_index()` → `datetime.strptime(str(rev_date), …)` where `str(b'...')` is `"b'...'"` → **`ValueError` (hard crash)**.
-    -   `get_monthly_pageviews_and_assessments()` → `row["page_title"]` is `bytes`; building the pageviews URL via f‑string yields `/metrics/user/b'Foo_Bar'/monthly` → **malformed URL → 404 → 0 pageviews (silent wrong result)**.
-    -   PHP `getProjectsWithLastBotTimestamp` uses `fetch_all(MYSQLI_ASSOC)`; Python uses `pymysql.cursors.DictCursor` — equivalent shape.
+- All four SQL statements are **copied verbatim** (escaping the namespace `= 4` assumptions and the `revision_userindex`/`actor` joins). Queries: `get_project_pages`, `get_projects_with_last_bot_timestamp`, plus the stale‑project filter logic.
+- **Driver change (critical):** PHP `mysqli` returns `BINARY(14)`/`VARBINARY(255)` columns (e.g. `rev_timestamp`, `page_title`, `redir_title`) as **strings**; Python **PyMySQL returns them as `bytes`** by default. This is the single biggest DB‑behavior difference. Effects:
+    - `get_stale_projects()` → `mediawiki_timestamp_to_epoch(row["rev_timestamp"])` calls `datetime.strptime(bytes, …)` → **`TypeError` (hard crash)**.
+    - `update_index()` → `datetime.strptime(str(rev_date), …)` where `str(b'...')` is `"b'...'"` → **`ValueError` (hard crash)**.
+    - `get_monthly_pageviews_and_assessments()` → `row["page_title"]` is `bytes`; building the pageviews URL via f‑string yields `/metrics/user/b'Foo_Bar'/monthly` → **malformed URL → 404 → 0 pageviews (silent wrong result)**.
+    - PHP `getProjectsWithLastBotTimestamp` uses `fetch_all(MYSQLI_ASSOC)`; Python uses `pymysql.cursors.DictCursor` — equivalent shape.
 
 ### 2.4 APIs & external integrations
 
--   **MediaWiki Action API:** PHP `addwiki/mediawiki-api-base` (`FluentRequest` + `apiQuery` wrapper with a single retry‑on‑exception). Python uses **`mwclient`** (`Site.api`, `Site.login`, `page.edit`). mwclient manages tokens and transparent re‑login; the PHP "log exception and retry once" wrapper is not directly replicated (mwclient has its own internal retries).
--   **Pageviews REST API:** PHP `GuzzleHttp` async promises (`Utils::settle`); Python `httpx.AsyncClient` + `asyncio.gather`. Endpoint, path layout, timeouts (3s/3s), and 500ms inter‑request delay are preserved **in value** but the **encoding and pacing model differ** (see §3).
--   **XTools assessments API:** identical endpoint/usage; Python has a 10s `httpx` timeout, PHP uses Guzzle defaults.
+- **MediaWiki Action API:** PHP `addwiki/mediawiki-api-base` (`FluentRequest` + `apiQuery` wrapper with a single retry‑on‑exception). Python uses **`mwclient`** (`Site.api`, `Site.login`, `page.edit`). mwclient manages tokens and transparent re‑login; the PHP "log exception and retry once" wrapper is not directly replicated (mwclient has its own internal retries).
+- **Pageviews REST API:** PHP `GuzzleHttp` async promises (`Utils::settle`); Python `httpx.AsyncClient` + `asyncio.gather`. Endpoint, path layout, timeouts (3s/3s), and 500ms inter‑request delay are preserved **in value** but the **encoding and pacing model differ** (see §3).
+- **XTools assessments API:** identical endpoint/usage; Python has a 10s `httpx` timeout, PHP uses Guzzle defaults.
 
 ### 2.5 Authentication / authorization
 
--   Both log in with a BotPassword (`botuser`/`botpass`). Python uses `mwclient.Site.login`; PHP uses `ApiUser` + `MediawikiApi::login`. Both set `bot=true` on edits. Python additionally retries once on `LoginError` (PHP re‑logs in inside `setText` only if `!isLoggedin()`).
+- Both log in with a BotPassword (`botuser`/`botpass`). Python uses `mwclient.Site.login`; PHP uses `ApiUser` + `MediawikiApi::login`. Both set `bot=true` on edits. Python additionally retries once on `LoginError` (PHP re‑logs in inside `setText` only if `!isLoggedin()`).
 
 ### 2.6 Background jobs & scheduled tasks
 
--   No cron/scheduler code in either repo; both rely on external cron (`0 0 1 * *`). PHP README documents one cron per wiki; Python adds a single‑invocation **multi‑wiki** mode. Rate‑limit behavior differs (see §3).
+- No cron/scheduler code in either repo; both rely on external cron (`0 0 1 * *`). PHP README documents one cron per wiki; Python adds a single‑invocation **multi‑wiki** mode. Rate‑limit behavior differs (see §3).
 
 ### 2.7 Web routes / endpoints
 
--   Neither project serves HTTP endpoints; both are CLI bots that _write_ to the wiki via the API. (The "index" and "report" outputs are wiki pages, not web routes.)
+- Neither project serves HTTP endpoints; both are CLI bots that _write_ to the wiki via the API. (The "index" and "report" outputs are wiki pages, not web routes.)
 
 ### 2.8 Data processing / parsing
 
--   JSON config parse + removal of the `description` key: identical.
--   Pageviews summing + article‑name normalization (`_`→space) on the **last** reversed item: identical (both iterate `reversed(items)` and overwrite `article`).
--   Redirect aggregation by target: identical (first‑match wins).
+- JSON config parse + removal of the `description` key: identical.
+- Pageviews summing + article‑name normalization (`_`→space) on the **last** reversed item: identical (both iterate `reversed(items)` and overwrite `article`).
+- Redirect aggregation by target: identical (first‑match wins).
 
 ### 2.9 Caching
 
--   Assessment config is cached in‑memory per `WikiRepository` instance in both. No external cache (Redis/Memcached) in either.
+- Assessment config is cached in‑memory per `WikiRepository` instance in both. No external cache (Redis/Memcached) in either.
 
 ### 2.10 Error handling
 
--   PHP `setText`/`apiQuery` swallow **all** exceptions to keep the batch run going. Python `set_text` catches `LoginError` (retry once) then a broad `Exception` → `result=None`. Equivalent resilience intent.
--   PHP `getPageviews` discards any failed promise; Python `fetch_one` catches `HTTPStatusError`/`HTTPError` and returns `None` per title. Equivalent.
--   **Difference:** PHP's `processResponse` returns `null` on empty `items`; calling `[$page,$count] = null` would emit a PHP warning. Python `_process_response` returns the **tuple `(None, None)`**, which the caller unpacks safely — so Python is _more_ robust here. (This also exposes a broken internal test — see §4.)
+- PHP `setText`/`apiQuery` swallow **all** exceptions to keep the batch run going. Python `set_text` catches `LoginError` (retry once) then a broad `Exception` → `result=None`. Equivalent resilience intent.
+- PHP `getPageviews` discards any failed promise; Python `fetch_one` catches `HTTPStatusError`/`HTTPError` and returns `None` per title. Equivalent.
+- **Difference:** PHP's `processResponse` returns `null` on empty `items`; calling `[$page,$count] = null` would emit a PHP warning. Python `_process_response` returns the **tuple `(None, None)`**, which the caller unpacks safely — so Python is _more_ robust here. (This also exposes a broken internal test — see §4.)
 
 ### 2.11 Logging
 
--   Same file/format. **Timezone difference:** PHP entry scripts call `date_default_timezone_set('UTC')`, so `date()` is UTC. Python `log_to_file` uses `datetime.now()` = **system local time** (no UTC pin). On a UTC host the output matches; otherwise log timestamps diverge from PHP.
+- Same file/format. **Timezone difference:** PHP entry scripts call `date_default_timezone_set('UTC')`, so `date()` is UTC. Python `log_to_file` uses `datetime.now()` = **system local time** (no UTC pin). On a UTC host the output matches; otherwise log timestamps diverge from PHP.
 
 ### 2.12 Configuration & environment variables
 
--   Credentials are now read from **environment variables** via python-dotenv, with `.env.example` as the committed template (copied to `.env`, which is git‑ignored). The flat `creds` mapping (`botuser`, `botpass`, `dbhost`, `dbuser`, `dbpass`, `dbport`) is assembled in `config.load_credentials()`, so no INI parsing or quote‑stripping is needed. `dbport` defaults to `3306`.
--   Python adds `pyproject.toml` config (ruff/black/isort/pyright/coverage); PHP adds `phpcs.xml`.
+- Credentials are now read from **environment variables** via python-dotenv, with `.env.example` as the committed template (copied to `.env`, which is git‑ignored). The flat `creds` mapping (`botuser`, `botpass`, `dbhost`, `dbuser`, `dbpass`, `dbport`) is assembled in `config.load_credentials()`, so no INI parsing or quote‑stripping is needed. `dbport` defaults to `3306`.
+- Python adds `pyproject.toml` config (ruff/black/isort/pyright/coverage); PHP adds `phpcs.xml`.
 
 ### 2.13 Performance‑related behavior
 
--   **Request pacing:** PHP sets Guzzle `delay => 500` (Guzzle units are **seconds** per docs, though the PHP comment claims ms) and dispatches requests with that gap; Python sleeps `0.5s` inside each coroutine but `asyncio.gather` launches them near‑simultaneously, so requests **burst** ~0.5s after batch start rather than being staggered. This can hit the Pageviews API harder and trigger more 429/503s. Verify the actual effective `delay` — this is a unit/semantics ambiguity (see §3).
--   Async model: Python is `async` throughout pageviews; PHP uses promises. Functionally equivalent throughput, different shape.
+- **Request pacing:** PHP sets Guzzle `delay => 500` (Guzzle units are **seconds** per docs, though the PHP comment claims ms) and dispatches requests with that gap; Python sleeps `0.5s` inside each coroutine but `asyncio.gather` launches them near‑simultaneously, so requests **burst** ~0.5s after batch start rather than being staggered. This can hit the Pageviews API harder and trigger more 429/503s. Verify the actual effective `delay` — this is a unit/semantics ambiguity (see §3).
+- Async model: Python is `async` throughout pageviews; PHP uses promises. Functionally equivalent throughput, different shape.
 
 ### 2.14 Security
 
--   Both keep credentials out of version control (git‑ignored `.env` in Python, git‑ignored `config.ini` in PHP). Both use HTTPS endpoints.
--   Python `i18n.msg` does literal `$n` substring replacement — same XSS/ injection surface as Intuition (messages are trusted, static files). No user input reaches message keys.
--   No SQL injection: both use parameterized queries.
--   Minor: Python's `set_text` dry‑run `print`s a dict (safe); PHP `print_r`s params (safe).
+- Both keep credentials out of version control (git‑ignored `.env` in Python, git‑ignored `config.ini` in PHP). Both use HTTPS endpoints.
+- Python `i18n.msg` does literal `$n` substring replacement — same XSS/ injection surface as Intuition (messages are trusted, static files). No user input reaches message keys.
+- No SQL injection: both use parameterized queries.
+- Minor: Python's `set_text` dry‑run `print`s a dict (safe); PHP `print_r`s params (safe).
 
 ### 2.15 Dependencies
 
@@ -149,13 +149,13 @@ Status legend: **Fully implemented**, **Partially implemented**, **Not implement
 
 ### 2.16 CLI commands / scripts
 
--   PHP `checkReports.php en.wikipedia` → processes **one** wiki. Python `popularpages-check` (no arg) → processes **all** wikis in `wikis.yaml`; `--wiki X` scopes to one. This is the most user‑visible behavior change.
--   `generateReport.php en.wikipedia "Project"` → Python `popularpages-report --wiki en.wikipedia "Project"`.
--   `generateIndex.php en.wikipedia` → Python `popularpages-index --wiki en.wikipedia`.
+- PHP `checkReports.php en.wikipedia` → processes **one** wiki. Python `popularpages-check` (no arg) → processes **all** wikis in `wikis.yaml`; `--wiki X` scopes to one. This is the most user‑visible behavior change.
+- `generateReport.php en.wikipedia "Project"` → Python `popularpages-report --wiki en.wikipedia "Project"`.
+- `generateIndex.php en.wikipedia` → Python `popularpages-index --wiki en.wikipedia`.
 
 ### 2.17 Deployment / runtime
 
--   Both require credentials (`.env` in Python, `config.ini` in PHP) + external cron. Python installs via `pip install -e .` and exposes console scripts. PHP via `composer install` + `bin/*.php`. Python requires Python ≥3.10; PHP ≥8.1.
+- Both require credentials (`.env` in Python, `config.ini` in PHP) + external cron. Python installs via `pip install -e .` and exposes console scripts. PHP via `composer install` + `bin/*.php`. Python requires Python ≥3.10; PHP ≥8.1.
 
 ---
 
@@ -169,9 +169,9 @@ Status legend: **Fully implemented**, **Partially implemented**, **Not implement
 
 Confirmed by PyMySQL source/converters and by the MediaWiki schema (`page_title VARBINARY(255)`, `rev_timestamp BINARY(14)`). The PHP `mysqli` returns these as `str`. Consequences (demonstrated locally with `bytes` inputs):
 
--   `get_stale_projects()` → `TypeError` in `strptime`.
--   `update_index()` → `ValueError` (parses `"b'…'"`).
--   `get_monthly_pageviews_and_assessments()` → malformed title URL → wrong/zero pageviews.
+- `get_stale_projects()` → `TypeError` in `strptime`.
+- `update_index()` → `ValueError` (parses `"b'…'"`).
+- `get_monthly_pageviews_and_assessments()` → malformed title URL → wrong/zero pageviews.
 
 The two tests that would catch this (`test_get_project_pages`, `test_get_monthly_pageviews`) are **skipped** (`@pytest.mark.skip`) — they were `er`-prefixed (disabled) in PHP too. **This is the top risk and could be a runtime blocker.** **Fix:** decode binary columns (`row["page_title"].decode("utf-8")` or set `use_unicode`/`charset` handling) at the cursor boundary in `_connect_db`/`get_project_pages`. Priority **Critical**.
 
@@ -201,13 +201,13 @@ PHP `REQUEST_DELAY = 500` is passed to Guzzle's `delay` request option, whose do
 
 ### 3.9 Edge cases / defaults already matched
 
--   `Limit` truncation, `Unknown` assessment fallback, empty‑config abort, mainspace‑reject heuristic (no `:` in Report), project‑existence check, 1M guard, `description` key removal, namespace‑4 assumption (`FIXME` in both): all preserved.
+- `Limit` truncation, `Unknown` assessment fallback, empty‑config abort, mainspace‑reject heuristic (no `:` in Report), project‑existence check, 1M guard, `description` key removal, namespace‑4 assumption (`FIXME` in both): all preserved.
 
 ### 3.10 PHP features easy to overlook during a rewrite
 
--   `getBotLastEditDate()` exists in **both** repos but is **dead code** (never called by any entry point). Ported faithfully but unused.
--   `apiQuery`'s retry‑once‑on‑exception wrapper is implicit in mwclient; ensure equivalent resilience if mwclient is ever swapped.
--   The PHP `getPageviews` 404‑as‑"omit" and "other error → omit" branches are both ported, but PHP's `reason->getCode()` only special‑cases 404; Python special‑cases 404 and logs other `HTTPStatusError`. Equivalent outcome; PHP's broad `continue` also silently drops truly unexpected errors (no log), whereas Python logs them. **Difference:** Python logs non‑404 HTTP errors (better observability).
+- `getBotLastEditDate()` exists in **both** repos but is **dead code** (never called by any entry point). Ported faithfully but unused.
+- `apiQuery`'s retry‑once‑on‑exception wrapper is implicit in mwclient; ensure equivalent resilience if mwclient is ever swapped.
+- The PHP `getPageviews` 404‑as‑"omit" and "other error → omit" branches are both ported, but PHP's `reason->getCode()` only special‑cases 404; Python special‑cases 404 and logs other `HTTPStatusError`. Equivalent outcome; PHP's broad `continue` also silently drops truly unexpected errors (no log), whereas Python logs them. **Difference:** Python logs non‑404 HTTP errors (better observability).
 
 ---
 
@@ -290,7 +290,7 @@ Percentages are reasoned estimates, not precise measurements. Basis: every PHP s
 | CLI: generateReport                            | `bin/generateReport.php`                            | `cli/generate_report.py`                     | `cli/`                    | Implemented differently   | argparse named args; same behavior                                                                                                  | Low           |
 | CLI: generateIndex                             | `bin/generateIndex.php`                             | `cli/generate_index.py`                      | `cli/`                    | Fully implemented         | —                                                                                                                                   | —             |
 | Wiki config (wikis.yaml)                       | `config/wikis.yaml`                                 | `config/wikis.yaml`                          | `config/`                 | Fully implemented         | Byte‑identical                                                                                                                      | —             |
-| Bot credentials config                         | `config.ini.example`                                | `.env.example`                              | `config/`                 | Implemented differently   | Now read from environment variables via python-dotenv; `dbport` defaults to `3306`                                                   | Low           |
+| Bot credentials config                         | `config.ini.example`                                | `.env.example`                               | `config/`                 | Implemented differently   | Now read from environment variables via python-dotenv; `dbport` defaults to `3306`                                                  | Low           |
 | Unit/integration tests                         | `tests/WikiRepositoryTest.php` (PHPUnit)            | `tests/test_*.py` (pytest)                   | `tests/`                  | **Partially implemented** | Clean checkout: 1 fail + 1 error; 2 live tests skipped                                                                              | Medium        |
 | CI pipeline                                    | `.github/workflows/php.yml` (phpcs)                 | `.github/workflows/python.yml` (ruff+pytest) | `.github/workflows/`      | Implemented differently   | Python CI runs tests (would currently fail)                                                                                         | Medium        |
 | Packaging/lint                                 | `composer.json`/`phpcs.xml`                         | `pyproject.toml`/ruff                        | repo root                 | Implemented differently   | 1:1 dependency mapping                                                                                                              | —             |
@@ -303,7 +303,6 @@ Percentages are reasoned estimates, not precise measurements. Basis: every PHP s
    A remarkably complete and structurally faithful port. Every PHP class, method, CLI script, template, and config file has a Python equivalent with identical control flow and (in the DB/SQL and template cases) frequently byte‑identical content. The `messages/*.json` and `config/wikis.yaml` are unchanged. New value was added: a proper `argparse` CLI, a real unit‑test suite with mocked Pageviews/DB paths, and a CI that actually runs tests.
 
 2. **The most significant differences between the implementations**
-
     - **DB driver typing:** mysqli (strings) vs PyMySQL (`bytes` for BINARY/VARBINARY) — the highest‑impact difference.
     - **Pageviews URL encoding:** absent in Python (confirmed silent 0‑counts for special‑character titles); present in PHP via `rawurlencode`.
     - **Concurrency/retry model:** Python `asyncio.gather` burst + `tenacity` (429/503 only, no `Retry-After`) vs PHP Guzzle promises + retry middleware (429/503 + timeouts + `Retry-After`).
@@ -312,21 +311,18 @@ Percentages are reasoned estimates, not precise measurements. Basis: every PHP s
     - **Edit section param:** Python `"0"` (lead) vs likely PHP `1`.
 
 3. **The biggest risks in the current rewrite**
-
     - The PyMySQL `bytes` issue can **crash** `checkReports`/`generateIndex` and **silently corrupt** pageview counts (Critical, §3.2/§4.1).
     - The URL‑encoding bug **silently undercounts** popular pages for any title with `&`, `/`, `?`, `#`, `+`, `%` (High, §3.1).
     - The test suite is **red in CI** (§3.3), so regressions can ship unnoticed.
     - The `section`/timezone/retry nuances (§3.4–3.7) can cause subtly wrong edits or throttling without any error.
 
 4. **The most important missing functionality**
-
     - Correct handling of `BINARY`/`VARBINARY` columns (decode to `str`) — blocks correct runtime behavior.
     - Percent‑encoding of article titles before building the Pageviews URL.
     - A green, meaningful test suite (gate `test_set_text`; fix `_process_response` expectation; add offline DB/Pageviews fixtures so the skipped paths are actually covered).
     - A decision + documentation on multi‑wiki `check` semantics.
 
 5. **Recommended implementation order**
-
     1. **Fix binary‑column decoding** (Critical) — smallest change, unblocks real runs.
     2. **Fix URL percent‑encoding** in `pageviews_repository` (High, confirmed).
     3. **Make tests green + add offline fixtures** for the currently‑skipped DB/Pageviews paths (Medium, but protects everything else).
@@ -343,6 +339,6 @@ Percentages are reasoned estimates, not precise measurements. Basis: every PHP s
 
 ### Evidence notes
 
--   **Confirmed by execution:** URL‑encoding behavior (`pageviews_repository` produced `…/user/A_&_B/C/…` → 0 views); `pytest` result (1 failed `test_process_response_no_items_returns_none`, 1 errored `test_set_text`); PyMySQL `bytes` interactions (`strptime(bytes)` → `TypeError`; `strptime(str(bytes))` → `ValueError`; f‑string with `bytes` → `b'…'` URL); `messages/*.json` and `config/wikis.yaml` are byte‑identical between repos (diff).
--   **Inference (high confidence, needs live verification):** PyMySQL returning `bytes` for `BINARY`/`VARBINARY` columns and the resulting runtime failures; Guzzle `delay` unit semantics; the PHP `section=true` → `section=1` serialization. These are based on documented library behavior and the MediaWiki schema, not on a live Toolforge run (no credentials/DB available in this environment).
--   **Unable to verify:** Live MediaWiki API + replica‑DB end‑to‑end behavior, real edit `section` outcome, and actual production request cadence, because they require credentials/network access not present here.
+- **Confirmed by execution:** URL‑encoding behavior (`pageviews_repository` produced `…/user/A_&_B/C/…` → 0 views); `pytest` result (1 failed `test_process_response_no_items_returns_none`, 1 errored `test_set_text`); PyMySQL `bytes` interactions (`strptime(bytes)` → `TypeError`; `strptime(str(bytes))` → `ValueError`; f‑string with `bytes` → `b'…'` URL); `messages/*.json` and `config/wikis.yaml` are byte‑identical between repos (diff).
+- **Inference (high confidence, needs live verification):** PyMySQL returning `bytes` for `BINARY`/`VARBINARY` columns and the resulting runtime failures; Guzzle `delay` unit semantics; the PHP `section=true` → `section=1` serialization. These are based on documented library behavior and the MediaWiki schema, not on a live Toolforge run (no credentials/DB available in this environment).
+- **Unable to verify:** Live MediaWiki API + replica‑DB end‑to‑end behavior, real edit `section` outcome, and actual production request cadence, because they require credentials/network access not present here.

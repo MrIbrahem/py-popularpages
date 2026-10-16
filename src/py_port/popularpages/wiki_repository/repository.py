@@ -16,13 +16,14 @@ import json
 import logging
 import re
 import time
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from pathlib import Path
 
 import httpx
 import mwclient
 import mwclient.errors
 import wikitextparser as wtp
+from mwclient.listing import RevisionsIterator
 
 from ..config import app_config
 from ..i18n import I18n
@@ -70,9 +71,11 @@ class WikiRepository:
         self.host = f"{wiki}.org"
 
         _config: dict = app_config.paths.load_wikis_config()
+
         self.wiki_config: dict = _config.get(wiki) or {}
         if not self.wiki_config:
             raise ValueError(f"Wiki {wiki} not found in config")
+
         logger.debug("Loaded wiki config: %s", self.wiki_config)
 
         self.wiki_config_page: str = self.wiki_config["config"]
@@ -431,6 +434,22 @@ class WikiRepository:
 
         logger.info("dry-run: wrote wikitext for '%s' to %s", page_title, out_path)
 
+    def get_page_revisions(self, title: str) -> OrderedDict | None:
+        """ """
+        logger.debug("Looking up bot's last edit date for '%s'", title)
+        page = self.site.pages[title]
+
+        revisions = page.revisions(
+            prop="timestamp",
+            user=self.username,
+            api_chunk_size=1,
+        )
+        # OrderedDict({'timestamp': time.struct_time(tm_year=2025, tm_mon=7, tm_mday=14, tm_hour=6, tm_min=47, tm_sec=25, tm_wday=0, tm_yday=195, tm_isdst=-1)})
+        if revisions:
+            for rev in revisions:
+                return rev  # pyright: ignore[reportReturnType]
+        return None
+
     def get_bot_last_edit_date(self, title: str) -> str:
         """
         Get the date the bot last edited the given page.
@@ -447,14 +466,14 @@ class WikiRepository:
         logger.debug("Looking up bot's last edit date for '%s'", title)
         page = self.site.pages[title]
 
-        revisions = page.revisions(
+        revisions: RevisionsIterator = page.revisions(
             prop="timestamp",
             user=self.username,
             api_chunk_size=1,
         )
         if revisions:
             for rev in revisions:
-                timestamp: time.struct_time = rev["timestamp"]
+                timestamp: time.struct_time = rev["timestamp"]  # type: ignore
                 date_str = time.strftime("%Y-%m-%d", timestamp)
                 logger.debug("Bot last edited '%s' on %s", title, date_str)
                 return date_str
