@@ -8,7 +8,9 @@ matching the original PHP suite's approach -- they require valid credentials
 
 """
 
+from collections import OrderedDict
 import json
+import time
 from datetime import datetime
 from unittest.mock import MagicMock
 
@@ -69,6 +71,19 @@ class TestGetBotLastEditDate:
         repo = WikiRepository(dry_run=True)
         result1 = repo.get_bot_last_edit_date("Wikipedia:WikiProject A Song of Ice and Fire/Popular pages")
         assert result1 == "2026-08-04"
+
+
+class TestGetPageRevisions:
+    """Tests for `get_page_revisions`."""
+
+    @pytest.mark.network
+    def test_basic(self):
+        repo = WikiRepository(wiki="ar.wikipedia", dry_run=True)
+        result1 = repo.get_page_revisions("ويكيبيديا:ملعب")
+        # OrderedDict({'timestamp': time.struct_time(tm_year=2025, tm_mon=7, tm_mday=14, tm_hour=6, tm_min=47, tm_sec=25, tm_wday=0, tm_yday=195, tm_isdst=-1)})
+        assert isinstance(result1, OrderedDict)
+        assert result1["timestamp"] is not None
+        assert isinstance(result1["timestamp"], time.struct_time)
 
 
 class TestWriteWikiText:

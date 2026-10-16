@@ -1,8 +1,8 @@
 python-dotenv>=1.0
 pytest>=9.0.2
 pytest_socket>=0.8.0
-pytest-cov=>7.1.0
-pytest-mock=>3.16.0
-pytest-asyncio=>1.4.0
-pytest-xdist=>3.8.0
-pytest-anyio=>4.15.1
+pytest-cov>=7.1.0
+pytest-mock>=3.16.0
+pytest-asyncio>=1.4.0
+pytest-xdist>=3.8.0
+pytest-anyio>=4.15.1
