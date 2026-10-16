@@ -12,3 +12,4 @@ tenacity
 jinja2
 colorlog
 tqdm
+asyncio
