@@ -157,7 +157,6 @@ class TestQueryTitlesCache:
 # one_title_views
 # ---------------------------------------------------
 class TestOneTitleViews:
-
     def test_empty_target_and_no_redirects_returns_zero(self, load_db: PageviewsDb):
         assert load_db.one_title_views("") is None
 

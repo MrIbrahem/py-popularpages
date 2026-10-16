@@ -132,6 +132,7 @@ from pathlib import Path
 
 LOG_DIR = Path(__file__).parent.parent.parent / "logs"
 
+
 def log_to_file(message: str, wiki: str) -> None:
     log_path = LOG_DIR / f"log-{wiki}.txt"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -155,6 +156,7 @@ import re
 from pathlib import Path
 
 MESSAGES_DIR = Path(__file__).parent.parent.parent / "messages"
+
 
 class I18n:
     def __init__(self, lang: str = "en"):
@@ -194,8 +196,10 @@ from .logger import log_to_file
 ENDPOINT = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article"
 REQUEST_DELAY_SECONDS = 0.5  # matches PHP's REQUEST_DELAY = 500ms
 
+
 def _is_retryable(exc: BaseException) -> bool:
     return isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in (429, 503)
+
 
 class PageviewsRepository:
     def __init__(self, domain: str):
@@ -281,14 +285,13 @@ from .pageviews_repository import PageviewsRepository
 
 BASE_DIR = Path(__file__).parent.parent.parent
 
+
 class WikiRepository:
     def __init__(self, wiki: str = "en.wikipedia", dry_run: bool = False):
         self.wiki = wiki
         self.dry_run = dry_run
         self.creds = self._load_credentials()
-        self.wiki_config = yaml.safe_load(
-            (BASE_DIR / "config" / "wikis.yaml").read_text()
-        )[wiki]
+        self.wiki_config = yaml.safe_load((BASE_DIR / "config" / "wikis.yaml").read_text())[wiki]
 
         lang = wiki.split(".")[0]
         self.i18n = I18n(lang)
@@ -306,18 +309,19 @@ class WikiRepository:
 **`doesTitleExist` / `hasLeadSection`:**
 
 ```python
-    def does_title_exist(self, title: str) -> bool:
-        result = self.site.api("query", titles=title, formatversion=2)
-        for page in result["query"]["pages"]:
-            if "missing" in page or "invalid" in page:
-                return False
-        return True
-
-    def has_lead_section(self, title: str) -> bool:
-        if not self.does_title_exist(title):
+def does_title_exist(self, title: str) -> bool:
+    result = self.site.api("query", titles=title, formatversion=2)
+    for page in result["query"]["pages"]:
+        if "missing" in page or "invalid" in page:
             return False
-        result = self.site.api("parse", page=title, prop="sections", formatversion=2)
-        return bool(result.get("parse", {}).get("sections"))
+    return True
+
+
+def has_lead_section(self, title: str) -> bool:
+    if not self.does_title_exist(title):
+        return False
+    result = self.site.api("parse", page=title, prop="sections", formatversion=2)
+    return bool(result.get("parse", {}).get("sections"))
 ```
 
 `mwclient.Site.api()` is the direct equivalent of `WikiRepository::apiQuery()`
@@ -330,46 +334,47 @@ calls needing custom retry — see §7 below).
 **Database access (unchanged logic, `PyMySQL` instead of `mysqli`):**
 
 ```python
-    def _connect_db(self):
-        db_name = self.wiki_config["database"].removesuffix("_p")
-        host = self.creds["dbhost"].replace("*", db_name)
-        return pymysql.connect(
-            host=host,
-            user=self.creds["dbuser"],
-            password=self.creds["dbpass"],
-            database=f"{db_name}_p",
-            port=int(self.creds["dbport"]),
-            cursorclass=pymysql.cursors.DictCursor,
-        )
+def _connect_db(self):
+    db_name = self.wiki_config["database"].removesuffix("_p")
+    host = self.creds["dbhost"].replace("*", db_name)
+    return pymysql.connect(
+        host=host,
+        user=self.creds["dbuser"],
+        password=self.creds["dbpass"],
+        database=f"{db_name}_p",
+        port=int(self.creds["dbport"]),
+        cursorclass=pymysql.cursors.DictCursor,
+    )
 
-    def get_project_pages(self, project: str) -> list[dict]:
-        log_to_file(f"Fetching pages and assessments for project {project}", self.wiki)
-        conn = self._connect_db()
-        try:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    """
-                    SELECT page_title, pa_class, pa_importance, (
-                        SELECT rp.page_title
-                        FROM page rp
-                        WHERE rd_from = page_id
-                        AND rp.page_namespace = 0
-                    ) AS redir_title
-                    FROM page
-                    JOIN page_assessments ON page_id = pa_page_id
-                    LEFT OUTER JOIN redirect ON rd_title = page_title AND rd_namespace = 0
-                    WHERE pa_project_id = (
-                        SELECT pap_project_id
-                        FROM page_assessments_projects
-                        WHERE pap_project_title = %s
-                    )
-                    AND page_namespace = 0
-                    """,
-                    (project,),
+
+def get_project_pages(self, project: str) -> list[dict]:
+    log_to_file(f"Fetching pages and assessments for project {project}", self.wiki)
+    conn = self._connect_db()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT page_title, pa_class, pa_importance, (
+                    SELECT rp.page_title
+                    FROM page rp
+                    WHERE rd_from = page_id
+                    AND rp.page_namespace = 0
+                ) AS redir_title
+                FROM page
+                JOIN page_assessments ON page_id = pa_page_id
+                LEFT OUTER JOIN redirect ON rd_title = page_title AND rd_namespace = 0
+                WHERE pa_project_id = (
+                    SELECT pap_project_id
+                    FROM page_assessments_projects
+                    WHERE pap_project_title = %s
                 )
-                return cursor.fetchall()
-        finally:
-            conn.close()
+                AND page_namespace = 0
+                """,
+                (project,),
+            )
+            return cursor.fetchall()
+    finally:
+        conn.close()
 ```
 
 **`getMonthlyPageviewsAndAssessments` — batching logic preserved exactly:**
@@ -380,56 +385,58 @@ approximation, not a hard API limit) before calling
 API's rate limit. Port this 1:1:
 
 ```python
-    async def get_monthly_pageviews_and_assessments(
-        self, rows: list[dict], start: str, end: str, limit: int
-    ) -> tuple[dict, int]:
-        log_to_file("Fetching monthly pageviews", self.wiki)
+async def get_monthly_pageviews_and_assessments(
+    self, rows: list[dict], start: str, end: str, limit: int
+) -> tuple[dict, int]:
+    log_to_file("Fetching monthly pageviews", self.wiki)
 
-        out: dict[str, dict] = {}
-        batch: dict[str, list[str]] = {}
-        batch_count = 0
-        total_pageviews = 0
-        num_results = len(rows)
+    out: dict[str, dict] = {}
+    batch: dict[str, list[str]] = {}
+    batch_count = 0
+    total_pageviews = 0
+    num_results = len(rows)
 
-        for index, row in enumerate(rows, start=1):
-            target = row["page_title"].replace("_", " ")
-            redir = (row["redir_title"] or "").replace("_", " ")
+    for index, row in enumerate(rows, start=1):
+        target = row["page_title"].replace("_", " ")
+        redir = (row["redir_title"] or "").replace("_", " ")
 
-            if target not in out:
-                unknown_msg = self.i18n.msg("unknown")
-                out[target] = {
-                    "pageviews": 0,
-                    "class": row["pa_class"] or unknown_msg,
-                    "importance": row["pa_importance"] or unknown_msg,
-                }
+        if target not in out:
+            unknown_msg = self.i18n.msg("unknown")
+            out[target] = {
+                "pageviews": 0,
+                "class": row["pa_class"] or unknown_msg,
+                "importance": row["pa_importance"] or unknown_msg,
+            }
 
-            if target not in batch:
-                batch[target] = [target, redir]
-            else:
-                batch[target].append(redir)
+        if target not in batch:
+            batch[target] = [target, redir]
+        else:
+            batch[target].append(redir)
 
-            batch_count += 1
-            if batch_count > 60:
-                log_to_file(f"Processing page {index} of {num_results}", self.wiki)
-                total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
-                batch_count = 0
+        batch_count += 1
+        if batch_count > 60:
+            log_to_file(f"Processing page {index} of {num_results}", self.wiki)
+            total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
+            batch_count = 0
 
-        total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
-        log_to_file("Pageviews fetch complete", self.wiki)
+    total_pageviews = await self._process_batch(batch, out, start, end, total_pageviews)
+    log_to_file("Pageviews fetch complete", self.wiki)
 
-        return self._sort_and_truncate_pages_list(out, limit), total_pageviews
+    return self._sort_and_truncate_pages_list(out, limit), total_pageviews
 
-    async def _process_batch(self, batch, out, start, end, total_pageviews):
-        batch_result = await self.pageviews_repo.get_pageviews(batch, start, end)
-        for title, count in batch_result.items():
-            out[title]["pageviews"] += count
-            total_pageviews += count
-            batch[title] = []
-        return total_pageviews
 
-    def _sort_and_truncate_pages_list(self, out: dict, limit: int) -> dict:
-        sorted_items = sorted(out.items(), key=lambda kv: kv[1]["pageviews"], reverse=True)
-        return dict(sorted_items[:limit])
+async def _process_batch(self, batch, out, start, end, total_pageviews):
+    batch_result = await self.pageviews_repo.get_pageviews(batch, start, end)
+    for title, count in batch_result.items():
+        out[title]["pageviews"] += count
+        total_pageviews += count
+        batch[title] = []
+    return total_pageviews
+
+
+def _sort_and_truncate_pages_list(self, out: dict, limit: int) -> dict:
+    sorted_items = sorted(out.items(), key=lambda kv: kv[1]["pageviews"], reverse=True)
+    return dict(sorted_items[:limit])
 ```
 
 **`setText` — using `mwclient` page editing:**
@@ -499,6 +506,7 @@ from .logger import log_to_file
 
 VIEWS_DIR = BASE_DIR / "views"
 
+
 class ReportUpdater:
     def __init__(self, wiki: str = "en.wikipedia", dry_run: bool = False):
         self.wiki_repository = WikiRepository(wiki, dry_run)
@@ -549,6 +557,7 @@ import yaml
 from popularpages.report_updater import ReportUpdater
 from popularpages.wiki_repository import BASE_DIR
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
@@ -559,6 +568,7 @@ def main():
         updater = ReportUpdater(wiki, dry_run=args.dry_run)
         stale_config = updater.wiki_repository.get_stale_projects()
         asyncio.run(updater.update_reports(stale_config))
+
 
 if __name__ == "__main__":
     main()
@@ -636,9 +646,11 @@ syntax adjustments when renamed to `.jinja`:
 import pytest
 from popularpages.wiki_repository import WikiRepository
 
+
 @pytest.fixture
 def wiki_repository():
     return WikiRepository()
+
 
 def test_does_title_exist(wiki_repository):
     assert wiki_repository.does_title_exist("Barack Obama")
@@ -646,24 +658,22 @@ def test_does_title_exist(wiki_repository):
     assert not wiki_repository.does_title_exist("DumDeeDooDum")
     assert not wiki_repository.does_title_exist("Invalid title")
 
+
 def test_has_lead_section(wiki_repository):
     assert wiki_repository.has_lead_section("Wikipedia:WikiProject Medicine/Popular pages")
-    assert not wiki_repository.has_lead_section(
-        "User:Community Tech bot/Popular pages config.json"
-    )
+    assert not wiki_repository.has_lead_section("User:Community Tech bot/Popular pages config.json")
+
 
 @pytest.mark.skip(reason="disabled upstream in PHP version too (er-prefixed)")
-def test_get_project_pages(wiki_repository):
-    ...
+def test_get_project_pages(wiki_repository): ...
+
 
 @pytest.mark.skip(reason="disabled upstream in PHP version too (er-prefixed)")
-def test_get_monthly_pageviews(wiki_repository):
-    ...
+def test_get_monthly_pageviews(wiki_repository): ...
+
 
 def test_set_text(wiki_repository):
-    result = wiki_repository.set_text(
-        "User:NKohli (WMF)/sandbox", "Hi there! This is a test"
-    )
+    result = wiki_repository.set_text("User:NKohli (WMF)/sandbox", "Hi there! This is a test")
     assert result["edit"]["result"] == "Success"
 ```
 

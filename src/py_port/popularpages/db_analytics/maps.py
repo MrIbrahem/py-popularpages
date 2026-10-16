@@ -90,7 +90,6 @@ class WikiReplicaMaps:
                 user=app_config.db.user,
                 password=app_config.db.password,
             ) as meta_db:
-
                 results = meta_db.select(query)
                 for row in results:
                     # We can index by dbname and lang (if family is wikipedia)
