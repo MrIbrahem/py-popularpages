@@ -22,8 +22,8 @@ from pathlib import Path
 import httpx
 import mwclient
 import mwclient.errors
-from mwclient.listing import RevisionsIterator
 import wikitextparser as wtp
+from mwclient.listing import RevisionsIterator
 
 from ..config import app_config
 from ..i18n import I18n

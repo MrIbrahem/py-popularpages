@@ -8,9 +8,9 @@ matching the original PHP suite's approach -- they require valid credentials
 
 """
 
-from collections import OrderedDict
 import json
 import time
+from collections import OrderedDict
 from datetime import datetime
 from unittest.mock import MagicMock
 
