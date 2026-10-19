@@ -30,7 +30,7 @@ asyncio_mode = "auto"
 # ============================================
 [tool.black]
 line-length = 120
-target-version = ["py312"]
+target-version = ["py313"]
 # include = '\.pyi?$'
 exclude = '''
     /(
@@ -208,7 +208,7 @@ select = [
 line_length = 120
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
@@ -226,10 +226,10 @@ disable = [
 [tool.pyright]
 reportIncompatibleMethodOverride = "none"
 # Target Python version for type analysis
-pythonVersion = "3.12"
+pythonVersion = "3.13"
 stubPath = "typings"
 # Paths to include and exclude from checking
-include = ["src", "src/new"]
+include = ["src"]
 exclude = [
     # System & Version Control
     "**/$RECYCLE.BIN/**",
@@ -331,4 +331,3 @@ reportOptionalSubscript = "warning"
 # the whole src/shared package is still ~80.5% (>= 80%).
 [tool.coverage.run]
 omit = ["src/shared/cos/cosmetic_new.py"]
-
