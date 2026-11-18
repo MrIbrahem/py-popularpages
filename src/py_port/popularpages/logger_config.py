@@ -71,10 +71,11 @@ def setup_logging(
     project_logger.setLevel(numeric_level)
     project_logger.propagate = False
 
+    fmt = "%(asctime)s - %(name)s - %(log_color)s%(levelname)-s %(reset)s- [%(funcName)s:%(lineno)d] - %(message)s"
     if use_colorlog:
         console_formatter = colorlog.ColoredFormatter(
             # Standard format: Time - Name - Level - [File:Line] - Message
-            fmt="%(asctime)s - %(name)s - %(log_color)s%(levelname)-s %(reset)s- [%(funcName)s:%(lineno)d] - %(message)s",
+            fmt=fmt,
             datefmt="%H:%M:%S",
             log_colors={
                 "DEBUG": "cyan",
